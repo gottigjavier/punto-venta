@@ -1,0 +1,141 @@
+# podman-compose.prod.yml
+# Punto de Venta - Production Environment
+# Usage: podman compose -f podman-compose.prod.yml up -d --build
+
+services:
+  # ──────────────────────────────────────────────
+  # PostgreSQL Database
+  # ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: pv-db-prod
+    restart: unless-stopped
+    # No port mapping in production — only accessible via internal network
+    environment:
+      POSTGRES_DB: punto_venta
+      POSTGRES_USER: ${POSTGRES_USER:-pv_user}
+    secrets:
+      - db_password
+    volumes:
+      - pv-postgres-data:/var/lib/postgresql/data
+      - ./scripts/backup-init.sh:/docker-entrypoint-initdb.d/01-backup-setup.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pv_user} -d punto_venta"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - pv-network
+
+  # ──────────────────────────────────────────────
+  # Redis (rate limiting, sessions, caching)
+  # ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: pv-redis-prod
+    restart: unless-stopped
+    # No port mapping in production
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - pv-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - pv-network
+
+  # ──────────────────────────────────────────────
+  # Fastify API
+  # ──────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: api/Containerfile
+      args:
+        - NODE_ENV=production
+    container_name: pv-api-prod
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-pv_user}:@db:5432/punto_venta
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - REDIS_URL=redis://redis:6379
+      - API_PORT=3001
+      - FRONTEND_URL=${FRONTEND_URL:-https://localhost}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-3600000}
+      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-10}
+      - MAX_LOGIN_ATTEMPTS=${MAX_LOGIN_ATTEMPTS:-3}
+      - LOCKOUT_DURATION_MINUTES=${LOCKOUT_DURATION_MINUTES:-30}
+    secrets:
+      - db_password
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - pv-network
+
+# ──────────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────────
+volumes:
+  pv-postgres-data:
+    driver: local
+  pv-redis-data:
+    driver: local
+
+# ──────────────────────────────────────────────
+# Secrets (never hardcode passwords)
+# ──────────────────────────────────────────────
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+
+# ──────────────────────────────────────────────
+# Internal network (services communicate here)
+# ──────────────────────────────────────────────
+networks:
+  pv-network:
+    driver: bridge

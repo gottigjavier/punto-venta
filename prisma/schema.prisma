@@ -1,0 +1,143 @@
+// prisma/schema.prisma
+// Punto de Venta - Schema completo
+// Fase 1: Fundamentos
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== ENUMS ====================
+
+enum Rol {
+  admin
+  gerente
+  despachador
+}
+
+enum UnidadMedida {
+  unidad
+  kg
+  g
+  l
+  ml
+}
+
+enum EstadoVenta {
+  pendiente
+  completada
+  cancelada
+}
+
+// ==================== MODELS ====================
+
+model Usuario {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre_usuario    String    @db.VarChar(100)
+  nik_usuario       String    @unique @db.VarChar(50)
+  password_hash     String    @db.VarChar(255)
+  email             String    @unique @db.VarChar(255)
+  telefono          String?   @db.VarChar(20)
+  rol               Rol
+  activo            Boolean   @default(true)
+  intentos_fallidos Int       @default(0)
+  bloqueado_hasta   DateTime? @db.Timestamptz()
+  created_at        DateTime  @default(now()) @db.Timestamptz()
+  updated_at        DateTime? @db.Timestamptz()
+
+  ventas Venta[]
+
+  @@index([nik_usuario])
+  @@index([email])
+  @@index([rol])
+}
+
+model Producto {
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre               String      @db.VarChar(200)
+  codigo               String      @db.VarChar(50)
+  cantidad_disponible  Decimal     @db.Decimal(10, 3) @default(0)
+  cantidad_aviso       Decimal     @db.Decimal(10, 3) @default(0)
+  precio_compra        Decimal     @db.Decimal(10, 2) @default(0)
+  precio_venta         Decimal     @db.Decimal(10, 2) @default(0)
+  rubro_id             String      @db.Uuid
+  proveedor_id         String      @db.Uuid
+  fecha_compra         DateTime?   @db.Date()
+  fecha_vencimiento    DateTime?   @db.Date()
+  numero_remesa        String?     @db.VarChar(50)
+  unidad_medida        UnidadMedida @default(unidad)
+  created_at           DateTime    @default(now()) @db.Timestamptz()
+  updated_at           DateTime?   @db.Timestamptz()
+
+  rubro         Rubro          @relation(fields: [rubro_id], references: [id])
+  proveedor     Proveedor      @relation(fields: [proveedor_id], references: [id])
+  detalles_venta DetalleVenta[]
+
+  @@index([nombre])
+  @@index([codigo])
+  @@index([fecha_vencimiento])
+  @@index([rubro_id])
+  @@index([proveedor_id])
+}
+
+model Proveedor {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  razon_social    String   @db.VarChar(200)
+  representante   String?  @db.VarChar(150)
+  cuit            String?  @unique @db.VarChar(13)
+  direccion_postal String? @db.Text()
+  email           String?  @db.VarChar(255)
+  telefonos       Json?    // Array de strings
+  created_at      DateTime @default(now()) @db.Timestamptz()
+  updated_at      DateTime? @db.Timestamptz()
+
+  productos Producto[]
+
+  @@index([razon_social])
+  @@index([cuit])
+}
+
+model Rubro {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre      String   @unique @db.VarChar(100)
+  descripcion String?  @db.Text()
+  activo      Boolean  @default(true)
+
+  productos Producto[]
+
+  @@index([nombre])
+}
+
+model Venta {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id String      @db.Uuid
+  total      Decimal     @db.Decimal(12, 2)
+  estado     EstadoVenta @default(pendiente)
+  created_at DateTime    @default(now()) @db.Timestamptz()
+
+  usuario        Usuario        @relation(fields: [usuario_id], references: [id])
+  detalles_venta DetalleVenta[]
+
+  @@index([usuario_id])
+  @@index([created_at])
+  @@index([estado])
+}
+
+model DetalleVenta {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venta_id         String  @db.Uuid
+  producto_id      String  @db.Uuid
+  cantidad         Decimal @db.Decimal(10, 3)
+  precio_unitario  Decimal @db.Decimal(10, 2)
+  subtotal         Decimal @db.Decimal(12, 2)
+
+  venta    Venta    @relation(fields: [venta_id], references: [id])
+  producto Producto @relation(fields: [producto_id], references: [id])
+
+  @@index([venta_id])
+  @@index([producto_id])
+}

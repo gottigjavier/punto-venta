@@ -1,0 +1,59 @@
+# .containerignore
+# Excludes from container build context (Podman)
+# Mirrors .gitignore + additional exclusions
+
+# Version control
+.git/
+.gitignore
+.jj/
+.jjignore
+
+# Dependencies (reinstall in container)
+node_modules/
+
+# Build artifacts (rebuild in container)
+dist/
+
+# Environment files (never in images)
+.env
+.env.*
+!.env.example
+
+# Tests and reports
+tests/
+__tests__/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+coverage/
+
+# Documentation
+*.md
+docs/
+!README.md
+
+# IDE and editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Podman/Docker compose files (not needed inside image)
+podman-compose*.yml
+
+# CI/CD
+.github/
+
+# Scripts (not needed in image)
+scripts/
+
+# Secrets (never in images)
+secrets/
+*.pem
+*.key

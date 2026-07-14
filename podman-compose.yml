@@ -1,0 +1,82 @@
+# podman-compose.yml
+# Punto de Venta - Development Environment
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: pv-database
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: punto_venta_dev
+    volumes:
+      - pv-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Redis for rate limiting and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: pv-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - pv-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # Fastify API
+  api:
+    build:
+      context: .
+      dockerfile: api/Containerfile
+    container_name: pv-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/punto_venta_dev
+      - JWT_SECRET=dev-secret-key-for-jwt-tokens-minimum-32-characters
+      - JWT_REFRESH_SECRET=dev-secret-key-for-refresh-tokens-minimum-32-characters
+      - REDIS_URL=redis://redis:6379
+      - API_PORT=3001
+      - FRONTEND_URL=http://localhost:3000
+      - RATE_LIMIT_WINDOW_MS=3600000
+      - RATE_LIMIT_MAX_REQUESTS=10
+      - MAX_LOGIN_ATTEMPTS=3
+      - LOCKOUT_DURATION_MINUTES=30
+      - LOG_LEVEL=debug
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+      - ./prisma:/app/prisma:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  pv-postgres-data:
+    driver: local
+  pv-redis-data:
+    driver: local

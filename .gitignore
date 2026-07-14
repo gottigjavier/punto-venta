@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.development
+.env.production
+.env.local
+*.log
+coverage/
+.prisma/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Phase 5: Operations
+secrets/
+backups/

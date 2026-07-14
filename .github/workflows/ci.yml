@@ -1,0 +1,227 @@
+# .github/workflows/ci.yml
+# CI/CD Pipeline - Punto de Venta
+# Uses Podman instead of Docker, Jujutsu for VCS
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Job 1: Lint & Type Check
+  # ──────────────────────────────────────────────
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npm run lint
+
+  # ──────────────────────────────────────────────
+  # Job 2: Unit & Integration Tests
+  # ──────────────────────────────────────────────
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: punto_venta_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d punto_venta_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run Prisma migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/punto_venta_test
+
+      - name: Run unit tests
+        run: npm run test:run
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/punto_venta_test
+          JWT_SECRET: test-jwt-secret-minimum-32-characters-long
+          JWT_REFRESH_SECRET: test-jwt-refresh-secret-minimum-32-chars
+          REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+          API_PORT: 3001
+          FRONTEND_URL: http://localhost:3000
+
+  # ──────────────────────────────────────────────
+  # Job 3: E2E Tests (with Podman)
+  # ──────────────────────────────────────────────
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Verify Podman installation
+        run: podman --version
+
+      - name: Build containers
+        run: podman compose build
+
+      - name: Start services
+        run: podman compose up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services..."
+          for i in $(seq 1 30); do
+            if podman compose ps | grep -q "healthy"; then
+              echo "Services are healthy"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run database migrations
+        run: podman compose exec -T api npx prisma migrate deploy
+
+      - name: Run E2E tests
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          podman compose logs api > api-logs.txt 2>&1 || true
+          podman compose logs db > db-logs.txt 2>&1 || true
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: |
+            api-logs.txt
+            db-logs.txt
+          retention-days: 5
+
+      - name: Shutdown services
+        if: always()
+        run: podman compose down -v
+
+  # ──────────────────────────────────────────────
+  # Job 4: Build & Push Container Images
+  # ──────────────────────────────────────────────
+  build:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [test, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Login to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Extract version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Build API image
+        run: |
+          podman build \
+            --file api/Containerfile \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api:${{ steps.version.outputs.version }} \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api:latest \
+            --label "version=${{ steps.version.outputs.version }}" \
+            --label "git-sha=${{ steps.version.outputs.short_sha }}" \
+            --label "build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            .
+
+      - name: Push API image (versioned)
+        run: |
+          podman push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api:${{ steps.version.outputs.version }}
+
+      - name: Push API image (latest)
+        run: |
+          podman push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api:latest
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

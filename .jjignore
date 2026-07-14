@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.development
+.env.production
+.env.local
+*.log
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
