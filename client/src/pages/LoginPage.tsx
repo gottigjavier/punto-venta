@@ -22,8 +22,8 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(nik, password);
-      // Despachador has no Dashboard access; land on Ventas (POS) by default.
-      navigate(user?.rol === 'despachador' ? '/ventas' : '/dashboard', { replace: true });
+      // Default landing section is Ventas for every role.
+      navigate('/ventas', { replace: true });
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err

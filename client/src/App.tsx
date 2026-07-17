@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from '@/features/auth/AuthContext';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { LoginPage } from '@/pages/LoginPage';
-import { DashboardPage } from '@/pages/DashboardPage';
 import { ProductsPage } from '@/pages/ProductsPage';
 import { ProveedoresPage } from '@/pages/ProveedoresPage';
 import { RubrosPage } from '@/pages/RubrosPage';
@@ -21,7 +20,7 @@ const ROLE_ALLOWED_PATHS: Record<string, string[]> = {
 };
 
 function homeForRole(rol?: string): string {
-  return rol === 'despachador' ? '/ventas' : '/dashboard';
+  return '/ventas';
 }
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -70,7 +69,6 @@ export function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/productos" element={<ProductsPage />} />
             <Route path="/proveedores" element={<ProveedoresPage />} />
             <Route path="/rubros" element={<RubrosPage />} />

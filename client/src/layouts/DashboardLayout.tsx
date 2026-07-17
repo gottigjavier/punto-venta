@@ -2,7 +2,6 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/AuthContext';
 import {
-  LayoutDashboard,
   Package,
   Truck,
   Tags,
@@ -20,13 +19,12 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useState } from 'react';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/ventas', label: 'Ventas', icon: ShoppingCart },
   { href: '/productos', label: 'Productos', icon: Package },
   { href: '/proveedores', label: 'Proveedores', icon: Truck },
   { href: '/rubros', label: 'Rubros', icon: Tags },
   { href: '/usuarios', label: 'Usuarios', icon: Users },
   { href: '/stock', label: 'Stock', icon: Warehouse },
-  { href: '/ventas', label: 'Ventas', icon: ShoppingCart },
 ];
 
 // Sections visible per role. Despachador only sees Stock + Ventas (POS).
