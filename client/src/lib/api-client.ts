@@ -190,6 +190,33 @@ export interface CierresQueryParams {
   order?: 'asc' | 'desc';
 }
 
+/** Una fila aplanada de venta del cierre (una por línea de producto) */
+export interface VentaCierreFila {
+  id_venta: string;
+  vendedor: string;
+  producto: string;
+  cantidad: number;
+  monto: number;
+}
+
+/** Respuesta del endpoint GET /cierres/:id/ventas */
+export interface VentaCierreRespuesta {
+  rows: VentaCierreFila[];
+  total_monto: number;
+  total_filas: number;
+}
+
+/** Query params para GET /cierres/:id/ventas */
+export interface VentaCierreQueryParams {
+  id_venta?: string;
+  vendedor?: string;
+  producto?: string;
+  monto_min?: number;
+  monto_max?: number;
+  sort?: 'cantidad' | 'monto' | 'id_venta';
+  order?: 'asc' | 'desc';
+}
+
 export const cierresApi = {
   list: (params?: CierresQueryParams) =>
     api.get<ApiResponse<CierreListItem[]>>('/ventas/cierres', { params }),
@@ -197,6 +224,8 @@ export const cierresApi = {
     api.get<ApiResponse<CierreDetail>>(`/ventas/cierres/${id}`),
   exportCsv: (id: string) =>
     api.get(`/ventas/cierres/${id}/csv`, { responseType: 'blob' }),
+  getVentas: (cierreId: string, params?: VentaCierreQueryParams) =>
+    api.get<ApiResponse<VentaCierreRespuesta>>(`/ventas/cierres/${cierreId}/ventas`, { params }),
 };
 
 // Ventas

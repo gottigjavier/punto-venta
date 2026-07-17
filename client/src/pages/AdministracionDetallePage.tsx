@@ -2,14 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   cierresApi,
-  type CierreDetail,
-  type CierreDetalle,
+  type VentaCierreFila,
+  type VentaCierreQueryParams,
 } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -18,13 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   ArrowLeft,
   RefreshCw,
@@ -35,88 +27,26 @@ import {
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
-// Helpers (copiados de AdministracionPage — funciones puras)
+// Helpers
 // ---------------------------------------------------------------------------
 
 function formatCurrency(value: number): string {
   return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const VENTA_COLORS = ['text-blue-600', 'text-emerald-600', 'text-amber-600', 'text-rose-600'];
 
-function estadoBadge(estado: string) {
-  switch (estado) {
-    case 'cerrado':
-      return <Badge variant="success">Cerrado</Badge>;
-    case 'abierto':
-      return <Badge variant="outline">Abierto</Badge>;
-    default:
-      return <Badge variant="secondary">{estado}</Badge>;
+/** Build a sequential color map: each unique id_venta gets the next palette index (cyclical every 4). */
+function buildColorMap(rows: VentaCierreFila[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  let idx = 0;
+  for (const r of rows) {
+    if (!(r.id_venta in map)) {
+      map[r.id_venta] = idx % VENTA_COLORS.length;
+      idx++;
+    }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface DetalleFilters {
-  tipo: string;
-  nombre: string;
-  montoMin: string;
-  montoMax: string;
-}
-
-interface SortConfig {
-  campo: 'cantidad' | 'monto_total';
-  dir: 'asc' | 'desc';
-}
-
-// ---------------------------------------------------------------------------
-// Pure logic (exportable for tests)
-// ---------------------------------------------------------------------------
-
-export function aplicarFiltrosOrden(
-  detalles: CierreDetalle[],
-  filtros: DetalleFilters,
-  sort: SortConfig,
-): CierreDetalle[] {
-  let result = [...detalles];
-
-  if (filtros.tipo) {
-    result = result.filter((d) => d.tipo === filtros.tipo);
-  }
-
-  if (filtros.nombre) {
-    const needle = filtros.nombre.toLowerCase();
-    result = result.filter((d) => d.nombre.toLowerCase().includes(needle));
-  }
-
-  if (filtros.montoMin) {
-    const min = parseFloat(filtros.montoMin);
-    if (!isNaN(min)) result = result.filter((d) => d.monto_total >= min);
-  }
-
-  if (filtros.montoMax) {
-    const max = parseFloat(filtros.montoMax);
-    if (!isNaN(max)) result = result.filter((d) => d.monto_total <= max);
-  }
-
-  result.sort((a, b) => {
-    const valA = a[sort.campo];
-    const valB = b[sort.campo];
-    return sort.dir === 'asc' ? valA - valB : valB - valA;
-  });
-
-  return result;
+  return map;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,93 +54,126 @@ export function aplicarFiltrosOrden(
 // ---------------------------------------------------------------------------
 
 export function AdministracionDetallePage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: cierreId } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  // State
-  const [cierre, setCierre] = useState<CierreDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<'not_found' | 'network' | null>(null);
-  const [filtros, setFiltros] = useState<DetalleFilters>({
-    tipo: '',
-    nombre: '',
+  // State — split: filtrosInput (UI) vs filtrosAplicados (fetch triggers)
+  const [filtrosInput, setFiltrosInput] = useState({
+    idVenta: '',
+    vendedor: '',
+    producto: '',
     montoMin: '',
     montoMax: '',
   });
-  const [sort, setSort] = useState<SortConfig>({ campo: 'monto_total', dir: 'desc' });
-  const [exporting, setExporting] = useState(false);
+  const [filtrosAplicados, setFiltrosAplicados] = useState({
+    idVenta: '',
+    vendedor: '',
+    producto: '',
+    montoMin: '',
+    montoMax: '',
+  });
+  const [sort, setSort] = useState<{
+    campo: 'cantidad' | 'monto' | 'id_venta';
+    dir: 'asc' | 'desc';
+  }>({ campo: 'id_venta', dir: 'asc' });
+  const [datos, setDatos] = useState<VentaCierreFila[]>([]);
+  const [totalMonto, setTotalMonto] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<'not_found' | null>(null);
 
-  // Load cierre on mount
+  // Fetch sales rows on mount + applied filter/sort changes
   useEffect(() => {
-    if (!id) {
+    if (!cierreId) {
       setError('not_found');
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
+
+    const params: VentaCierreQueryParams = {};
+    if (filtrosAplicados.idVenta) params.id_venta = filtrosAplicados.idVenta;
+    if (filtrosAplicados.vendedor) params.vendedor = filtrosAplicados.vendedor;
+    if (filtrosAplicados.producto) params.producto = filtrosAplicados.producto;
+    if (filtrosAplicados.montoMin) params.monto_min = parseFloat(filtrosAplicados.montoMin);
+    if (filtrosAplicados.montoMax) params.monto_max = parseFloat(filtrosAplicados.montoMax);
+    params.sort = sort.campo;
+    params.order = sort.dir;
+
     cierresApi
-      .getById(id)
+      .getVentas(cierreId, params)
       .then(({ data }) => {
         if (!data.data) {
           setError('not_found');
           return;
         }
-        setCierre(data.data as CierreDetail);
+        setDatos(data.data.rows);
+        setTotalMonto(data.data.total_monto);
       })
       .catch((err) => {
-        if (err?.response?.status === 404) {
-          setError('not_found');
-        } else {
-          setError('network');
-        }
+        if (err?.response?.status === 404) setError('not_found');
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [cierreId, filtrosAplicados, sort]);
 
-  // Derived: filtered + sorted details
-  const detallesFiltrados = useMemo(
-    () => (cierre ? aplicarFiltrosOrden(cierre.detalles, filtros, sort) : []),
-    [cierre, filtros, sort],
-  );
+  // Commit filtrosInput → filtrosAplicados
+  const commitFiltros = () => setFiltrosAplicados({ ...filtrosInput });
+
+  const onEnterFiltros = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') commitFiltros();
+  };
 
   // Handlers
   const onVolver = () => navigate('/administracion');
 
-  const onExport = async () => {
-    if (!cierre) return;
-    setExporting(true);
-    try {
-      const response = await cierresApi.exportCsv(cierre.id);
-      const blob = new Blob([response.data as BlobPart], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `cierre-${cierre.id}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch {
-      /* noop */
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const onSort = (campo: 'cantidad' | 'monto_total') => {
+  const onSort = (campo: 'cantidad' | 'monto' | 'id_venta') => {
     setSort((prev) =>
       prev.campo === campo
         ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { campo, dir: 'asc' },
+        : { campo, dir: campo === 'id_venta' ? 'asc' : 'desc' },
     );
   };
 
-  const onChangeTipo = (v: string) => setFiltros((prev) => ({ ...prev, tipo: v === 'all' ? '' : v }));
-  const onChangeNombre = (v: string) => setFiltros((prev) => ({ ...prev, nombre: v }));
-  const onChangeMontoMin = (v: string) => setFiltros((prev) => ({ ...prev, montoMin: v }));
-  const onChangeMontoMax = (v: string) => setFiltros((prev) => ({ ...prev, montoMax: v }));
-  const onClearFiltros = () => setFiltros({ tipo: '', nombre: '', montoMin: '', montoMax: '' });
+  const onChangeVendedor = (v: string) =>
+    setFiltrosInput((prev) => ({ ...prev, vendedor: v }));
+
+  const onChangeProducto = (v: string) =>
+    setFiltrosInput((prev) => ({ ...prev, producto: v }));
+
+  const onChangeMontoMin = (v: string) =>
+    setFiltrosInput((prev) => ({ ...prev, montoMin: v }));
+
+  const onChangeMontoMax = (v: string) =>
+    setFiltrosInput((prev) => ({ ...prev, montoMax: v }));
+
+  const onChangeIdVenta = (v: string) =>
+    setFiltrosInput((prev) => ({ ...prev, idVenta: v }));
+
+  const onClearFiltros = () => {
+    const empty = { idVenta: '', vendedor: '', producto: '', montoMin: '', montoMax: '' };
+    setFiltrosInput(empty);
+    setFiltrosAplicados(empty);
+  };
+
+  const onExportCsv = () => {
+    const headers = 'ID Venta,Vendedor,Producto,Cantidad,Monto';
+    const csvRows = datos.map(
+      (r) => `${r.id_venta},${r.vendedor},${r.producto},${r.cantidad},${r.monto}`,
+    );
+    const csv = [headers, ...csvRows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `cierre-${cierreId}-ventas.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Sequential color map — computed from fetched data
+  const colorMap = useMemo(() => buildColorMap(datos), [datos]);
 
   // -----------------------------------------------------------------------
   // Render: loading
@@ -219,7 +182,7 @@ export function AdministracionDetallePage() {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
         <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-        Cargando cierre...
+        Cargando ventas del cierre...
       </div>
     );
   }
@@ -231,17 +194,13 @@ export function AdministracionDetallePage() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <AlertTriangle className="mb-2 h-8 w-8 text-destructive" />
-        <p className="text-lg font-medium">
-          {error === 'not_found' ? 'Cierre no encontrado' : 'Error al cargar el cierre'}
-        </p>
+        <p className="text-lg font-medium">Cierre no encontrado</p>
         <Button variant="outline" className="mt-4" onClick={onVolver}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver a Administración
         </Button>
       </div>
     );
   }
-
-  if (!cierre) return null;
 
   // -----------------------------------------------------------------------
   // Render: success
@@ -250,97 +209,54 @@ export function AdministracionDetallePage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Cierre #{cierre.id.slice(0, 8)}</h1>
-          <p className="text-sm text-muted-foreground">
-            {cierre.fecha_cierre ? formatDate(cierre.fecha_cierre) : 'Sin fecha de cierre'}
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold tracking-tight">
+          Cierre #{cierreId?.slice(0, 8) ?? ''}
+        </h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onVolver}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Volver a Administración
           </Button>
-          <Button variant="outline" size="sm" disabled={exporting} onClick={onExport}>
-            {exporting ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Exportando...
-              </>
-            ) : (
-              <>
-                <Download className="mr-2 h-4 w-4" /> Exportar CSV
-              </>
-            )}
+          <Button variant="outline" size="sm" onClick={onExportCsv}>
+            <Download className="mr-2 h-4 w-4" /> Exportar CSV
           </Button>
         </div>
       </div>
-
-      {/* Cierre info */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Fecha Apertura</p>
-              <p className="font-medium">{formatDate(cierre.fecha_apertura)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Fecha Cierre</p>
-              <p className="font-medium">
-                {cierre.fecha_cierre ? formatDate(cierre.fecha_cierre) : '---'}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Vendedor Apertura</p>
-              <p className="font-medium">
-                {cierre.usuario_apertura?.nombre_usuario ?? '---'}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Vendedor Cierre</p>
-              <p className="font-medium">
-                {cierre.usuario_cierre?.nombre_usuario ?? '---'}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Estado</p>
-              <div>{estadoBadge(cierre.estado)}</div>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Cant. Ventas</p>
-              <p className="font-medium">{cierre.cantidad_ventas}</p>
-            </div>
-            <div className="md:col-span-2">
-              <p className="text-muted-foreground">Monto Total</p>
-              <p className="font-bold text-lg">{formatCurrency(cierre.monto_total)}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Filters bar */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Tipo</Label>
-              <Select value={filtros.tipo || 'all'} onValueChange={onChangeTipo}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="vendedor">Vendedor</SelectItem>
-                  <SelectItem value="producto">Producto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Nombre</Label>
+              <Label className="text-xs">ID Venta</Label>
               <Input
                 type="text"
-                placeholder="Buscar..."
-                value={filtros.nombre}
-                onChange={(e) => onChangeNombre(e.target.value)}
-                className="w-[200px]"
+                placeholder="Fragmento del UUID..."
+                value={filtrosInput.idVenta}
+                onChange={(e) => onChangeIdVenta(e.target.value)}
+                onKeyDown={onEnterFiltros}
+                className="w-[220px]"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Vendedor</Label>
+              <Input
+                type="text"
+                placeholder="Buscar vendedor..."
+                value={filtrosInput.vendedor}
+                onChange={(e) => onChangeVendedor(e.target.value)}
+                onKeyDown={onEnterFiltros}
+                className="w-[180px]"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Producto</Label>
+              <Input
+                type="text"
+                placeholder="Buscar producto..."
+                value={filtrosInput.producto}
+                onChange={(e) => onChangeProducto(e.target.value)}
+                onKeyDown={onEnterFiltros}
+                className="w-[180px]"
               />
             </div>
             <div className="space-y-1">
@@ -350,8 +266,9 @@ export function AdministracionDetallePage() {
                 min={0}
                 step="0.01"
                 placeholder="0"
-                value={filtros.montoMin}
+                value={filtrosInput.montoMin}
                 onChange={(e) => onChangeMontoMin(e.target.value)}
+                onKeyDown={onEnterFiltros}
                 className="w-[120px]"
               />
             </div>
@@ -362,11 +279,15 @@ export function AdministracionDetallePage() {
                 min={0}
                 step="0.01"
                 placeholder="Sin limite"
-                value={filtros.montoMax}
+                value={filtrosInput.montoMax}
                 onChange={(e) => onChangeMontoMax(e.target.value)}
+                onKeyDown={onEnterFiltros}
                 className="w-[120px]"
               />
             </div>
+            <Button variant="default" size="sm" onClick={commitFiltros}>
+              Buscar
+            </Button>
             <Button variant="ghost" size="sm" onClick={onClearFiltros}>
               Limpiar filtros
             </Button>
@@ -374,24 +295,32 @@ export function AdministracionDetallePage() {
         </CardHeader>
       </Card>
 
-      {/* Detalles table */}
+      {/* Table */}
       <Card>
         <CardContent className="pt-6">
-          <p className="text-sm text-muted-foreground mb-3">
-            Mostrando {detallesFiltrados.length} de {cierre.detalles.length} detalles
-          </p>
-
-          {cierre.detalles.length === 0 ? (
+          {datos.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Este cierre no tiene detalles.
+              No hay ventas para este cierre.
             </p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Nombre</TableHead>
+                    <TableHead
+                      className="cursor-pointer select-none"
+                      onClick={() => onSort('id_venta')}
+                    >
+                      ID Venta{' '}
+                      {sort.campo === 'id_venta' &&
+                        (sort.dir === 'asc' ? (
+                          <ChevronUp className="inline h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="inline h-3 w-3" />
+                        ))}
+                    </TableHead>
+                    <TableHead>Vendedor</TableHead>
+                    <TableHead>Producto</TableHead>
                     <TableHead
                       className="text-right cursor-pointer select-none"
                       onClick={() => onSort('cantidad')}
@@ -406,10 +335,10 @@ export function AdministracionDetallePage() {
                     </TableHead>
                     <TableHead
                       className="text-right cursor-pointer select-none"
-                      onClick={() => onSort('monto_total')}
+                      onClick={() => onSort('monto')}
                     >
-                      Monto Total{' '}
-                      {sort.campo === 'monto_total' &&
+                      Monto{' '}
+                      {sort.campo === 'monto' &&
                         (sort.dir === 'asc' ? (
                           <ChevronUp className="inline h-3 w-3" />
                         ) : (
@@ -419,17 +348,16 @@ export function AdministracionDetallePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detallesFiltrados.map((d) => (
-                    <TableRow key={d.id}>
-                      <TableCell className="text-sm">
-                        <Badge variant={d.tipo === 'vendedor' ? 'default' : 'secondary'}>
-                          {d.tipo}
-                        </Badge>
+                  {datos.map((fila, idx) => (
+                    <TableRow key={`${fila.id_venta}-${idx}`}>
+                      <TableCell className={`text-sm font-mono ${VENTA_COLORS[colorMap[fila.id_venta] ?? 0]}`}>
+                        {fila.id_venta.slice(0, 8)}
                       </TableCell>
-                      <TableCell className="text-sm font-medium">{d.nombre}</TableCell>
-                      <TableCell className="text-right text-sm">{d.cantidad}</TableCell>
+                      <TableCell className="text-sm">{fila.vendedor}</TableCell>
+                      <TableCell className="text-sm font-medium">{fila.producto}</TableCell>
+                      <TableCell className="text-right text-sm">{fila.cantidad}</TableCell>
                       <TableCell className="text-right text-sm font-semibold">
-                        {formatCurrency(d.monto_total)}
+                        {formatCurrency(fila.monto)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -439,6 +367,11 @@ export function AdministracionDetallePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Footer */}
+      <p className="text-sm text-muted-foreground text-right font-semibold">
+        Total: {formatCurrency(totalMonto)}
+      </p>
     </div>
   );
 }
