@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -1278,6 +1279,9 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cerrando, setCerrando] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   const canCerrarCaja = ['admin', 'gerente'].includes(currentUserRole ?? '');
 
@@ -1295,24 +1299,36 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
   }, []);
 
   const handleCerrarCaja = async () => {
-    if (!window.confirm('¿Cerrar la caja? Se archivarán las ventas del período actual.')) {
-      return;
-    }
+    if (!password.trim()) return;
     setCerrando(true);
+    setPasswordError('');
     try {
-      const { data } = await ventasApi.cerrarCaja();
-      const payload = data.data as { monto_total: number };
+      await ventasApi.cerrarCaja({ password });
+      setShowPasswordModal(false);
+      setPassword('');
+      setPasswordError('');
       await fetchResumen();
       onCajaCerrada?.();
-      alert(`Caja cerrada. Monto total: $${payload.monto_total}`);
     } catch (err) {
       const msg =
         (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
           ?.message ?? 'Error al cerrar la caja';
-      alert(msg);
+      setPasswordError(msg);
     } finally {
       setCerrando(false);
     }
+  };
+
+  const openPasswordModal = () => {
+    setPassword('');
+    setPasswordError('');
+    setShowPasswordModal(true);
+  };
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setPassword('');
+    setPasswordError('');
   };
 
   useEffect(() => {
@@ -1349,10 +1365,10 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
         {canCerrarCaja && (
           <Button
             variant="default"
-            onClick={handleCerrarCaja}
+            onClick={openPasswordModal}
             disabled={cerrando}
           >
-            {cerrando ? 'Cerrando...' : 'Cierre de Caja'}
+            Cierre de Caja
           </Button>
         )}
       </div>
@@ -1456,6 +1472,55 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
           </CardContent>
         </Card>
       )}
+
+      {/* Password modal para cierre de caja */}
+      <Dialog open={showPasswordModal} onOpenChange={(open) => !open && closePasswordModal()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar cierre de caja</DialogTitle>
+            <DialogDescription>
+              Ingresá tu contraseña para confirmar el cierre. Se archivarán las ventas del período actual.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="password-cierre">Contraseña</Label>
+              <Input
+                id="password-cierre"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Tu contraseña"
+                disabled={cerrando}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && password.trim() && !cerrando) {
+                    handleCerrarCaja();
+                  }
+                }}
+              />
+            </div>
+            {passwordError && (
+              <p className="text-sm text-destructive">{passwordError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={closePasswordModal}
+              disabled={cerrando}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCerrarCaja}
+              disabled={!password.trim() || cerrando}
+            >
+              {cerrando ? 'Cerrando...' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

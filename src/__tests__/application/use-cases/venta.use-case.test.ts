@@ -7,6 +7,7 @@ import {
   listVentas,
   getResumenDia,
   deleteVenta,
+  cerrarCaja,
 } from '../../../application/use-cases/venta.use-case.js';
 import type { CreateVentaInput, VentaQueryInput } from '../../../application/dto/venta.dto.js';
 
@@ -17,13 +18,20 @@ const { mockPrisma } = vi.hoisted(() => ({
       findMany: vi.fn(),
       update: vi.fn(),
     },
+    usuario: {
+      findUnique: vi.fn(),
+    },
     venta: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
       count: vi.fn(),
+      update: vi.fn(),
     },
     detalleVenta: {
+      create: vi.fn(),
+    },
+    cierreCaja: {
       create: vi.fn(),
     },
     $transaction: vi.fn(),
@@ -41,6 +49,10 @@ vi.mock('../../../infrastructure/logging/logger.js', () => ({
     warn: vi.fn(),
     debug: vi.fn(),
   },
+}));
+
+vi.mock('../../../infrastructure/auth/password.js', () => ({
+  verifyPassword: vi.fn(),
 }));
 
 // Helper to create mock product (returned from DB)
@@ -784,6 +796,139 @@ describe('Venta Use Cases', () => {
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error.code).toBe('NOT_FOUND');
+      }
+    });
+  });
+
+  describe('cerrarCaja', () => {
+    const userId = '123e4567-e89b-12d3-a456-426614174002';
+    const correctPassword = 'MyP@ss123';
+    const wrongPassword = 'wrongpass';
+
+    it('should close cash register successfully with correct password', async () => {
+      const { verifyPassword } = await import(
+        '../../../infrastructure/auth/password.js'
+      );
+
+      // Mock user lookup
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        password_hash: '$2a$10$hashedpassword',
+      });
+      vi.mocked(verifyPassword).mockResolvedValue(true);
+
+      // Mock open sales
+      const mockVentasAbiertas = [
+        {
+          id: 'v1',
+          usuario_id: userId,
+          total: 500,
+          estado: 'completada',
+          created_at: new Date('2024-01-15T10:00:00Z'),
+          usuario: { id: userId, nombre_usuario: 'Juan' },
+          detalles_venta: [
+            {
+              id: 'd1',
+              venta_id: 'v1',
+              producto_id: 'p1',
+              cantidad: 2,
+              precio_unitario: 250,
+              subtotal: 500,
+              producto: { id: 'p1', nombre: 'Pan integral' },
+            },
+          ],
+        },
+      ];
+      mockPrisma.venta.findMany.mockResolvedValue(mockVentasAbiertas);
+
+      // Mock transaction
+      mockPrisma.$transaction.mockImplementation(
+        async (fn: (tx: typeof mockPrisma) => Promise<unknown>) => {
+          const tx = {
+            cierreCaja: {
+              create: vi.fn().mockResolvedValue({
+                id: 'cierre-1',
+                monto_total: 500,
+                cantidad_ventas: 1,
+                fecha_cierre: new Date(),
+              }),
+            },
+            venta: {
+              updateMany: vi.fn().mockResolvedValue({}),
+            },
+          };
+          return fn(tx as unknown as typeof mockPrisma);
+        }
+      );
+
+      const result = await cerrarCaja(userId, correctPassword);
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.monto_total).toBe(500);
+        expect(result.value.cantidad_ventas).toBe(1);
+      }
+      expect(verifyPassword).toHaveBeenCalledWith(
+        correctPassword,
+        '$2a$10$hashedpassword'
+      );
+    });
+
+    it('should return UNAUTHORIZED with incorrect password', async () => {
+      const { verifyPassword } = await import(
+        '../../../infrastructure/auth/password.js'
+      );
+
+      // Mock user lookup
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        password_hash: '$2a$10$hashedpassword',
+      });
+      vi.mocked(verifyPassword).mockResolvedValue(false);
+
+      const result = await cerrarCaja(userId, wrongPassword);
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('UNAUTHORIZED');
+        expect(result.error.message).toBe('Contraseña incorrecta');
+      }
+      // Should NOT query for open sales
+      expect(mockPrisma.venta.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should return UNAUTHORIZED when user not found', async () => {
+      const { verifyPassword } = await import(
+        '../../../infrastructure/auth/password.js'
+      );
+
+      mockPrisma.usuario.findUnique.mockResolvedValue(null);
+
+      const result = await cerrarCaja('non-existent-user', correctPassword);
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('UNAUTHORIZED');
+        expect(result.error.message).toBe('Usuario no encontrado');
+      }
+      expect(verifyPassword).not.toHaveBeenCalled();
+    });
+
+    it('should return CONFLICT when no open sales exist', async () => {
+      const { verifyPassword } = await import(
+        '../../../infrastructure/auth/password.js'
+      );
+
+      mockPrisma.usuario.findUnique.mockResolvedValue({
+        password_hash: '$2a$10$hashedpassword',
+      });
+      vi.mocked(verifyPassword).mockResolvedValue(true);
+      mockPrisma.venta.findMany.mockResolvedValue([]);
+
+      const result = await cerrarCaja(userId, correctPassword);
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('CONFLICT');
+        expect(result.error.message).toContain('No hay ventas completadas');
       }
     });
   });

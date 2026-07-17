@@ -9,6 +9,8 @@ import { RubrosPage } from '@/pages/RubrosPage';
 import { UsuariosPage } from '@/pages/UsuariosPage';
 import { StockPage } from '@/pages/StockPage';
 import { VentasPage } from '@/pages/VentasPage';
+import { AdministracionPage } from '@/pages/AdministracionPage';
+import { AdministracionDetallePage } from '@/pages/AdministracionDetallePage';
 import { type ReactNode } from 'react';
 
 // Routes a which each role is allowed to navigate. Anything else is redirected.
@@ -75,6 +77,8 @@ export function App() {
             <Route path="/usuarios" element={<UsuariosPage />} />
             <Route path="/stock" element={<StockPage />} />
             <Route path="/ventas" element={<VentasPage />} />
+            <Route path="/administracion" element={<AdministracionPage />} />
+            <Route path="/administracion/:id" element={<AdministracionDetallePage />} />
           </Route>
           <Route path="*" element={<NavigateToHome />} />
         </Routes>

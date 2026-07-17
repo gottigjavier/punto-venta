@@ -11,6 +11,7 @@ import {
   cerrarCajaHandler,
 } from '../controllers/venta.controller.js';
 import { authorize } from '../middleware/auth.middleware.js';
+import { registerCierreRoutes } from './cierre.routes.js';
 
 export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /api/v1/ventas/ultimas-ventas - Last sale per product (must be before /:id)
@@ -131,6 +132,9 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
     },
     getVentaByIdHandler
   );
+
+  // Register cierre routes (cierres, cierres/:id, cierres/:id/csv)
+  await registerCierreRoutes(fastify);
 
   // POST /api/v1/ventas/cierre-caja - Close cash period (must be before /)
   fastify.post(

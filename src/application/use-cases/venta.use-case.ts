@@ -14,6 +14,7 @@ import type {
 } from '../../domain/entities/venta.js';
 import type { CreateVentaInput, VentaQueryInput } from '../dto/venta.dto.js';
 import { logger } from '../../infrastructure/logging/logger.js';
+import { verifyPassword } from '../../infrastructure/auth/password.js';
 
 // Helper to convert Prisma Decimal to number
 function toNumber(val: unknown): number {
@@ -503,9 +504,31 @@ export async function deleteVenta(
 
 // Close cash period: archive all open completed sales into a CierreCaja
 export async function cerrarCaja(
-  usuarioCierreId: string
+  usuarioCierreId: string,
+  password: string
 ): Promise<AppResult<{ id: string; monto_total: number; cantidad_ventas: number; fecha_cierre: string }>> {
   try {
+    // Validate password against user's hash
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: usuarioCierreId },
+      select: { password_hash: true },
+    });
+
+    if (!usuario) {
+      return err({
+        code: 'UNAUTHORIZED',
+        message: 'Usuario no encontrado',
+      });
+    }
+
+    const passwordValid = await verifyPassword(password, usuario.password_hash);
+    if (!passwordValid) {
+      return err({
+        code: 'UNAUTHORIZED',
+        message: 'Contraseña incorrecta',
+      });
+    }
+
     // Only completed sales not yet archived
     const ventasAbiertas = await prisma.venta.findMany({
       where: {

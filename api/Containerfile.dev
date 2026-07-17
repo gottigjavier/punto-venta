@@ -1,0 +1,25 @@
+# api/Containerfile.dev
+# Development image for the Fastify API.
+# Runs with tsx watch so the container picks up source changes from the
+# mounted ./src volume (hot reload) — no image rebuild needed on backend edits.
+# This mirrors how the client runs in dev. NOT for production.
+
+FROM node:20-alpine
+
+# tsx is needed for watch mode; install all deps (dev + prod).
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+COPY . .
+
+# Source is mounted as a volume in podman-compose.yml (./src:/app/src:ro),
+# so this COPY is only a fallback for the image to be runnable standalone.
+# The running process uses tsx watch on the live mounted source.
+EXPOSE 3001
+
+CMD ["npx", "tsx", "watch", "src/main.ts"]

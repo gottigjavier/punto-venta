@@ -56,11 +56,9 @@ export const VentaIdParamSchema = z.object({
 
 export type VentaIdParam = z.infer<typeof VentaIdParamSchema>;
 
-// Close cash period schema (no body required, optional explicit confirmation)
-export const CerrarCajaSchema = z
-  .object({
-    confirmar: z.boolean().optional(),
-  })
-  .optional();
+// Close cash period schema
+export const CerrarCajaSchema = z.object({
+  password: z.string().min(1, 'Contraseña requerida'),
+});
 
 export type CerrarCajaInput = z.infer<typeof CerrarCajaSchema>;

@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   Store,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -25,6 +26,7 @@ const navItems = [
   { href: '/rubros', label: 'Rubros', icon: Tags },
   { href: '/usuarios', label: 'Usuarios', icon: Users },
   { href: '/stock', label: 'Stock', icon: Warehouse },
+  { href: '/administracion', label: 'Administración', icon: ShieldCheck },
 ];
 
 // Sections visible per role. Despachador only sees Stock + Ventas (POS).

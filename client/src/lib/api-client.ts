@@ -144,6 +144,61 @@ export const stockApi = {
     api.get<ApiResponse<unknown[]>>('/stock/autocomplete', { params: { query, tipo } }),
 };
 
+// Cierres de Caja
+export interface CierreListItem {
+  id: string;
+  fecha_apertura: string;
+  fecha_cierre: string | null;
+  monto_total: number;
+  cantidad_ventas: number;
+  usuario_apertura: { id: string; nombre_usuario: string };
+  usuario_cierre: { id: string; nombre_usuario: string } | null;
+}
+
+export interface CierreDetalle {
+  id: string;
+  tipo: string;
+  referencia_id: string;
+  nombre: string;
+  cantidad: number;
+  monto_total: number;
+}
+
+export interface CierreDetail {
+  id: string;
+  fecha_apertura: string;
+  fecha_cierre: string | null;
+  monto_total: number;
+  cantidad_ventas: number;
+  estado: string;
+  usuario_apertura: { id: string; nombre_usuario: string };
+  usuario_cierre: { id: string; nombre_usuario: string } | null;
+  detalles: CierreDetalle[];
+}
+
+export interface CierresQueryParams {
+  page?: number;
+  limit?: number;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  vendedor_id?: string;
+  producto_id?: string;
+  proveedor_id?: string;
+  monto_min?: number;
+  monto_max?: number;
+  sort?: 'fecha_cierre' | 'monto_total' | 'cantidad_ventas';
+  order?: 'asc' | 'desc';
+}
+
+export const cierresApi = {
+  list: (params?: CierresQueryParams) =>
+    api.get<ApiResponse<CierreListItem[]>>('/ventas/cierres', { params }),
+  getById: (id: string) =>
+    api.get<ApiResponse<CierreDetail>>(`/ventas/cierres/${id}`),
+  exportCsv: (id: string) =>
+    api.get(`/ventas/cierres/${id}/csv`, { responseType: 'blob' }),
+};
+
 // Ventas
 export const ventasApi = {
   resumenDia: () => api.get<ApiResponse<unknown>>('/ventas/resumen/dia'),
@@ -152,6 +207,6 @@ export const ventasApi = {
     api.get<ApiResponse<unknown[]>>('/ventas', { params }),
   getById: (id: string) => api.get<ApiResponse<unknown>>(`/ventas/${id}`),
   create: (data: unknown) => api.post<ApiResponse<unknown>>('/ventas', data),
-  cerrarCaja: () => api.post<ApiResponse<unknown>>('/ventas/cierre-caja'),
+  cerrarCaja: (data: { password: string }) => api.post<ApiResponse<unknown>>('/ventas/cierre-caja', data),
   delete: (id: string) => api.delete<ApiResponse<unknown>>(`/ventas/${id}`),
 };

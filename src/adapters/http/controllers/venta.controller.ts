@@ -90,7 +90,7 @@ export async function cerrarCajaHandler(
     });
   }
 
-  const result = await cerrarCaja(user.userId);
+  const result = await cerrarCaja(user.userId, parsed.data.password);
 
   if (result.isErr()) {
     return handleDomainError(reply, result.error);

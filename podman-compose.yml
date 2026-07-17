@@ -42,7 +42,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: api/Containerfile
+      dockerfile: api/Containerfile.dev
     container_name: pv-api
     restart: unless-stopped
     ports:
