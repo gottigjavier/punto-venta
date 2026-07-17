@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/features/auth/AuthContext';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
@@ -12,18 +12,41 @@ import { StockPage } from '@/pages/StockPage';
 import { VentasPage } from '@/pages/VentasPage';
 import { type ReactNode } from 'react';
 
+// Routes a which each role is allowed to navigate. Anything else is redirected.
+// Despachador: only Stock + Ventas (POS). The POS still reads productos/rubros
+// via API (backend permits those GETs for despachador), but the section nav is
+// restricted. Admin/gerente: everything.
+const ROLE_ALLOWED_PATHS: Record<string, string[]> = {
+  despachador: ['/ventas', '/stock'],
+};
+
+function homeForRole(rol?: string): string {
+  return rol === 'despachador' ? '/ventas' : '/dashboard';
+}
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
+  const location = useLocation();
   if (loading) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Cargando...</div>;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  const allowed = ROLE_ALLOWED_PATHS[user?.rol ?? ''];
+  if (allowed && !allowed.some((p) => location.pathname === p || location.pathname.startsWith(p + '/'))) {
+    return <Navigate to={homeForRole(user?.rol)} replace />;
+  }
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   if (loading) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Cargando...</div>;
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) return <Navigate to={homeForRole(user?.rol)} replace />;
   return <>{children}</>;
+}
+
+function NavigateToHome() {
+  const { user } = useAuth();
+  return <Navigate to={homeForRole(user?.rol)} replace />;
 }
 
 export function App() {
@@ -55,7 +78,7 @@ export function App() {
             <Route path="/stock" element={<StockPage />} />
             <Route path="/ventas" element={<VentasPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<NavigateToHome />} />
         </Routes>
       </AuthProvider>
       </ThemeProvider>

@@ -13,7 +13,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
 
   async function handleSubmit(e: FormEvent) {
@@ -22,7 +22,8 @@ export function LoginPage() {
     setLoading(true);
     try {
       await login(nik, password);
-      navigate('/dashboard', { replace: true });
+      // Despachador has no Dashboard access; land on Ventas (POS) by default.
+      navigate(user?.rol === 'despachador' ? '/ventas' : '/dashboard', { replace: true });
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err

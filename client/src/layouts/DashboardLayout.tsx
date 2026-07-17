@@ -29,10 +29,20 @@ const navItems = [
   { href: '/ventas', label: 'Ventas', icon: ShoppingCart },
 ];
 
+// Sections visible per role. Despachador only sees Stock + Ventas (POS).
+const ALLOWED_SECTIONS_BY_ROLE: Record<string, string[]> = {
+  despachador: ['/stock', '/ventas'],
+};
+
 export function DashboardLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const allowed = ALLOWED_SECTIONS_BY_ROLE[user?.rol ?? ''];
+  const visibleNavItems = allowed
+    ? navItems.filter((item) => allowed.includes(item.href))
+    : navItems;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -56,7 +66,7 @@ export function DashboardLayout() {
 
         {/* Nav */}
         <nav className="flex-1 space-y-1 p-3">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + '/');
             return (
