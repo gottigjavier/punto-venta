@@ -1,0 +1,23 @@
+# client/Containerfile
+# Development client (Vite dev server) running inside podman.
+# The Vite proxy forwards /api to the `api` compose service, so the browser
+# only talks to the client container and never needs the API port published.
+
+FROM docker.io/oven/bun:latest
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json bun.lockb ./
+RUN bun install --frozen-lockfile
+
+# Copy source
+COPY . .
+
+# Proxy target points to the API service on the compose network.
+ENV VITE_PROXY_TARGET=http://api:3001
+
+EXPOSE 5173
+
+# host: true is set in vite.config; run the dev server bound to 0.0.0.0
+CMD ["bun", "run", "dev", "--host", "0.0.0.0"]

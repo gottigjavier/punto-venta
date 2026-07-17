@@ -54,7 +54,7 @@ services:
       - JWT_REFRESH_SECRET=dev-secret-key-for-refresh-tokens-minimum-32-characters
       - REDIS_URL=redis://redis:6379
       - API_PORT=3001
-      - FRONTEND_URL=http://localhost:3000
+      - FRONTEND_URL=http://localhost:5173
       - RATE_LIMIT_WINDOW_MS=3600000
       - RATE_LIMIT_MAX_REQUESTS=10
       - MAX_LOGIN_ATTEMPTS=3
@@ -74,6 +74,24 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  # React client (Vite dev server). Forwards /api to the `api` service.
+  client:
+    build:
+      context: ./client
+      dockerfile: Containerfile
+    container_name: pv-client
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_PROXY_TARGET=http://api:3001
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./client/src:/app/src:ro
+      - ./client/vite.config.ts:/app/vite.config.ts:ro
 
 volumes:
   pv-postgres-data:
