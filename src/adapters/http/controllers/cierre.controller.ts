@@ -2,10 +2,12 @@
 // Cash closure HTTP controllers
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { ListCierresQuerySchema } from '../../../application/dto/cierre.dto.js';
+import { VentaCierreQuerySchema } from '../../../application/dto/venta.dto.js';
 import {
   listCierres,
   getCierreById,
   exportCierreCsv,
+  listVentasByCierreConDetalles,
 } from '../../../application/use-cases/cierre.use-case.js';
 import type { DomainError } from '../../../shared/types/result.js';
 
@@ -139,4 +141,46 @@ export async function exportCierreCsvHandler(
       `attachment; filename="cierre-${id}.csv"`
     )
     .send(result.value.csv);
+}
+
+// GET /api/v1/ventas/cierres/:id/ventas - Detailed sales rows for a cash closure (flat)
+export async function cierreVentasHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params as { id: string };
+
+  if (!id) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'ID de cierre requerido',
+      },
+    });
+  }
+
+  const parsed = VentaCierreQuerySchema.safeParse(request.query);
+
+  if (!parsed.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Parámetros de consulta inválidos',
+        details: parsed.error.flatten().fieldErrors,
+      },
+    });
+  }
+
+  const result = await listVentasByCierreConDetalles(id, parsed.data);
+
+  if (result.isErr()) {
+    return handleDomainError(reply, result.error);
+  }
+
+  reply.send({
+    success: true,
+    data: result.value,
+  });
 }

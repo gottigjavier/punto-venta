@@ -65,3 +65,19 @@ export interface ResumenDia {
     monto_total: number;
   }>;
 }
+
+/** Una fila aplanada de venta del cierre (una por línea de producto) */
+export interface VentaCierreFila {
+  id_venta: string;
+  vendedor: string;
+  producto: string;
+  cantidad: number;
+  monto: number;
+}
+
+/** Respuesta del endpoint GET /cierres/:id/ventas */
+export interface VentaCierreRespuesta {
+  rows: VentaCierreFila[];
+  total_monto: number;
+  total_filas: number;
+}

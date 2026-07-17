@@ -10,3 +10,10 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+
+# Build artifacts
+*.tsbuildinfo
+
+# SDD / skill metadata (persisted in engram, not VCS)
+.atl/
+.sdd/

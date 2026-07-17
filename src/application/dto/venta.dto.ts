@@ -62,3 +62,16 @@ export const CerrarCajaSchema = z.object({
 });
 
 export type CerrarCajaInput = z.infer<typeof CerrarCajaSchema>;
+
+// Sale detail query params for cierre-level drill-down
+export const VentaCierreQuerySchema = z.object({
+  vendedor: z.string().optional(),
+  producto: z.string().optional(),
+  id_venta: z.string().optional(),
+  monto_min: z.coerce.number().min(0).optional(),
+  monto_max: z.coerce.number().min(0).optional(),
+  sort: z.enum(['cantidad', 'monto', 'id_venta']).default('id_venta'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export type VentaCierreQueryInput = z.infer<typeof VentaCierreQuerySchema>;

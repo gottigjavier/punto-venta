@@ -15,3 +15,10 @@ blob-report/
 # Phase 5: Operations
 secrets/
 backups/
+
+# Build artifacts
+*.tsbuildinfo
+
+# SDD / skill metadata (persisted in engram, not VCS)
+.atl/
+.sdd/

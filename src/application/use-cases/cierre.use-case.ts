@@ -5,6 +5,8 @@ import { prisma } from '../../infrastructure/database/prisma/client.js';
 import type { AppResult } from '../../shared/types/result.js';
 import { notFoundError, databaseError } from '../../shared/types/result.js';
 import type { ListCierresQueryInput } from '../dto/cierre.dto.js';
+import type { VentaCierreQueryInput } from '../dto/venta.dto.js';
+import type { VentaCierreRespuesta } from '../../domain/entities/venta.js';
 import { logger } from '../../infrastructure/logging/logger.js';
 
 // Helper to convert Prisma Decimal to number
@@ -291,5 +293,105 @@ export async function exportCierreCsv(
   } catch (error) {
     logger.error({ error, id }, 'Error al exportar cierre CSV');
     return err(databaseError('Error al exportar cierre CSV', error as Error));
+  }
+}
+
+// List flattened sales rows for a cash closure with server-side filters
+export async function listVentasByCierreConDetalles(
+  cierreCajaId: string,
+  filters: VentaCierreQueryInput
+): Promise<AppResult<VentaCierreRespuesta>> {
+  try {
+    // 1. Verify cierre exists
+    const cierre = await prisma.cierreCaja.findUnique({
+      where: { id: cierreCajaId },
+    });
+
+    if (!cierre) {
+      return err(notFoundError('Cierre de caja', cierreCajaId));
+    }
+
+    // 2. Fetch all sales for this cierre with details
+    const ventas = await prisma.venta.findMany({
+      where: { cierre_caja_id: cierreCajaId },
+      include: {
+        usuario: {
+          select: { nombre_usuario: true },
+        },
+        detalles_venta: {
+          include: {
+            producto: {
+              select: { nombre: true },
+            },
+          },
+        },
+      },
+    });
+
+    // 3. Flatten: one row per product line per sale
+    const rows = ventas.flatMap((v) =>
+      v.detalles_venta.map((d) => ({
+        id_venta: v.id,
+        vendedor: v.usuario.nombre_usuario,
+        producto: d.producto.nombre,
+        cantidad: toNumber(d.cantidad),
+        monto: toNumber(d.subtotal),
+      }))
+    );
+
+    // 4. Filter in-memory
+    let filtered = rows;
+
+    if (filters.id_venta) {
+      const needle = filters.id_venta.toLowerCase();
+      filtered = filtered.filter((r) =>
+        r.id_venta.toLowerCase().includes(needle)
+      );
+    }
+
+    if (filters.vendedor) {
+      const needle = filters.vendedor.toLowerCase();
+      filtered = filtered.filter((r) =>
+        r.vendedor.toLowerCase().includes(needle)
+      );
+    }
+
+    if (filters.producto) {
+      const needle = filters.producto.toLowerCase();
+      filtered = filtered.filter((r) =>
+        r.producto.toLowerCase().includes(needle)
+      );
+    }
+
+    if (filters.monto_min !== undefined) {
+      filtered = filtered.filter((r) => r.monto >= filters.monto_min!);
+    }
+
+    if (filters.monto_max !== undefined) {
+      filtered = filtered.filter((r) => r.monto <= filters.monto_max!);
+    }
+
+    // 5. Sort in-memory
+    filtered.sort((a, b) => {
+      const dir = filters.order === 'asc' ? 1 : -1;
+      if (filters.sort === 'id_venta') {
+        return a.id_venta.localeCompare(b.id_venta) * dir;
+      }
+      const valA = a[filters.sort];
+      const valB = b[filters.sort];
+      return (valA - valB) * dir;
+    });
+
+    // 6. Calculate totals
+    const total_monto = filtered.reduce((sum, f) => sum + f.monto, 0);
+
+    return ok({
+      rows: filtered,
+      total_monto,
+      total_filas: filtered.length,
+    });
+  } catch (error) {
+    logger.error({ error, cierreCajaId }, 'Error al listar ventas del cierre');
+    return err(databaseError('Error al listar ventas del cierre', error as Error));
   }
 }

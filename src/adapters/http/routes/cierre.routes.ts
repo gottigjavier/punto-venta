@@ -6,6 +6,7 @@ import {
   listCierresHandler,
   getCierreByIdHandler,
   exportCierreCsvHandler,
+  cierreVentasHandler,
 } from '../controllers/cierre.controller.js';
 import { authorize } from '../middleware/auth.middleware.js';
 
@@ -74,6 +75,40 @@ export async function registerCierreRoutes(fastify: FastifyInstance): Promise<vo
       },
     },
     exportCierreCsvHandler
+  );
+
+  // GET /cierres/:id/ventas - Detailed sales rows for a cash closure (must be before /:id)
+  fastify.get(
+    '/cierres/:id/ventas',
+    {
+      preHandler: authorize('admin', 'gerente'),
+      schema: {
+        description:
+          'Devuelve filas aplanadas de ventas de un cierre de caja, ' +
+          'una por línea de producto. Filtros server-side: vendedor, ' +
+          'producto, monto_min, monto_max. Orden: cantidad o monto. ' +
+          'Solo admin/gerente.',
+        tags: ['Cierres'],
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: {
+                type: 'object',
+                properties: {
+                  rows: { type: 'array', items: { type: 'object', additionalProperties: true } },
+                  total_monto: { type: 'number' },
+                  total_filas: { type: 'integer' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    cierreVentasHandler
   );
 
   // GET /cierres/:id - Get cash closure by ID with details
