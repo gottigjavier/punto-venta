@@ -33,6 +33,11 @@ enum EstadoVenta {
   cancelada
 }
 
+enum EstadoCierre {
+  abierto
+  cerrado
+}
+
 // ==================== MODELS ====================
 
 model Usuario {
@@ -50,6 +55,9 @@ model Usuario {
   updated_at        DateTime? @db.Timestamptz()
 
   ventas Venta[]
+
+  cierres_apertura CierreCaja[] @relation("CierreCaja_apertura")
+  cierres_cierre   CierreCaja[] @relation("CierreCaja_cierre")
 
   @@index([nik_usuario])
   @@index([email])
@@ -121,10 +129,13 @@ model Venta {
 
   usuario        Usuario        @relation(fields: [usuario_id], references: [id])
   detalles_venta DetalleVenta[]
+  cierre_caja_id String?        @db.Uuid
+  cierre_caja    CierreCaja?    @relation(fields: [cierre_caja_id], references: [id])
 
   @@index([usuario_id])
   @@index([created_at])
   @@index([estado])
+  @@index([cierre_caja_id])
 }
 
 model DetalleVenta {
@@ -140,4 +151,42 @@ model DetalleVenta {
 
   @@index([venta_id])
   @@index([producto_id])
+}
+
+// ==================== CIERRE DE CAJA (períodos) ====================
+
+model CierreCaja {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fecha_apertura      DateTime      @default(now()) @db.Timestamptz()
+  fecha_cierre        DateTime?     @db.Timestamptz()
+  usuario_apertura_id String        @db.Uuid
+  usuario_cierre_id   String?       @db.Uuid
+  monto_total         Decimal       @db.Decimal(12, 2) @default(0)
+  cantidad_ventas     Int           @default(0)
+  estado              EstadoCierre  @default(abierto)
+  created_at          DateTime      @default(now()) @db.Timestamptz()
+
+  usuario_apertura Usuario           @relation("CierreCaja_apertura", fields: [usuario_apertura_id], references: [id])
+  usuario_cierre   Usuario?          @relation("CierreCaja_cierre", fields: [usuario_cierre_id], references: [id])
+  ventas           Venta[]
+  detalles         CierreCajaDetalle[]
+
+  @@index([estado])
+  @@index([fecha_cierre])
+}
+
+model CierreCajaDetalle {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cierre_caja_id String      @db.Uuid
+  tipo           String      // 'vendedor' | 'producto'
+  referencia_id  String      @db.Uuid // usuario_id o producto_id
+  nombre         String      @db.VarChar(200)
+  cantidad       Decimal     @db.Decimal(12, 3) @default(0) // cantidad_ventas o cantidad_total
+  monto_total    Decimal     @db.Decimal(12, 2) @default(0)
+  created_at     DateTime    @default(now()) @db.Timestamptz()
+
+  cierre_caja CierreCaja @relation(fields: [cierre_caja_id], references: [id])
+
+  @@index([cierre_caja_id])
+  @@index([tipo])
 }

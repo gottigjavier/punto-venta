@@ -152,4 +152,6 @@ export const ventasApi = {
     api.get<ApiResponse<unknown[]>>('/ventas', { params }),
   getById: (id: string) => api.get<ApiResponse<unknown>>(`/ventas/${id}`),
   create: (data: unknown) => api.post<ApiResponse<unknown>>('/ventas', data),
+  cerrarCaja: () => api.post<ApiResponse<unknown>>('/ventas/cierre-caja'),
+  delete: (id: string) => api.delete<ApiResponse<unknown>>(`/ventas/${id}`),
 };

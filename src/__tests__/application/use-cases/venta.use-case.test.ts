@@ -6,6 +6,7 @@ import {
   getVentaById,
   listVentas,
   getResumenDia,
+  deleteVenta,
 } from '../../../application/use-cases/venta.use-case.js';
 import type { CreateVentaInput, VentaQueryInput } from '../../../application/dto/venta.dto.js';
 
@@ -493,6 +494,74 @@ describe('Venta Use Cases', () => {
         expect(result.error.code).toBe('DATABASE_ERROR');
       }
     });
+
+    it('should filter by cierre_caja_id = null by default (active period)', async () => {
+      mockPrisma.venta.findMany.mockResolvedValue([]);
+      mockPrisma.venta.count.mockResolvedValue(0);
+
+      const query: VentaQueryInput = {
+        page: 1,
+        limit: 20,
+        sort: 'created_at',
+        order: 'desc',
+        // cierre_caja_id intentionally omitted (undefined)
+      };
+
+      await listVentas(query);
+
+      expect(mockPrisma.venta.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ cierre_caja_id: null }),
+        })
+      );
+    });
+
+    it('should filter by explicit cierre_caja_id when provided', async () => {
+      mockPrisma.venta.findMany.mockResolvedValue([]);
+      mockPrisma.venta.count.mockResolvedValue(0);
+
+      const cierreId = '550e8400-e29b-41d4-a716-446655440000';
+      const query: VentaQueryInput = {
+        cierre_caja_id: cierreId,
+        page: 1,
+        limit: 20,
+        sort: 'created_at',
+        order: 'desc',
+      };
+
+      await listVentas(query);
+
+      expect(mockPrisma.venta.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ cierre_caja_id: cierreId }),
+        })
+      );
+    });
+
+    it('should combine cierre_caja_id filter with estado filter', async () => {
+      mockPrisma.venta.findMany.mockResolvedValue([]);
+      mockPrisma.venta.count.mockResolvedValue(0);
+
+      const query: VentaQueryInput = {
+        estado: 'completada',
+        page: 1,
+        limit: 20,
+        sort: 'created_at',
+        order: 'desc',
+        // cierre_caja_id omitted → defaults to null
+      };
+
+      await listVentas(query);
+
+      expect(mockPrisma.venta.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            estado: 'completada',
+            cierre_caja_id: null,
+          }),
+        })
+      );
+    });
   });
 
   describe('getResumenDia', () => {
@@ -637,6 +706,85 @@ describe('Venta Use Cases', () => {
           }),
         })
       );
+    });
+  });
+
+  describe('deleteVenta', () => {
+    it('should reject deletion of an archived sale (cierre_caja_id != null)', async () => {
+      const mockVenta = {
+        ...createMockVentaDb(),
+        cierre_caja_id: '550e8400-e29b-41d4-a716-446655440000',
+        estado: 'completada',
+        detalles_venta: [
+          {
+            id: 'd1',
+            venta_id: '123e4567-e89b-12d3-a456-426614175000',
+            producto_id: '123e4567-e89b-12d3-a456-426614174000',
+            cantidad: 3,
+            precio_unitario: 250,
+            subtotal: 750,
+          },
+        ],
+      };
+      mockPrisma.venta.findUnique.mockResolvedValue(mockVenta);
+
+      const result = await deleteVenta(mockVenta.id);
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('CONFLICT');
+        expect(result.error.message).toContain('período cerrado');
+      }
+      // Transaction should NOT be called
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should allow deletion of a sale from active period (cierre_caja_id = null)', async () => {
+      const mockVenta = {
+        ...createMockVentaDb(),
+        cierre_caja_id: null,
+        estado: 'completada',
+        detalles_venta: [
+          {
+            id: 'd1',
+            venta_id: '123e4567-e89b-12d3-a456-426614175000',
+            producto_id: '123e4567-e89b-12d3-a456-426614174000',
+            cantidad: 3,
+            precio_unitario: 250,
+            subtotal: 750,
+          },
+        ],
+      };
+      mockPrisma.venta.findUnique.mockResolvedValue(mockVenta);
+      mockPrisma.$transaction.mockImplementation(
+        async (fn: (tx: typeof mockPrisma) => Promise<unknown>) => {
+          const tx = {
+            producto: { update: vi.fn().mockResolvedValue({}) },
+            detalleVenta: { deleteMany: vi.fn().mockResolvedValue({}) },
+            venta: { delete: vi.fn().mockResolvedValue({}) },
+          };
+          return fn(tx as unknown as typeof mockPrisma);
+        }
+      );
+
+      const result = await deleteVenta(mockVenta.id);
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.id).toBe(mockVenta.id);
+      }
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('should return not found for non-existent sale', async () => {
+      mockPrisma.venta.findUnique.mockResolvedValue(null);
+
+      const result = await deleteVenta('non-existent-id');
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('NOT_FOUND');
+      }
     });
   });
 });

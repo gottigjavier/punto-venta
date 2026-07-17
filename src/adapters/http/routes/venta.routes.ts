@@ -7,6 +7,8 @@ import {
   listVentasHandler,
   getResumenDiaHandler,
   getUltimasVentasHandler,
+  deleteVentaHandler,
+  cerrarCajaHandler,
 } from '../controllers/venta.controller.js';
 import { authorize } from '../middleware/auth.middleware.js';
 
@@ -50,7 +52,7 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get(
     '/resumen/dia',
     {
-      preHandler: authorize('admin', 'gerente', 'despachador'),
+      preHandler: authorize('admin', 'gerente'),
       schema: {
         description:
           'Resumen diario de ventas. Incluye total de ventas, monto total, ' +
@@ -75,7 +77,7 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get(
     '/',
     {
-      preHandler: authorize('admin', 'gerente', 'despachador'),
+      preHandler: authorize('admin', 'gerente'),
       schema: {
         description: 'Listar ventas con paginación y filtros.',
         tags: ['Ventas'],
@@ -130,6 +132,55 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
     getVentaByIdHandler
   );
 
+  // POST /api/v1/ventas/cierre-caja - Close cash period (must be before /)
+  fastify.post(
+    '/cierre-caja',
+    {
+      preHandler: authorize('admin', 'gerente'),
+      schema: {
+        description:
+          'Cierra la caja del período actual. Archiva (sin borrar) todas las ' +
+          'ventas completadas sin cerrar en un CierreCaja, genera detalles por ' +
+          'vendedor y por producto, y reinicia el resumen del día. Solo admin/gerente.',
+        tags: ['Ventas'],
+        // NOTE: body validated by Zod (CerrarCajaSchema) in handler. Single source of truth.
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean', example: true },
+              data: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  monto_total: { type: 'number' },
+                  cantidad_ventas: { type: 'integer' },
+                  fecha_cierre: { type: 'string' },
+                },
+              },
+            },
+          },
+          409: {
+            type: 'object',
+            description: 'CONFLICT - No hay ventas completadas para cerrar',
+            properties: {
+              success: { type: 'boolean', example: false },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string', example: 'CONFLICT' },
+                  message: { type: 'string', example: 'No hay ventas completadas para cerrar' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    cerrarCajaHandler
+  );
+
   // POST /api/v1/ventas
   fastify.post(
     '/',
@@ -174,5 +225,31 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     createVentaHandler
+  );
+
+  // DELETE /api/v1/ventas/:id - Delete completed sale (admin/gerente only)
+  fastify.delete(
+    '/:id',
+    {
+      preHandler: authorize('admin', 'gerente'),
+      schema: {
+        description:
+          'Eliminar una venta completada. Restituye el stock al inventario. ' +
+          'Solo administradores y gerentes. El ID debe ser un UUID válido.',
+        tags: ['Ventas'],
+        // NOTE: params validated by Zod (VentaIdParamSchema) in handler. Single source of truth.
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean', example: true },
+              data: { type: 'object', properties: { id: { type: 'string' } } },
+            },
+          },
+        },
+      },
+    },
+    deleteVentaHandler
   );
 }

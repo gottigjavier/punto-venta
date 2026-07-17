@@ -51,6 +51,7 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react';
+import { useAuth } from '@/features/auth/AuthContext';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -885,7 +886,8 @@ function POSView() {
 // Historial View
 // ---------------------------------------------------------------------------
 
-function HistorialView() {
+function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: string; refreshKey?: number }) {
+  const canDeleteVentas = ['admin', 'gerente'].includes(currentUserRole ?? '');
   const [ventas, setVentas] = useState<VentaListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState<Pagination>({
@@ -950,6 +952,14 @@ function HistorialView() {
     fetchVentas(1);
   }, [fetchVentas]);
 
+  // Refetch when parent signals a cash period was closed
+  useEffect(() => {
+    if (refreshKey && refreshKey > 0) {
+      setPagination((p) => ({ ...p, page: 1 }));
+      fetchVentas(1);
+    }
+  }, [refreshKey, fetchVentas]);
+
   // View sale details
   const viewDetails = async (ventaId: string) => {
     setDetailLoading(true);
@@ -972,12 +982,35 @@ function HistorialView() {
     setUsuarioFilter('');
   };
 
+  // Delete a completed sale (admin/gerente only)
+  const handleDelete = async (ventaId: string) => {
+    if (!window.confirm('¿Eliminar esta venta? El stock se restituirá automáticamente.')) {
+      return;
+    }
+    try {
+      await ventasApi.delete(ventaId);
+      setDetailOpen(false);
+      fetchVentas(1);
+      alert('Venta eliminada. El stock fue restituido.');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { error?: { message?: string } } } };
+      const status = axiosErr?.response?.status;
+      const msg = axiosErr?.response?.data?.error?.message ?? 'Error al eliminar la venta';
+      if (status === 409) {
+        window.alert(`No se puede eliminar: ${msg}`);
+      } else {
+        window.alert(msg);
+      }
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Filters */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-end gap-3">
+            <Badge variant="secondary" className="mb-1">Período activo</Badge>
             <div className="space-y-1">
               <Label className="text-xs">Fecha Desde</Label>
               <Input
@@ -1210,6 +1243,20 @@ function HistorialView() {
                   </Table>
                 </div>
               </div>
+
+              {/* Delete action (admin/gerente only, completed sales) */}
+              {canDeleteVentas && detailVenta?.estado === 'completada' && (
+                <div className="pt-2 border-t">
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => handleDelete(detailVenta.id)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar venta
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">
@@ -1226,10 +1273,13 @@ function HistorialView() {
 // Resumen del Dia View
 // ---------------------------------------------------------------------------
 
-function ResumenDiaView() {
+function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: string; onCajaCerrada?: () => void }) {
   const [resumen, setResumen] = useState<ResumenDia | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [cerrando, setCerrando] = useState(false);
+
+  const canCerrarCaja = ['admin', 'gerente'].includes(currentUserRole ?? '');
 
   const fetchResumen = useCallback(async () => {
     setLoading(true);
@@ -1243,6 +1293,27 @@ function ResumenDiaView() {
       setLoading(false);
     }
   }, []);
+
+  const handleCerrarCaja = async () => {
+    if (!window.confirm('¿Cerrar la caja? Se archivarán las ventas del período actual.')) {
+      return;
+    }
+    setCerrando(true);
+    try {
+      const { data } = await ventasApi.cerrarCaja();
+      const payload = data.data as { monto_total: number };
+      await fetchResumen();
+      onCajaCerrada?.();
+      alert(`Caja cerrada. Monto total: $${payload.monto_total}`);
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
+          ?.message ?? 'Error al cerrar la caja';
+      alert(msg);
+    } finally {
+      setCerrando(false);
+    }
+  };
 
   useEffect(() => {
     fetchResumen();
@@ -1273,6 +1344,18 @@ function ResumenDiaView() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold tracking-tight">Resumen del Día</h2>
+        {canCerrarCaja && (
+          <Button
+            variant="default"
+            onClick={handleCerrarCaja}
+            disabled={cerrando}
+          >
+            {cerrando ? 'Cerrando...' : 'Cierre de Caja'}
+          </Button>
+        )}
+      </div>
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
@@ -1382,6 +1465,13 @@ function ResumenDiaView() {
 // ---------------------------------------------------------------------------
 
 export function VentasPage() {
+  const { user } = useAuth();
+  const [historialRefreshKey, setHistorialRefreshKey] = useState(0);
+
+  const handleCajaCerrada = useCallback(() => {
+    setHistorialRefreshKey((k) => k + 1);
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1397,14 +1487,18 @@ export function VentasPage() {
             <ShoppingCart className="mr-2 h-4 w-4" />
             Terminal POS
           </TabsTrigger>
-          <TabsTrigger value="historial">
-            <Calendar className="mr-2 h-4 w-4" />
-            Historial
-          </TabsTrigger>
-          <TabsTrigger value="resumen">
-            <DollarSign className="mr-2 h-4 w-4" />
-            Resumen del Dia
-          </TabsTrigger>
+          {user?.rol !== 'despachador' && (
+            <TabsTrigger value="historial">
+              <Calendar className="mr-2 h-4 w-4" />
+              Historial
+            </TabsTrigger>
+          )}
+          {user?.rol !== 'despachador' && (
+            <TabsTrigger value="resumen">
+              <DollarSign className="mr-2 h-4 w-4" />
+              Resumen del Dia
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="pos">
@@ -1412,11 +1506,11 @@ export function VentasPage() {
         </TabsContent>
 
         <TabsContent value="historial">
-          <HistorialView />
+          <HistorialView currentUserRole={user?.rol} refreshKey={historialRefreshKey} />
         </TabsContent>
 
         <TabsContent value="resumen">
-          <ResumenDiaView />
+          <ResumenDiaView currentUserRole={user?.rol} onCajaCerrada={handleCajaCerrada} />
         </TabsContent>
       </Tabs>
     </div>

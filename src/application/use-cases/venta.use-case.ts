@@ -226,7 +226,7 @@ export async function listVentas(
   }>
 > {
   try {
-    const { usuario_id, estado, fecha_desde, fecha_hasta, sort, order, page, limit } =
+    const { usuario_id, estado, fecha_desde, fecha_hasta, sort, order, page, limit, cierre_caja_id } =
       query;
     const skip = (page - 1) * limit;
 
@@ -249,6 +249,13 @@ export async function listVentas(
       if (fecha_hasta) {
         (where.created_at as Record<string, unknown>).lte = endOfDay(fecha_hasta);
       }
+    }
+
+    // Filter by cash period: null by default (active period), or explicit cierre_caja_id
+    if (cierre_caja_id !== undefined) {
+      where.cierre_caja_id = cierre_caja_id;
+    } else {
+      where.cierre_caja_id = null;
     }
 
     const orderBy: Record<string, string> = { [sort]: order };
@@ -305,10 +312,11 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
     const desde = startOfDay(today);
     const hasta = endOfDay(today);
 
-    // Get all completed sales for today
+    // Get all completed sales for today that are not yet archived in a cash closing
     const ventas = await prisma.venta.findMany({
       where: {
         estado: 'completada',
+        cierre_caja_id: null,
         created_at: {
           gte: desde,
           lte: hasta,
@@ -437,5 +445,212 @@ export async function getUltimasVentasPorProducto(): Promise<
     return err(
       databaseError('Error al obtener últimas ventas por producto', error as Error),
     );
+  }
+}
+
+// Delete a completed sale, restoring stock
+export async function deleteVenta(
+  id: string
+): Promise<AppResult<{ id: string }>> {
+  try {
+    const venta = await prisma.venta.findUnique({
+      where: { id },
+      include: { detalles_venta: true },
+    });
+
+    if (!venta) {
+      return err(notFoundError('Venta', id));
+    }
+
+    // Block deletion of archived sales (those linked to a closed cash period)
+    if (venta.cierre_caja_id !== null) {
+      return err({
+        code: 'CONFLICT' as const,
+        message: 'Esta venta pertenece a un período cerrado. No se puede eliminar.',
+      });
+    }
+
+    if (venta.estado !== 'completada') {
+      return err({
+        code: 'CONFLICT',
+        message: 'Solo se pueden eliminar ventas completadas',
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Restore stock for each detail
+      for (const detalle of venta.detalles_venta) {
+        await tx.producto.update({
+          where: { id: detalle.producto_id },
+          data: {
+            cantidad_disponible: {
+              increment: toNumber(detalle.cantidad),
+            },
+          },
+        });
+      }
+
+      await tx.detalleVenta.deleteMany({ where: { venta_id: id } });
+      await tx.venta.delete({ where: { id } });
+    });
+
+    return ok({ id });
+  } catch (error) {
+    logger.error({ error, id }, 'Error al eliminar venta');
+    return err(databaseError('Error al eliminar venta', error as Error));
+  }
+}
+
+// Close cash period: archive all open completed sales into a CierreCaja
+export async function cerrarCaja(
+  usuarioCierreId: string
+): Promise<AppResult<{ id: string; monto_total: number; cantidad_ventas: number; fecha_cierre: string }>> {
+  try {
+    // Only completed sales not yet archived
+    const ventasAbiertas = await prisma.venta.findMany({
+      where: {
+        estado: 'completada',
+        cierre_caja_id: null,
+      },
+      include: {
+        usuario: {
+          select: { id: true, nombre_usuario: true },
+        },
+        detalles_venta: {
+          include: {
+            producto: {
+              select: { id: true, nombre: true },
+            },
+          },
+        },
+      },
+      orderBy: { created_at: 'asc' },
+    });
+
+    if (ventasAbiertas.length === 0) {
+      return err({
+        code: 'CONFLICT',
+        message: 'No hay ventas completadas para cerrar',
+      });
+    }
+
+    const primeraVenta = ventasAbiertas[0];
+    if (!primeraVenta) {
+      return err({
+        code: 'CONFLICT',
+        message: 'No hay ventas completadas para cerrar',
+      });
+    }
+    const fechaApertura = primeraVenta.created_at;
+    const usuarioAperturaId = primeraVenta.usuario_id;
+    const fechaCierre = new Date();
+
+    const montoTotal = ventasAbiertas.reduce(
+      (sum, v) => sum + toNumber(v.total),
+      0
+    );
+
+    // Aggregate by vendor
+    const usuarioMap = new Map<
+      string,
+      { usuario_id: string; nombre: string; cantidad_ventas: number; monto_total: number }
+    >();
+
+    // Aggregate by product
+    const productoMap = new Map<
+      string,
+      { producto_id: string; nombre: string; cantidad_total: number; monto_total: number }
+    >();
+
+    for (const venta of ventasAbiertas) {
+      const userKey = venta.usuario_id;
+      const existingUser = usuarioMap.get(userKey);
+      if (existingUser) {
+        existingUser.cantidad_ventas += 1;
+        existingUser.monto_total += toNumber(venta.total);
+      } else {
+        usuarioMap.set(userKey, {
+          usuario_id: venta.usuario_id,
+          nombre: venta.usuario.nombre_usuario,
+          cantidad_ventas: 1,
+          monto_total: toNumber(venta.total),
+        });
+      }
+
+      for (const detalle of venta.detalles_venta) {
+        const prodKey = detalle.producto_id;
+        const existingProd = productoMap.get(prodKey);
+        if (existingProd) {
+          existingProd.cantidad_total += toNumber(detalle.cantidad);
+          existingProd.monto_total += toNumber(detalle.subtotal);
+        } else {
+          productoMap.set(prodKey, {
+            producto_id: detalle.producto_id,
+            nombre: detalle.producto.nombre,
+            cantidad_total: toNumber(detalle.cantidad),
+            monto_total: toNumber(detalle.subtotal),
+          });
+        }
+      }
+    }
+
+    const detallesVendedor = Array.from(usuarioMap.values()).map((u) => ({
+      tipo: 'vendedor',
+      referencia_id: u.usuario_id,
+      nombre: u.nombre,
+      cantidad: u.cantidad_ventas,
+      monto_total: u.monto_total,
+    }));
+
+    const detallesProducto = Array.from(productoMap.values()).map((p) => ({
+      tipo: 'producto',
+      referencia_id: p.producto_id,
+      nombre: p.nombre,
+      cantidad: p.cantidad_total,
+      monto_total: p.monto_total,
+    }));
+
+    const cierre = await prisma.$transaction(async (tx) => {
+      const nuevoCierre = await tx.cierreCaja.create({
+        data: {
+          fecha_apertura: fechaApertura,
+          fecha_cierre: fechaCierre,
+          usuario_apertura_id: usuarioAperturaId,
+          usuario_cierre_id: usuarioCierreId,
+          monto_total: montoTotal,
+          cantidad_ventas: ventasAbiertas.length,
+          estado: 'cerrado',
+          detalles: {
+            create: [...detallesVendedor, ...detallesProducto],
+          },
+        },
+      });
+
+      await tx.venta.updateMany({
+        where: {
+          id: { in: ventasAbiertas.map((v) => v.id) },
+        },
+        data: {
+          cierre_caja_id: nuevoCierre.id,
+        },
+      });
+
+      return nuevoCierre;
+    });
+
+    logger.info(
+      { cierreId: cierre.id, cantidadVentas: ventasAbiertas.length, montoTotal },
+      'Caja cerrada exitosamente'
+    );
+
+    return ok({
+      id: cierre.id,
+      monto_total: toNumber(cierre.monto_total),
+      cantidad_ventas: cierre.cantidad_ventas,
+      fecha_cierre: (cierre.fecha_cierre ?? fechaCierre).toISOString(),
+    });
+  } catch (error) {
+    logger.error({ error, usuarioCierreId }, 'Error al cerrar caja');
+    return err(databaseError('Error al cerrar caja', error as Error));
   }
 }

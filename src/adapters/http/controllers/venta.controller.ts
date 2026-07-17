@@ -5,6 +5,7 @@ import {
   CreateVentaSchema,
   VentaQuerySchema,
   VentaIdParamSchema,
+  CerrarCajaSchema,
 } from '../../../application/dto/venta.dto.js';
 import {
   createVenta,
@@ -12,6 +13,8 @@ import {
   listVentas,
   getResumenDia,
   getUltimasVentasPorProducto,
+  deleteVenta,
+  cerrarCaja,
 } from '../../../application/use-cases/venta.use-case.js';
 import type { DomainError } from '../../../shared/types/result.js';
 
@@ -56,6 +59,47 @@ function handleDomainError(reply: FastifyReply, error: DomainError): void {
   }
 
   reply.status(statusCode).send(body);
+}
+
+// POST /api/v1/ventas/cierre-caja - Close cash period (admin/gerente)
+export async function cerrarCajaHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const parsed = CerrarCajaSchema.safeParse(request.body);
+
+  if (!parsed.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Datos de entrada inválidos',
+        details: parsed.error.flatten().fieldErrors,
+      },
+    });
+  }
+
+  const user = request.user;
+  if (!user) {
+    return reply.status(401).send({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Usuario no autenticado',
+      },
+    });
+  }
+
+  const result = await cerrarCaja(user.userId);
+
+  if (result.isErr()) {
+    return handleDomainError(reply, result.error);
+  }
+
+  reply.status(200).send({
+    success: true,
+    data: result.value,
+  });
 }
 
 // POST /api/v1/ventas - Create sale
@@ -168,6 +212,36 @@ export async function getResumenDiaHandler(
   reply: FastifyReply
 ): Promise<void> {
   const result = await getResumenDia();
+
+  if (result.isErr()) {
+    return handleDomainError(reply, result.error);
+  }
+
+  reply.send({
+    success: true,
+    data: result.value,
+  });
+}
+
+// DELETE /api/v1/ventas/:id - Delete a completed sale (admin/gerente)
+export async function deleteVentaHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const params = request.params as { id: string };
+  const parsed = VentaIdParamSchema.safeParse(params);
+
+  if (!parsed.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'ID de venta inválido',
+      },
+    });
+  }
+
+  const result = await deleteVenta(parsed.data.id);
 
   if (result.isErr()) {
     return handleDomainError(reply, result.error);

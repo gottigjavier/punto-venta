@@ -30,6 +30,7 @@ export const VentaQuerySchema = z.object({
   search: z.string().optional(),
   usuario_id: z.string().uuid().optional(),
   estado: z.enum(['pendiente', 'completada', 'cancelada']).optional(),
+  cierre_caja_id: z.string().uuid('ID de cierre inválido').optional(),
   fecha_desde: z
     .string()
     .transform((val) => (val ? new Date(val) : undefined))
@@ -54,3 +55,12 @@ export const VentaIdParamSchema = z.object({
 });
 
 export type VentaIdParam = z.infer<typeof VentaIdParamSchema>;
+
+// Close cash period schema (no body required, optional explicit confirmation)
+export const CerrarCajaSchema = z
+  .object({
+    confirmar: z.boolean().optional(),
+  })
+  .optional();
+
+export type CerrarCajaInput = z.infer<typeof CerrarCajaSchema>;
