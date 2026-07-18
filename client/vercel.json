@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/v1/(.*)",
+      "destination": "https://TU-BACKEND-PRODUCCION/api/v1/$1"
+    }
+  ]
+}
