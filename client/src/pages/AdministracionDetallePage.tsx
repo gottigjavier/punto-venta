@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   cierresApi,
+  type CierreDetail,
   type VentaCierreFila,
   type VentaCierreQueryParams,
 } from '@/lib/api-client';
@@ -32,6 +33,15 @@ import {
 
 function formatCurrency(value: number): string {
   return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 const VENTA_COLORS = ['text-blue-600', 'text-emerald-600', 'text-amber-600', 'text-rose-600'];
@@ -76,18 +86,36 @@ export function AdministracionDetallePage() {
     campo: 'cantidad' | 'monto' | 'id_venta';
     dir: 'asc' | 'desc';
   }>({ campo: 'id_venta', dir: 'asc' });
+  const [localSort, setLocalSort] = useState<{
+    campo: 'vendedor' | 'producto' | null;
+    dir: 'asc' | 'desc';
+  }>({ campo: null, dir: 'asc' });
   const [datos, setDatos] = useState<VentaCierreFila[]>([]);
   const [totalMonto, setTotalMonto] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<'not_found' | null>(null);
+  const [cierreDetail, setCierreDetail] = useState<CierreDetail | null>(null);
+
+  // Fetch cierre detail on mount (once)
+  useEffect(() => {
+    if (!cierreId) return;
+    cierresApi
+      .getById(cierreId)
+      .then(({ data }) => {
+        if (!data.data) {
+          setError('not_found');
+          return;
+        }
+        setCierreDetail(data.data);
+      })
+      .catch((err) => {
+        if (err?.response?.status === 404) setError('not_found');
+      });
+  }, [cierreId]);
 
   // Fetch sales rows on mount + applied filter/sort changes
   useEffect(() => {
-    if (!cierreId) {
-      setError('not_found');
-      setLoading(false);
-      return;
-    }
+    if (!cierreId) return;
     setLoading(true);
     setError(null);
 
@@ -127,10 +155,19 @@ export function AdministracionDetallePage() {
   const onVolver = () => navigate('/administracion');
 
   const onSort = (campo: 'cantidad' | 'monto' | 'id_venta') => {
+    setLocalSort({ campo: null, dir: 'asc' }); // clear local sort when doing server-side
     setSort((prev) =>
       prev.campo === campo
         ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
         : { campo, dir: campo === 'id_venta' ? 'asc' : 'desc' },
+    );
+  };
+
+  const onLocalSort = (campo: 'vendedor' | 'producto') => {
+    setLocalSort((prev) =>
+      prev.campo === campo
+        ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { campo, dir: 'asc' },
     );
   };
 
@@ -171,6 +208,21 @@ export function AdministracionDetallePage() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+  // Rows to render: apply local sort when active, otherwise show backend order
+  const rowsToShow = useMemo(() => {
+    if (!localSort.campo) return datos;
+    const sorted = [...datos];
+    sorted.sort((a, b) => {
+      const va = a[localSort.campo!].toLowerCase();
+      const vb = b[localSort.campo!].toLowerCase();
+      return localSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+    return sorted;
+  }, [datos, localSort]);
+
+  // Are any filters applied?
+  const hayFiltrosAplicados = Object.values(filtrosAplicados).some((v) => v !== '');
 
   // Sequential color map — computed from fetched data
   const colorMap = useMemo(() => buildColorMap(datos), [datos]);
@@ -221,6 +273,44 @@ export function AdministracionDetallePage() {
           </Button>
         </div>
       </div>
+
+      {/* Cierre summary */}
+      {cierreDetail && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground text-xs">Apertura</span>
+                <p className="font-medium">{formatDate(cierreDetail.fecha_apertura)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">Cierre</span>
+                <p className="font-medium">
+                  {cierreDetail.fecha_cierre ? formatDate(cierreDetail.fecha_cierre) : '—'}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">Usuario apertura</span>
+                <p className="font-medium">{cierreDetail.usuario_apertura.nombre_usuario}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">Usuario cierre</span>
+                <p className="font-medium">
+                  {cierreDetail.usuario_cierre?.nombre_usuario ?? '—'}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">Monto total</span>
+                <p className="font-semibold">{formatCurrency(cierreDetail.monto_total)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">Estado</span>
+                <p className="font-medium">{cierreDetail.estado}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters bar */}
       <Card>
@@ -298,9 +388,11 @@ export function AdministracionDetallePage() {
       {/* Table */}
       <Card>
         <CardContent className="pt-6">
-          {datos.length === 0 ? (
+          {rowsToShow.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              No hay ventas para este cierre.
+              {hayFiltrosAplicados
+                ? 'Este cierre no tiene ventas que coincidan con los filtros.'
+                : 'Este cierre no tiene ventas registradas.'}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -319,8 +411,30 @@ export function AdministracionDetallePage() {
                           <ChevronDown className="inline h-3 w-3" />
                         ))}
                     </TableHead>
-                    <TableHead>Vendedor</TableHead>
-                    <TableHead>Producto</TableHead>
+                    <TableHead
+                      className="cursor-pointer select-none"
+                      onClick={() => onLocalSort('vendedor')}
+                    >
+                      Vendedor{' '}
+                      {localSort.campo === 'vendedor' &&
+                        (localSort.dir === 'asc' ? (
+                          <ChevronUp className="inline h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="inline h-3 w-3" />
+                        ))}
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer select-none"
+                      onClick={() => onLocalSort('producto')}
+                    >
+                      Producto{' '}
+                      {localSort.campo === 'producto' &&
+                        (localSort.dir === 'asc' ? (
+                          <ChevronUp className="inline h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="inline h-3 w-3" />
+                        ))}
+                    </TableHead>
                     <TableHead
                       className="text-right cursor-pointer select-none"
                       onClick={() => onSort('cantidad')}
@@ -348,7 +462,7 @@ export function AdministracionDetallePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {datos.map((fila, idx) => (
+                  {rowsToShow.map((fila, idx) => (
                     <TableRow key={`${fila.id_venta}-${idx}`}>
                       <TableCell className={`text-sm font-mono ${VENTA_COLORS[colorMap[fila.id_venta] ?? 0]}`}>
                         {fila.id_venta.slice(0, 8)}
