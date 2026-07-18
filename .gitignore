@@ -22,3 +22,6 @@ backups/
 # SDD / skill metadata (persisted in engram, not VCS)
 .atl/
 .sdd/
+
+# build artifacts (tsc -b)
+client/tsconfig.tsbuildinfo

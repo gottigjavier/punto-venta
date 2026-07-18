@@ -10,7 +10,6 @@ Sistema de punto de venta para manejo de ventas, stock y proveedores. Construido
 | Framework | Fastify | 5.x |
 | ORM | Prisma | 7.x |
 | Base de datos | PostgreSQL | 16 |
-| Cache | Redis | 7 |
 | Auth | JWT + bcrypt | - |
 | Validación | Zod | 4.x |
 | Testing | Vitest + Playwright | - |

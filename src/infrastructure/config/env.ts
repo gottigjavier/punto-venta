@@ -13,9 +13,6 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
 
-  // Redis
-  REDIS_URL: z.string(),
-
   // Server
   NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
   API_PORT: z.coerce.number().default(3001),

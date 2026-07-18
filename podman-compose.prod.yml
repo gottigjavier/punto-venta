@@ -38,35 +38,6 @@ services:
       - pv-network
 
   # ──────────────────────────────────────────────
-  # Redis (rate limiting, sessions, caching)
-  # ──────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: pv-redis-prod
-    restart: unless-stopped
-    # No port mapping in production
-    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
-    volumes:
-      - pv-redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-    networks:
-      - pv-network
-
-  # ──────────────────────────────────────────────
   # Fastify API
   # ──────────────────────────────────────────────
   api:
@@ -84,7 +55,6 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-pv_user}:@db:5432/punto_venta
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      - REDIS_URL=redis://redis:6379
       - API_PORT=3001
       - FRONTEND_URL=${FRONTEND_URL:-https://localhost}
       - LOG_LEVEL=${LOG_LEVEL:-info}
@@ -97,10 +67,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -122,8 +90,6 @@ services:
 # ──────────────────────────────────────────────
 volumes:
   pv-postgres-data:
-    driver: local
-  pv-redis-data:
     driver: local
 
 # ──────────────────────────────────────────────
