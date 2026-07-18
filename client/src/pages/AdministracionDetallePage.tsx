@@ -6,6 +6,7 @@ import {
   type VentaCierreFila,
   type VentaCierreQueryParams,
 } from '@/lib/api-client';
+import { formatDate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,15 +34,6 @@ import {
 
 function formatCurrency(value: number): string {
   return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
 }
 
 const VENTA_COLORS = ['text-blue-600', 'text-emerald-600', 'text-amber-600', 'text-rose-600'];

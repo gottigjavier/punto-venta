@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { stockApi, rubrosApi, type ApiResponse } from '@/lib/api-client';
+import { formatDate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -51,12 +52,6 @@ type SortOrder = 'asc' | 'desc';
 
 function formatCurrency(value: number): string {
   return `$${value.toFixed(2)}`;
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function vencimientoBadge(estado: StockItem['estado_vencimiento']) {
