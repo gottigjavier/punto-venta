@@ -80,7 +80,7 @@ const defaultStockQuery: StockQueryInput = {
 
 describe('Stock Use Cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks(); // restores vi.spyOn() (Date mocks) but NOT vi.mock() (prisma/logger)
   });
 
   describe('listStock', () => {
@@ -131,6 +131,123 @@ describe('Stock Use Cases', () => {
           }),
         })
       );
+    });
+
+    it('BUGFIX: product with fecha_vencimiento = today should NOT be vencido', async () => {
+      // Mock "now" = 14:00 UTC-3 (17:00 UTC) on 2026-07-17
+      const MOCK_NOW = Date.UTC(2026, 6, 17, 17, 0, 0); // July 17 17:00 UTC = 14:00 UTC-3
+      vi.spyOn(Date, 'now').mockReturnValue(MOCK_NOW);
+      vi.spyOn(Date.prototype, 'toISOString').mockImplementation(function (this: Date) {
+        // Native UTC ISO — code already adds +3h before calling toISOString
+        const y = this.getUTCFullYear();
+        const m = String(this.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(this.getUTCDate()).padStart(2, '0');
+        const hh = String(this.getUTCHours()).padStart(2, '0');
+        const mm = String(this.getUTCMinutes()).padStart(2, '0');
+        const ss = String(this.getUTCSeconds()).padStart(2, '0');
+        return `${y}-${m}-${d}T${hh}:${mm}:${ss}.000Z`;
+      });
+
+      // fecha_vencimiento = 2026-07-17 (stored as 2026-07-17T00:00:00.000Z)
+      const todayProduct = createMockProducto({
+        id: 'today-id',
+        fecha_vencimiento: new Date('2026-07-17T00:00:00.000Z'),
+      });
+      mockPrisma.producto.findMany.mockResolvedValue([todayProduct]);
+      mockPrisma.producto.count.mockResolvedValue(1);
+
+      const result = await listStock({ ...defaultStockQuery, vencimiento_dias: undefined });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        // Today's product should be 'ok', NOT 'vencido'
+        expect(result.value.data[0]?.estado_vencimiento).toBe('ok');
+      }
+    });
+
+    it('BUGFIX: product with fecha_vencimiento = today at 23:10 local should NOT be vencido', async () => {
+      // The original bug: at 23:10 local (02:10 UTC next day), the old code computed
+      // inicioHoyUTC3 as midnight of the NEXT day (because setHours(0) ran in UTC),
+      // causing today's products to appear "vencido" at 23:10.
+      // Mock Date.now to July 18 02:10 UTC = July 17 23:10 UTC-3
+      const MOCK_NOW = Date.UTC(2026, 6, 18, 2, 10, 0);
+      vi.spyOn(Date, 'now').mockReturnValue(MOCK_NOW);
+
+      // fecha_vencimiento = 2026-07-17 (the same day it is "now" in UTC-3)
+      const todayProduct = createMockProducto({
+        id: 'today-late-id',
+        fecha_vencimiento: new Date('2026-07-17T00:00:00.000Z'),
+      });
+      mockPrisma.producto.findMany.mockResolvedValue([todayProduct]);
+      mockPrisma.producto.count.mockResolvedValue(1);
+
+      const result = await listStock({ ...defaultStockQuery, vencimiento_dias: undefined });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        // Even at 23:10 local, today's product must NOT be 'vencido'
+        expect(result.value.data[0]?.estado_vencimiento).toBe('ok');
+      }
+    });
+
+    it('BUGFIX: product with fecha_vencimiento = yesterday should be vencido', async () => {
+      // Mock "now" = 10:00 UTC-3 (13:00 UTC) on 2026-07-17
+      const MOCK_NOW = Date.UTC(2026, 6, 17, 13, 0, 0);
+      vi.spyOn(Date, 'now').mockReturnValue(MOCK_NOW);
+      vi.spyOn(Date.prototype, 'toISOString').mockImplementation(function (this: Date) {
+        const y = this.getUTCFullYear();
+        const m = String(this.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(this.getUTCDate()).padStart(2, '0');
+        const hh = String(this.getUTCHours()).padStart(2, '0');
+        const mm = String(this.getUTCMinutes()).padStart(2, '0');
+        const ss = String(this.getUTCSeconds()).padStart(2, '0');
+        return `${y}-${m}-${d}T${hh}:${mm}:${ss}.000Z`;
+      });
+
+      const yesterdayProduct = createMockProducto({
+        id: 'yesterday-id',
+        fecha_vencimiento: new Date('2026-07-16T00:00:00.000Z'),
+      });
+      mockPrisma.producto.findMany.mockResolvedValue([yesterdayProduct]);
+      mockPrisma.producto.count.mockResolvedValue(1);
+
+      const result = await listStock({ ...defaultStockQuery, vencimiento_dias: undefined });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        // Yesterday's product should be 'vencido'
+        expect(result.value.data[0]?.estado_vencimiento).toBe('vencido');
+      }
+    });
+
+    it('BUGFIX: product with fecha_vencimiento = tomorrow should NOT be vencido', async () => {
+      // Mock "now" = 10:00 UTC-3 (13:00 UTC) on 2026-07-17
+      const MOCK_NOW = Date.UTC(2026, 6, 17, 13, 0, 0);
+      vi.spyOn(Date, 'now').mockReturnValue(MOCK_NOW);
+      vi.spyOn(Date.prototype, 'toISOString').mockImplementation(function (this: Date) {
+        const y = this.getUTCFullYear();
+        const m = String(this.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(this.getUTCDate()).padStart(2, '0');
+        const hh = String(this.getUTCHours()).padStart(2, '0');
+        const mm = String(this.getUTCMinutes()).padStart(2, '0');
+        const ss = String(this.getUTCSeconds()).padStart(2, '0');
+        return `${y}-${m}-${d}T${hh}:${mm}:${ss}.000Z`;
+      });
+
+      const tomorrowProduct = createMockProducto({
+        id: 'tomorrow-id',
+        fecha_vencimiento: new Date('2026-07-18T00:00:00.000Z'),
+      });
+      mockPrisma.producto.findMany.mockResolvedValue([tomorrowProduct]);
+      mockPrisma.producto.count.mockResolvedValue(1);
+
+      const result = await listStock({ ...defaultStockQuery, vencimiento_dias: undefined });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        // Tomorrow's product should NOT be 'vencido'
+        expect(result.value.data[0]?.estado_vencimiento).toBe('ok');
+      }
     });
   });
 

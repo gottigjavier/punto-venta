@@ -33,6 +33,7 @@ const { mockPrisma } = vi.hoisted(() => ({
     },
     cierreCaja: {
       create: vi.fn(),
+      findFirst: vi.fn(),
     },
     $transaction: vi.fn(),
   },
@@ -578,6 +579,11 @@ describe('Venta Use Cases', () => {
 
   describe('getResumenDia', () => {
     it('should return daily summary with sales', async () => {
+      // Mock active cash closing — must query by estado 'abierto'
+      mockPrisma.cierreCaja.findFirst.mockResolvedValue({
+        fecha_apertura: new Date('2026-07-17T10:00:00Z'),
+      });
+
       const mockVentas = [
         {
           id: 'v1',
@@ -678,6 +684,7 @@ describe('Venta Use Cases', () => {
     });
 
     it('should return empty summary when no sales today', async () => {
+      mockPrisma.cierreCaja.findFirst.mockResolvedValue(null);
       mockPrisma.venta.findMany.mockResolvedValue([]);
 
       const result = await getResumenDia();
@@ -692,6 +699,9 @@ describe('Venta Use Cases', () => {
     });
 
     it('should handle database error', async () => {
+      mockPrisma.cierreCaja.findFirst.mockResolvedValue({
+        fecha_apertura: new Date('2026-07-17T10:00:00Z'),
+      });
       mockPrisma.venta.findMany.mockRejectedValue(new Error('DB error'));
 
       const result = await getResumenDia();
@@ -702,7 +712,10 @@ describe('Venta Use Cases', () => {
       }
     });
 
-    it('should only include completed sales', async () => {
+    it('should only include completed sales without cierre', async () => {
+      mockPrisma.cierreCaja.findFirst.mockResolvedValue({
+        fecha_apertura: new Date('2026-07-17T10:00:00Z'),
+      });
       mockPrisma.venta.findMany.mockResolvedValue([]);
 
       await getResumenDia();
@@ -711,13 +724,49 @@ describe('Venta Use Cases', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             estado: 'completada',
-            created_at: expect.objectContaining({
-              gte: expect.any(Date),
-              lte: expect.any(Date),
-            }),
+            cierre_caja_id: null,
           }),
         })
       );
+    });
+
+    it('should use cierre apertura date as fecha when active cierre exists', async () => {
+      mockPrisma.cierreCaja.findFirst.mockResolvedValue({
+        fecha_apertura: new Date('2026-07-15T03:00:00Z'), // 00:00 local UTC-3
+      });
+      mockPrisma.venta.findMany.mockResolvedValue([]);
+
+      const result = await getResumenDia();
+
+      // Must query by estado 'abierto', NOT fecha_cierre: null
+      expect(mockPrisma.cierreCaja.findFirst).toHaveBeenCalledWith({
+        where: { estado: 'abierto' },
+        select: { fecha_apertura: true },
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        // 03:00 UTC = 00:00 UTC-3 → date string "2026-07-15"
+        expect(result.value.fecha).toBe('2026-07-15');
+      }
+    });
+
+    it('should use empty fecha when no active cierre', async () => {
+      mockPrisma.cierreCaja.findFirst.mockResolvedValue(null);
+      mockPrisma.venta.findMany.mockResolvedValue([]);
+
+      const result = await getResumenDia();
+
+      // Must query by estado 'abierto', NOT fecha_cierre: null
+      expect(mockPrisma.cierreCaja.findFirst).toHaveBeenCalledWith({
+        where: { estado: 'abierto' },
+        select: { fecha_apertura: true },
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.fecha).toBe('');
+      }
     });
   });
 

@@ -306,22 +306,20 @@ export async function listVentas(
   }
 }
 
-// Get daily sales summary
+// Get daily sales summary — scoped to the active cash period, not calendar day
 export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
   try {
-    const today = new Date();
-    const desde = startOfDay(today);
-    const hasta = endOfDay(today);
+    // Find the active (open) cash closing — estado 'abierto' means not yet closed
+    const cierreActivo = await prisma.cierreCaja.findFirst({
+      where: { estado: 'abierto' },
+      select: { fecha_apertura: true },
+    });
 
-    // Get all completed sales for today that are not yet archived in a cash closing
+    // Get all completed sales not yet archived in a cash closing
     const ventas = await prisma.venta.findMany({
       where: {
         estado: 'completada',
         cierre_caja_id: null,
-        created_at: {
-          gte: desde,
-          lte: hasta,
-        },
       },
       include: {
         usuario: {
@@ -391,8 +389,15 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
       }
     }
 
+    // fecha = opening date of active cierre (UTC-3), or empty if no active cierre
+    let fecha = '';
+    if (cierreActivo?.fecha_apertura) {
+      const aperturaLocal = new Date(cierreActivo.fecha_apertura.getTime() + 3 * 3600 * 1000);
+      fecha = aperturaLocal.toISOString().split('T')[0] ?? '';
+    }
+
     const response: ResumenDia = {
-      fecha: today.toISOString().split('T')[0] ?? today.toISOString(),
+      fecha,
       total_ventas,
       monto_total,
       productos_vendidos: Array.from(productoMap.values()),

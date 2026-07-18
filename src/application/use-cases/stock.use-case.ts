@@ -18,6 +18,30 @@ function toNumber(val: unknown): number {
   return 0;
 }
 
+// Helper: get YYYY-MM-DD string of a Date in UTC-3 (America/Argentina/Buenos_Aires)
+// Shifts -3h from UTC to get the UTC-3 local date, using pure ms arithmetic.
+// Used ONLY for "now" (Date.now() is in UTC). Product dates from the DB use
+// toISOString().slice(0,10) directly since they're stored as UTC midnight
+// representing the local date the user entered.
+function toUTC3DateString(date: Date): string {
+  const UTC3_OFFSET_MS = 3 * 60 * 60 * 1000;
+  const ms = date.getTime() - UTC3_OFFSET_MS; // subtract to go from UTC to UTC-3
+  // Days since Unix epoch
+  const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+  // Civil date from day count (Howard Hinnant algorithm)
+  const z = days + 719468;
+  const era = Math.floor(z / 146097);
+  const doe = z - era * 146097;
+  const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
+  const y = yoe + era * 400;
+  const doy = doe - Math.floor((365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100)));
+  const mp = Math.floor((5 * doy + 2) / 153);
+  const d = doy - Math.floor((153 * mp + 2) / 5) + 1;
+  const m = mp + (mp < 10 ? 3 : -9);
+  const yr = m <= 2 ? y + 1 : y;
+  return `${yr}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
 // Stock item with alerts
 interface StockItem extends ProductoWithRelations {
   estado_vencimiento: 'vencido' | 'por_vencer' | 'ok';
@@ -36,10 +60,22 @@ export async function listStock(
   try {
     const { search, rubro_id, vencimiento_dias, stock_bajo, vencidos, sort, order, page, limit } = query;
     const skip = (page - 1) * limit;
-    const now = new Date();
+
+    // UTC-3 local date as string for correct day-boundary comparisons.
+    // A product with fecha_vencimiento = D is VIGENTE during ALL of day D.
+    // It becomes "vencido" only after midnight of D+1.
+    // BUGFIX: original code did Date.now()+3h then setHours(0) which operated in
+    // runtime-local timezone (often UTC), making "today" start at 03:00 UTC-3.
+    // Fix: compute YYYY-MM-DD string in UTC-3, compare as strings.
+    const ahora = new Date(Date.now());
+    const hoyStr = toUTC3DateString(ahora);
+
+    // Midnight of today in UTC-3 (as UTC Date) for Prisma lt/gte queries
+    const limiteVencidos = new Date(hoyStr + 'T00:00:00.000Z');
+
     const futureDate =
       vencimiento_dias !== undefined
-        ? new Date(now.getTime() + vencimiento_dias * 24 * 60 * 60 * 1000)
+        ? new Date(limiteVencidos.getTime() + vencimiento_dias * 24 * 60 * 60 * 1000)
         : null;
 
     // Build where clause
@@ -63,11 +99,11 @@ export async function listStock(
 
     // Filter by expiration status
     if (vencidos) {
-      where.fecha_vencimiento = { lt: now };
+      where.fecha_vencimiento = { lt: limiteVencidos };
     } else if (futureDate) {
       // Products expiring soon (but not yet expired)
       where.AND = [
-        { fecha_vencimiento: { gte: now } },
+        { fecha_vencimiento: { gte: limiteVencidos } },
         { fecha_vencimiento: { lte: futureDate } },
       ];
     }
@@ -99,10 +135,14 @@ export async function listStock(
       let estado_vencimiento: 'vencido' | 'por_vencer' | 'ok' = 'ok';
 
       if (p.fecha_vencimiento) {
-        const vencimiento = new Date(p.fecha_vencimiento);
-        if (vencimiento < now) {
+        // The DB stores fecha_vencimiento as UTC midnight (e.g. 2026-07-17T00:00:00Z)
+        // which represents the local date the user intended. toISOString().slice(0,10)
+        // extracts that YYYY-MM-DD directly — no timezone shift needed.
+        // hoyStr uses -3h shift (UTC→UTC-3) because Date.now() is in UTC.
+        const vencStr = new Date(p.fecha_vencimiento).toISOString().slice(0, 10);
+        if (vencStr < hoyStr) {
           estado_vencimiento = 'vencido';
-        } else if (futureDate && vencimiento <= futureDate) {
+        } else if (futureDate && vencStr <= futureDate.toISOString().slice(0, 10)) {
           estado_vencimiento = 'por_vencer';
         }
       }
