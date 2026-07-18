@@ -348,6 +348,14 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
               },
             },
           },
+          ProductoMasVendido: {
+            type: 'object',
+            properties: {
+              producto_id: { type: 'string', format: 'uuid', description: 'ID del producto' },
+              cantidad_total: { type: 'number', example: 500, description: 'Total de unidades vendidas (solo ventas completadas)' },
+              monto_total: { type: 'number', example: 12500.0, description: 'Monto total vendido del producto' },
+            },
+          },
 
           // ===== Stock schemas =====
           StockItem: {

@@ -7,6 +7,7 @@ import {
   listVentasHandler,
   getResumenDiaHandler,
   getUltimasVentasHandler,
+  getMasVendidosHandler,
   deleteVentaHandler,
   cerrarCajaHandler,
 } from '../controllers/venta.controller.js';
@@ -47,6 +48,41 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     getUltimasVentasHandler
+  );
+
+  // GET /api/v1/ventas/mas-vendidos - Total quantity sold per product (must be before /:id)
+  fastify.get(
+    '/mas-vendidos',
+    {
+      preHandler: authorize('admin', 'gerente', 'despachador'),
+      schema: {
+        description:
+          'Obtiene la frecuencia de venta (nº de ventas distintas) y monto total por producto en todo el historial. ' +
+          'Solo cuenta ventas con estado "completada". Usado para ordenar el catálogo del POS por productos más vendidos.',
+        tags: ['Ventas'],
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean', example: true },
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    producto_id: { type: 'string' },
+                    veces_vendido: { type: 'number' },
+                    monto_total: { type: 'number' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    getMasVendidosHandler
   );
 
   // GET /api/v1/ventas/resumen/dia - Daily summary (must be before /:id)

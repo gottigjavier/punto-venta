@@ -13,6 +13,7 @@ import {
   listVentas,
   getResumenDia,
   getUltimasVentasPorProducto,
+  getMasVendidosPorProducto,
   deleteVenta,
   cerrarCaja,
 } from '../../../application/use-cases/venta.use-case.js';
@@ -259,6 +260,23 @@ export async function getUltimasVentasHandler(
   reply: FastifyReply
 ): Promise<void> {
   const result = await getUltimasVentasPorProducto();
+
+  if (result.isErr()) {
+    return handleDomainError(reply, result.error);
+  }
+
+  reply.send({
+    success: true,
+    data: result.value,
+  });
+}
+
+// GET /api/v1/ventas/mas-vendidos - Total quantity sold per product (all-time)
+export async function getMasVendidosHandler(
+  _request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const result = await getMasVendidosPorProducto();
 
   if (result.isErr()) {
     return handleDomainError(reply, result.error);

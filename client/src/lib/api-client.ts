@@ -232,6 +232,7 @@ export const cierresApi = {
 export const ventasApi = {
   resumenDia: () => api.get<ApiResponse<unknown>>('/ventas/resumen/dia'),
   ultimasVentas: () => api.get<ApiResponse<unknown[]>>('/ventas/ultimas-ventas'),
+  masVendidos: () => api.get<ApiResponse<unknown[]>>('/ventas/mas-vendidos'),
   list: (params?: Record<string, unknown>) =>
     api.get<ApiResponse<unknown[]>>('/ventas', { params }),
   getById: (id: string) => api.get<ApiResponse<unknown>>(`/ventas/${id}`),

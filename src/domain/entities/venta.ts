@@ -81,3 +81,10 @@ export interface VentaCierreRespuesta {
   total_monto: number;
   total_filas: number;
 }
+
+/** Producto más vendido (frecuencia de venta: nº de ventas distintas que lo incluyen) */
+export interface ProductoMasVendido {
+  producto_id: string;
+  veces_vendido: number;
+  monto_total: number;
+}

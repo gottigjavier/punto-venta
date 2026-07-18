@@ -11,6 +11,7 @@ import type {
   VentaWithDetalles,
   VentaListItem,
   ResumenDia,
+  ProductoMasVendido,
 } from '../../domain/entities/venta.js';
 import type { CreateVentaInput, VentaQueryInput } from '../dto/venta.dto.js';
 import { logger } from '../../infrastructure/logging/logger.js';
@@ -680,5 +681,43 @@ export async function cerrarCaja(
   } catch (error) {
     logger.error({ error, usuarioCierreId }, 'Error al cerrar caja');
     return err(databaseError('Error al cerrar caja', error as Error));
+  }
+}
+
+// Get total quantity and amount sold per product (all-time, completed sales only)
+export async function getMasVendidosPorProducto(): Promise<
+  AppResult<ProductoMasVendido[]>
+> {
+  try {
+    const detalles = await prisma.$queryRaw<
+      Array<{
+        producto_id: string;
+        veces_vendido: bigint | number;
+        monto_total: bigint | number;
+      }>
+    >`
+      SELECT
+        dv.producto_id,
+        CAST(COUNT(DISTINCT dv.venta_id) AS INTEGER) AS veces_vendido,
+        SUM(dv.subtotal) AS monto_total
+      FROM "DetalleVenta" dv
+      JOIN "Venta" v ON v.id = dv.venta_id
+      WHERE v.estado = 'completada'
+      GROUP BY dv.producto_id
+      ORDER BY veces_vendido DESC
+    `;
+
+    const result: ProductoMasVendido[] = detalles.map((d) => ({
+      producto_id: d.producto_id,
+      veces_vendido: toNumber(d.veces_vendido),
+      monto_total: toNumber(d.monto_total),
+    }));
+
+    return ok(result);
+  } catch (error) {
+    logger.error({ error }, 'Error al obtener productos más vendidos');
+    return err(
+      databaseError('Error al obtener productos más vendidos', error as Error),
+    );
   }
 }

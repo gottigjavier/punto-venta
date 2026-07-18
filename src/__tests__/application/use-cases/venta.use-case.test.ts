@@ -8,6 +8,7 @@ import {
   getResumenDia,
   deleteVenta,
   cerrarCaja,
+  getMasVendidosPorProducto,
 } from '../../../application/use-cases/venta.use-case.js';
 import type { CreateVentaInput, VentaQueryInput } from '../../../application/dto/venta.dto.js';
 
@@ -36,6 +37,7 @@ const { mockPrisma } = vi.hoisted(() => ({
       findFirst: vi.fn(),
     },
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
   },
 }));
 
@@ -978,6 +980,66 @@ describe('Venta Use Cases', () => {
       if (result.isErr()) {
         expect(result.error.code).toBe('CONFLICT');
         expect(result.error.message).toContain('No hay ventas completadas');
+      }
+    });
+  });
+
+  describe('getMasVendidosPorProducto', () => {
+    it('should return aggregated sales per product ordered by frequency DESC', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([
+        { producto_id: 'p1', veces_vendido: 500, monto_total: 12500 },
+        { producto_id: 'p2', veces_vendido: 200, monto_total: 5000 },
+        { producto_id: 'p3', veces_vendido: 50, monto_total: 1500 },
+      ]);
+
+      const result = await getMasVendidosPorProducto();
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toHaveLength(3);
+        expect(result.value[0]?.producto_id).toBe('p1');
+        expect(result.value[0]?.veces_vendido).toBe(500);
+        expect(result.value[0]?.monto_total).toBe(12500);
+        expect(result.value[1]?.producto_id).toBe('p2');
+        expect(result.value[2]?.producto_id).toBe('p3');
+      }
+    });
+
+    it('should query only completed sales with COUNT(DISTINCT) and GROUP BY', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+
+      await getMasVendidosPorProducto();
+
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+      // The tagged template literal passes the query as the first argument
+      const callArg = mockPrisma.$queryRaw.mock.calls[0]?.[0];
+      expect(callArg).toBeDefined();
+      const sql = Array.isArray(callArg) ? callArg.join('') : String(callArg);
+      expect(sql).toContain("WHERE v.estado = 'completada'");
+      expect(sql).toContain('GROUP BY');
+      expect(sql).toContain('COUNT(DISTINCT');
+      expect(sql).toContain('ORDER BY');
+    });
+
+    it('should return DATABASE_ERROR on query failure', async () => {
+      mockPrisma.$queryRaw.mockRejectedValue(new Error('DB connection lost'));
+
+      const result = await getMasVendidosPorProducto();
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('DATABASE_ERROR');
+      }
+    });
+
+    it('should return empty array when no completed sales exist', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+
+      const result = await getMasVendidosPorProducto();
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toHaveLength(0);
       }
     });
   });
