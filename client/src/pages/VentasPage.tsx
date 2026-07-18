@@ -7,6 +7,7 @@ import {
   productosApi,
 } from '@/lib/api-client';
 import { formatDate } from '@/lib/format';
+import { onConfirmSuccess, onConfirmError, onClearCart, onAddWhenConfirmed } from '@/features/ventas/cartMachine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -265,6 +266,7 @@ function POSView() {
   const [searchError, setSearchError] = useState('');
 
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartMode, setCartMode] = useState<'editing' | 'confirmed'>('editing');
   const [submitting, setSubmitting] = useState(false);
   const [saleResult, setSaleResult] = useState<{
     type: 'success' | 'error';
@@ -279,8 +281,11 @@ function POSView() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [activeRubroTab, setActiveRubroTab] = useState('todos');
 
-  // Last sale info per product (for sorting + display)
+  // Last sale info per product (for addToCart quantity suggestion)
   const [ultimasVentasMap, setUltimasVentasMap] = useState<Map<string, UltimaVenta>>(new Map());
+
+  // Total quantity sold per product (for grid ordering by most sold)
+  const [masVendidosMap, setMasVendidosMap] = useState<Map<string, { veces_vendido: number; monto_total: number }>>(new Map());
 
   // Track last used quantity per product
   const [lastQuantities, setLastQuantities] = useState<Map<string, number>>(new Map());
@@ -319,28 +324,41 @@ function POSView() {
 
       if (!mountedRef.current) return;
 
-      // Fetch last-sold info per product
+      // Fetch last-sold info per product (for addToCart quantity suggestion)
       let ultimasMap = new Map<string, UltimaVenta>();
       try {
         const { data: ultimasData } = await ventasApi.ultimasVentas();
         const ultimasList = (ultimasData.data as UltimaVenta[]) ?? [];
         ultimasMap = new Map(ultimasList.map((u) => [u.producto_id, u]));
       } catch {
-        // non-fatal: sorting falls back to alphabetical
+        // non-fatal: quantity suggestion falls back to 1
       }
 
       if (!mountedRef.current) return;
       setUltimasVentasMap(ultimasMap);
 
-      // Sort: products with recent sales first (desc by date),
+      // Fetch total quantity sold per product (for grid ordering by most sold)
+      let vendidosMap = new Map<string, { veces_vendido: number; monto_total: number }>();
+      try {
+        const { data: vendidosData } = await ventasApi.masVendidos();
+        const vendidosList = (vendidosData.data as Array<{ producto_id: string; veces_vendido: number; monto_total: number }>) ?? [];
+        vendidosMap = new Map(vendidosList.map((v) => [v.producto_id, { veces_vendido: v.veces_vendido, monto_total: v.monto_total }]));
+      } catch {
+        // non-fatal: sorting falls back to alphabetical
+      }
+
+      if (!mountedRef.current) return;
+      setMasVendidosMap(vendidosMap);
+
+      // Sort: most-sold products first (by total historical quantity),
       // never-sold products alphabetically at the end
       const sorted = [...products].sort((a, b) => {
-        const ua = ultimasMap.get(a.id)?.ultima_venta_at;
-        const ub = ultimasMap.get(b.id)?.ultima_venta_at;
-        if (ua && ub) return ub.localeCompare(ua); // recent first
-        if (ua && !ub) return -1; // a sold, b never → a first
-        if (!ua && ub) return 1; // b sold, a never → b first
-        return a.nombre.localeCompare(b.nombre); // both never → alpha
+        const ca = vendidosMap.get(a.id)?.veces_vendido ?? 0;
+        const cb = vendidosMap.get(b.id)?.veces_vendido ?? 0;
+        if (ca > 0 && cb > 0) return cb - ca;       // both sold: most sold first
+        if (ca > 0 && cb === 0) return -1;          // a sold, b not → a first
+        if (ca === 0 && cb > 0) return 1;           // b sold, a not → b first
+        return a.nombre.localeCompare(b.nombre);     // both unsold → alphabetical
       });
 
       // Build per-rubro map from the full sorted list
@@ -408,6 +426,29 @@ function POSView() {
       }
       qty = product.cantidad_disponible;
       stockWarning = `Stock insuficiente para ${product.nombre}: se cargó el disponible (${product.cantidad_disponible} ${product.unidad_medida}) en lugar de la última venta (${requestedQty} ${product.unidad_medida}).`;
+    }
+
+    // If cart is frozen after a confirmed sale, discard the previous cart and
+    // start fresh with just this product. We use a direct setCart([...item])
+    // instead of an updater function to avoid React batching pitfalls.
+    if (cartMode === 'confirmed') {
+      setCart([
+        {
+          producto_id: product.id,
+          nombre: product.nombre,
+          codigo: product.codigo,
+          precio_venta: product.precio_venta,
+          cantidad: qty,
+          stock_disponible: product.cantidad_disponible,
+          unidad_medida: product.unidad_medida,
+        },
+      ]);
+      const next = onAddWhenConfirmed(stockWarning);
+      setCartMode(next.cartMode);
+      setSaleResult(next.saleResult);
+      setSearchError(next.searchError);
+      setLastQuantities((prev) => new Map(prev).set(product.id, qty));
+      return;
     }
 
     setCart((prev) => {
@@ -492,7 +533,10 @@ function POSView() {
   // Clear cart
   const clearCart = () => {
     setCart([]);
-    setSearchError('');
+    const next = onClearCart();
+    setCartMode(next.cartMode);
+    setSaleResult(next.saleResult);
+    setSearchError(next.searchError);
   };
 
   // Cart totals
@@ -521,12 +565,13 @@ function POSView() {
       const { data } = await ventasApi.create(payload);
 
       const venta = data.data as VentaWithDetails;
-      setSaleResult({
-        type: 'success',
+      const saleResultValue = {
+        type: 'success' as const,
         message: `Venta #${venta.id.slice(0, 8)} registrada correctamente`,
         details: `Total: ${formatCurrency(venta.total)} | ${cartItemCount} items`,
-      });
-      setCart([]);
+      };
+      setSaleResult(saleResultValue);
+      setCartMode(onConfirmSuccess(saleResultValue).cartMode);
       setSearchQuery('');
       setSearchResults([]);
       // Refresh product grid + stock so the UI reflects the deducted stock
@@ -538,18 +583,21 @@ function POSView() {
         response?: { data?: { error?: { code?: string; message?: string; disponible?: number; solicitado?: number } } };
       };
       const errorData = axiosErr.response?.data?.error;
+      let saleResultValue: { type: 'error'; message: string; details?: string };
       if (errorData?.code === 'STOCK_INSUFFICIENT') {
-        setSaleResult({
+        saleResultValue = {
           type: 'error',
           message: errorData.message ?? 'Stock insuficiente',
           details: `Disponible: ${errorData.disponible} | Solicitado: ${errorData.solicitado}`,
-        });
+        };
       } else {
-        setSaleResult({
+        saleResultValue = {
           type: 'error',
           message: errorData?.message ?? 'Error al procesar la venta',
-        });
+        };
       }
+      setSaleResult(saleResultValue);
+      setCartMode(onConfirmError(saleResultValue).cartMode);
     } finally {
       setSubmitting(false);
     }
@@ -752,10 +800,15 @@ function POSView() {
                   {cartItemCount} items
                 </Badge>
               )}
+              {cartMode === 'confirmed' && (
+                <Badge variant="outline" className="ml-1 text-xs">
+                  Venta confirmada
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {cart.length === 0 ? (
+            {cart.length === 0 && cartMode === 'editing' ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                 <ShoppingCart className="mb-2 h-8 w-8" />
                 <p className="text-sm">Carrito vacio</p>
@@ -784,6 +837,7 @@ function POSView() {
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => updateQuantity(item.producto_id, -1)}
+                          disabled={cartMode === 'confirmed'}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -798,13 +852,14 @@ function POSView() {
                           className="h-7 w-14 text-center text-xs px-1"
                           min={0.01}
                           max={item.stock_disponible}
+                          disabled={cartMode === 'confirmed'}
                         />
                         <Button
                           variant="outline"
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => updateQuantity(item.producto_id, 1)}
-                          disabled={item.cantidad >= item.stock_disponible}
+                          disabled={cartMode === 'confirmed' || item.cantidad >= item.stock_disponible}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -820,6 +875,7 @@ function POSView() {
                           size="icon"
                           className="h-7 w-7 text-destructive"
                           onClick={() => removeFromCart(item.producto_id)}
+                          disabled={cartMode === 'confirmed'}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -849,7 +905,7 @@ function POSView() {
                   <Button
                     className="flex-1"
                     onClick={confirmSale}
-                    disabled={submitting || cart.length === 0}
+                    disabled={submitting || cart.length === 0 || cartMode === 'confirmed'}
                   >
                     {submitting ? (
                       <>
