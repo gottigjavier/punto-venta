@@ -3,6 +3,10 @@
     {
       "source": "/api/v1/(.*)",
       "destination": "https://punto-venta-api-5duo.onrender.com/api/v1/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
