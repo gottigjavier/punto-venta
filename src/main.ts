@@ -145,21 +145,22 @@ async function bootstrap(): Promise<void> {
 
   // ===== Start server =====
   try {
-    await fastify.listen({ port: env.API_PORT, host: '0.0.0.0' });
-    logger.info(`🚀 Server running on port ${env.API_PORT} (v${APP_VERSION})`);
-    logger.info(`📊 Health: http://localhost:${env.API_PORT}/health`);
-    logger.info(`🔍 Readiness: http://localhost:${env.API_PORT}/ready`);
-    logger.info(`📈 Metrics: http://localhost:${env.API_PORT}/metrics`);
+    const port = env.PORT ?? env.API_PORT ?? 3001;
+    await fastify.listen({ port, host: '0.0.0.0' });
+    logger.info(`🚀 Server running on port ${port} (v${APP_VERSION})`);
+    logger.info(`📊 Health: http://localhost:${port}/health`);
+    logger.info(`🔍 Readiness: http://localhost:${port}/ready`);
+    logger.info(`📈 Metrics: http://localhost:${port}/metrics`);
     if (env.NODE_ENV !== 'production') {
-      logger.info(`📚 API Docs: http://localhost:${env.API_PORT}/docs`);
+      logger.info(`📚 API Docs: http://localhost:${port}/docs`);
     }
-    logger.info(`🔑 Auth: http://localhost:${env.API_PORT}/api/v1/auth/login`);
-    logger.info(`📦 Productos: http://localhost:${env.API_PORT}/api/v1/productos`);
-    logger.info(`🏢 Proveedores: http://localhost:${env.API_PORT}/api/v1/proveedores`);
-    logger.info(`📂 Rubros: http://localhost:${env.API_PORT}/api/v1/rubros`);
-    logger.info(`👤 Usuarios: http://localhost:${env.API_PORT}/api/v1/usuarios`);
-    logger.info(`📈 Stock: http://localhost:${env.API_PORT}/api/v1/stock`);
-    logger.info(`💰 Ventas: http://localhost:${env.API_PORT}/api/v1/ventas`);
+    logger.info(`🔑 Auth: http://localhost:${port}/api/v1/auth/login`);
+    logger.info(`📦 Productos: http://localhost:${port}/api/v1/productos`);
+    logger.info(`🏢 Proveedores: http://localhost:${port}/api/v1/proveedores`);
+    logger.info(`📂 Rubros: http://localhost:${port}/api/v1/rubros`);
+    logger.info(`👤 Usuarios: http://localhost:${port}/api/v1/usuarios`);
+    logger.info(`📈 Stock: http://localhost:${port}/api/v1/stock`);
+    logger.info(`💰 Ventas: http://localhost:${port}/api/v1/ventas`);
   } catch (error) {
     logger.error(error, 'Error starting server');
     process.exit(1);

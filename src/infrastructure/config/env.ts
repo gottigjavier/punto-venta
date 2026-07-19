@@ -15,6 +15,7 @@ const envSchema = z.object({
 
   // Server
   NODE_ENV: z.enum(['development', 'staging', 'production']).default('development'),
+  PORT: z.coerce.number().optional(),
   API_PORT: z.coerce.number().default(3001),
 
   // Frontend

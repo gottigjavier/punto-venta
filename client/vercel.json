@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/v1/(.*)",
-      "destination": "https://TU-BACKEND-PRODUCCION/api/v1/$1"
+      "destination": "https://punto-venta-api.onrender.com/api/v1/$1"
     }
   ]
 }
