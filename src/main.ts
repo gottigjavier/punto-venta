@@ -6,7 +6,7 @@ import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import { env, APP_VERSION } from './infrastructure/config/env.js';
 import { logger } from './infrastructure/logging/logger.js';
-// import { registerSwagger } from './infrastructure/swagger/swagger.js';
+import { registerSwagger } from './infrastructure/swagger/swagger.js';
 import { authRoutes } from './adapters/http/routes/auth.routes.js';
 import { healthRoutes } from './adapters/http/routes/health.routes.js';
 import { productoRoutes } from './adapters/http/routes/producto.routes.js';
@@ -106,11 +106,8 @@ async function bootstrap(): Promise<void> {
   // Cookies
   await fastify.register(cookie);
 
-  // Swagger/OpenAPI documentation (solo en desarrollo)
-  // Temporarily disabled due to schema validation issues
-  // if (env.NODE_ENV !== 'production') {
-  //   await registerSwagger(fastify);
-  // }
+  // Swagger/OpenAPI documentation
+  await registerSwagger(fastify);
 
   // ===== Plugin de métricas =====
   fastify.get('/metrics', async () => {
