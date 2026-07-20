@@ -21,6 +21,9 @@ const ROLE_ALLOWED_PATHS: Record<string, string[]> = {
   despachador: ['/ventas', '/stock'],
 };
 
+// Paths only the admin role may reach. Non-admins are redirected to their home.
+const ADMIN_ONLY_PATHS = ['/usuarios'];
+
 function homeForRole(rol?: string): string {
   return '/ventas';
 }
@@ -33,6 +36,13 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
   const allowed = ROLE_ALLOWED_PATHS[user?.rol ?? ''];
   if (allowed && !allowed.some((p) => location.pathname === p || location.pathname.startsWith(p + '/'))) {
+    return <Navigate to={homeForRole(user?.rol)} replace />;
+  }
+
+  const isAdminOnlyPath = ADMIN_ONLY_PATHS.some(
+    (p) => location.pathname === p || location.pathname.startsWith(p + '/'),
+  );
+  if (isAdminOnlyPath && user?.rol !== 'admin') {
     return <Navigate to={homeForRole(user?.rol)} replace />;
   }
   return <>{children}</>;

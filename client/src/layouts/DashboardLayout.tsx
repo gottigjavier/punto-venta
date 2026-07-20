@@ -34,15 +34,19 @@ const ALLOWED_SECTIONS_BY_ROLE: Record<string, string[]> = {
   despachador: ['/stock', '/ventas'],
 };
 
+// Sections only the admin role may see. Non-admins never see these.
+const ADMIN_ONLY_SECTIONS = ['/usuarios'];
+
 export function DashboardLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const allowed = ALLOWED_SECTIONS_BY_ROLE[user?.rol ?? ''];
-  const visibleNavItems = allowed
+  const visibleNavItems = (allowed
     ? navItems.filter((item) => allowed.includes(item.href))
-    : navItems;
+    : navItems
+  ).filter((item) => user?.rol === 'admin' || !ADMIN_ONLY_SECTIONS.includes(item.href));
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
