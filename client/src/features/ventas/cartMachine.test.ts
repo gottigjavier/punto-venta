@@ -4,6 +4,7 @@ import {
   onConfirmError,
   onClearCart,
   onAddWhenConfirmed,
+  countCartItems,
   type CartMode,
   type SaleResult,
 } from './cartMachine';
@@ -145,5 +146,31 @@ describe('cartMachine', () => {
       expect(cartMode).toBe('editing');
       expect(errorResult.saleResult!.type).toBe('error');
     });
+  });
+});
+
+describe('countCartItems', () => {
+  it('sums cantidad for unit products and 1 per line for weight/volume products', () => {
+    const cart = [
+      { cantidad: 3, unidad_medida: 'unidad' },
+      { cantidad: 2, unidad_medida: 'unidad' },
+      { cantidad: 1.25, unidad_medida: 'kg' },
+    ];
+
+    expect(countCartItems(cart)).toBe(6);
+  });
+
+  it('counts each weight line as 1 regardless of quantity (fractional or multiple)', () => {
+    const cart = [
+      { cantidad: 0.5, unidad_medida: 'kg' },
+      { cantidad: 2.75, unidad_medida: 'l' },
+      { cantidad: 1, unidad_medida: 'g' },
+    ];
+
+    expect(countCartItems(cart)).toBe(3);
+  });
+
+  it('returns 0 for an empty cart', () => {
+    expect(countCartItems([])).toBe(0);
   });
 });

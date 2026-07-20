@@ -7,6 +7,39 @@
 
 export type CartMode = 'editing' | 'confirmed';
 
+/**
+ * A cart line needs only these two fields to be counted toward the
+ * "items" counter. Kept structural so it works with the local `CartItem`
+ * type in VentasPage without a circular import.
+ */
+export interface CountableCartLine {
+  cantidad: number;
+  unidad_medida: string;
+}
+
+/**
+ * Units of measure that represent WEIGHT / VOLUME (granel). A product sold
+ * this way contributes exactly 1 item to the counter, regardless of the
+ * quantity entered (e.g. 1.25 kg → 1 item).
+ *
+ * Source of truth: the backend `UnidadMedida` enum
+ * ('unidad' | 'kg' | 'g' | 'l' | 'ml'). Everything that is NOT 'unidad'
+ * is weight/volume.
+ */
+const WEIGHT_VOLUME_UNITS = new Set(['kg', 'g', 'l', 'ml']);
+
+/**
+ * Count how many items are in the cart, applying the POS rule:
+ *  - UNIT product (unidad)   → contributes `cantidad` (3 unidades → 3 items)
+ *  - WEIGHT/VOLUME product   → contributes 1 per cart line (1.25 kg → 1 item)
+ */
+export function countCartItems(lines: CountableCartLine[]): number {
+  return lines.reduce((sum, line) => {
+    const isUnit = line.unidad_medida === 'unidad';
+    return sum + (isUnit ? line.cantidad : 1);
+  }, 0);
+}
+
 export type SaleResult =
   | { type: 'success' | 'error'; message: string; details?: string }
   | null;

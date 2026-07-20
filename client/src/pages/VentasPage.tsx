@@ -7,7 +7,7 @@ import {
   productosApi,
 } from '@/lib/api-client';
 import { formatDate } from '@/lib/format';
-import { onConfirmSuccess, onConfirmError, onClearCart, onAddWhenConfirmed } from '@/features/ventas/cartMachine';
+import { onConfirmSuccess, onConfirmError, onClearCart, onAddWhenConfirmed, countCartItems } from '@/features/ventas/cartMachine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -544,7 +544,7 @@ function POSView() {
     (sum, item) => sum + item.precio_venta * item.cantidad,
     0,
   );
-  const cartItemCount = cart.reduce((sum, item) => sum + item.cantidad, 0);
+  const cartItemCount = countCartItems(cart);
 
   // Confirm sale
   const confirmSale = async () => {
