@@ -83,6 +83,10 @@ export function LoginPage() {
             <Button type="submit" className={cn('w-full', loading && 'opacity-70')} disabled={loading}>
               {loading ? 'Ingresando…' : 'Ingresar'}
             </Button>
+
+            <p className="text-center text-xs text-muted-foreground">
+              Alojado en servidores gratuitos. Puede tardar bastante.
+            </p>
           </form>
         </CardContent>
       </Card>
