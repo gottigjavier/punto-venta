@@ -15,6 +15,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -219,6 +220,11 @@ export function AdministracionDetallePage() {
   // Sequential color map — computed from fetched data
   const colorMap = useMemo(() => buildColorMap(datos), [datos]);
 
+  // Derived totals from cierre detail (ingresos/egresos/monto_total)
+  const diferencia = (cierreDetail?.ingresos_total ?? 0) - (cierreDetail?.egresos_total ?? 0);
+  const totalCaja = cierreDetail?.monto_total ?? 0; // total archivado del cierre: ventas + diferencia
+  const totalBrutoVentas = totalCaja - diferencia; // solo ventas (bruto) — inmune a los filtros de la tabla
+
   // -----------------------------------------------------------------------
   // Render: loading
   // -----------------------------------------------------------------------
@@ -293,7 +299,7 @@ export function AdministracionDetallePage() {
               </div>
               <div>
                 <span className="text-muted-foreground text-xs">Monto total</span>
-                <p className="font-semibold">{formatCurrency(cierreDetail.monto_total)}</p>
+                <p className="font-semibold">{formatCurrency(totalCaja)}</p>
               </div>
               <div>
                 <span className="text-muted-foreground text-xs">Estado</span>
@@ -468,22 +474,25 @@ export function AdministracionDetallePage() {
                     </TableRow>
                   ))}
                 </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={4} className="font-medium">Total Ventas</TableCell>
+                    <TableCell className="text-right font-semibold text-muted-foreground">
+                      {formatCurrency(totalMonto)}
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
               </Table>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Footer */}
-      <p className="text-sm text-muted-foreground text-right font-semibold">
-        Total: {formatCurrency(totalMonto)}
-      </p>
-
       {/* Movimientos de caja archivados en este cierre */}
       {(cierreDetail?.movimientos?.length ?? 0) > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Movimientos de caja</CardTitle>
+             <CardTitle className="text-base">Ingresos y Egresos</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="overflow-x-auto">
@@ -492,7 +501,7 @@ export function AdministracionDetallePage() {
                   <TableRow>
                     <TableHead>Fecha</TableHead>
                     <TableHead>Usuario</TableHead>
-                    <TableHead>Producto</TableHead>
+                     <TableHead>Tipo</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -520,11 +529,64 @@ export function AdministracionDetallePage() {
                     </TableRow>
                   ))}
                 </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={3} className="font-medium">Diferencia Ingresos y Egresos</TableCell>
+                    <TableCell
+                      className={`text-right font-semibold ${
+                        diferencia > 0 ? 'text-green-300' : diferencia < 0 ? 'text-red-300' : 'text-muted-foreground'
+                      }`}
+                    >
+                      {formatCurrency(diferencia)}
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
               </Table>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Resumen de movimientos de caja */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Movimientos de Caja</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="text-sm">Total Ventas</TableCell>
+                  <TableCell className="text-right text-sm font-semibold">
+                    {formatCurrency(totalBrutoVentas)}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-sm">Diferencia Ingresos/Egresos</TableCell>
+                  <TableCell
+                    className={`text-right text-sm font-semibold ${
+                      diferencia > 0
+                        ? 'text-green-300'
+                        : diferencia < 0
+                          ? 'text-red-300'
+                          : 'text-muted-foreground'
+                    }`}
+                  >
+                    {formatCurrency(diferencia)}
+                  </TableCell>
+                </TableRow>
+                <TableRow className="font-bold bg-muted/50">
+                  <TableCell className="text-sm">Total</TableCell>
+                  <TableCell className="text-right text-sm font-semibold text-blue-400">
+                    {formatCurrency(totalCaja)}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

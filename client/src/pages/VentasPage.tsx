@@ -8,6 +8,8 @@ import {
   movimientosApi,
   type MovimientoCajaItem,
   type ResumenMovimientos,
+  type FilaHistorial,
+  type HistorialQueryParams,
 } from '@/lib/api-client';
 import { formatDate } from '@/lib/format';
 import { onConfirmSuccess, onConfirmError, onClearCart, onAddWhenConfirmed, countCartItems } from '@/features/ventas/cartMachine';
@@ -178,6 +180,20 @@ function estadoBadge(estado: string) {
       return <Badge variant="outline">Pendiente</Badge>;
     case 'cancelada':
       return <Badge variant="destructive">Cancelada</Badge>;
+    default:
+      return <Badge variant="secondary">{estado}</Badge>;
+  }
+}
+
+// Badge for the unified history row type (Venta / Ingreso / Egreso)
+function estadoBadgeHistorial(estado: 'Venta' | 'Ingreso' | 'Egreso') {
+  switch (estado) {
+    case 'Venta':
+      return <Badge variant="default">Venta</Badge>;
+    case 'Ingreso':
+      return <Badge variant="success">Ingreso</Badge>;
+    case 'Egreso':
+      return <Badge variant="destructive">Egreso</Badge>;
     default:
       return <Badge variant="secondary">{estado}</Badge>;
   }
@@ -943,7 +959,7 @@ function POSView() {
 
 function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: string; refreshKey?: number }) {
   const canDeleteVentas = ['admin', 'gerente'].includes(currentUserRole ?? '');
-  const [ventas, setVentas] = useState<VentaListItem[]>([]);
+  const [filas, setFilas] = useState<FilaHistorial[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -955,7 +971,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
   // Filters
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
-  const [estadoFilter, setEstadoFilter] = useState<string>('');
+  const [tipoFilaFilter, setTipoFilaFilter] = useState<string>('');
   const [usuarioFilter, setUsuarioFilter] = useState('');
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
 
@@ -974,11 +990,11 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
       .catch(() => {});
   }, []);
 
-  const fetchVentas = useCallback(
+  const fetchHistorial = useCallback(
     async (page = 1) => {
       setLoading(true);
       try {
-        const params: Record<string, unknown> = {
+        const params: HistorialQueryParams = {
           page,
           limit: pagination.limit,
           sort: 'created_at',
@@ -986,11 +1002,11 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
         };
         if (fechaDesde) params.fecha_desde = fechaDesde;
         if (fechaHasta) params.fecha_hasta = fechaHasta;
-        if (estadoFilter) params.estado = estadoFilter;
+        if (tipoFilaFilter) params.tipo_fila = tipoFilaFilter as 'venta' | 'movimiento';
         if (usuarioFilter) params.usuario_id = usuarioFilter;
 
-        const { data } = await ventasApi.list(params);
-        setVentas((data.data as VentaListItem[]) ?? []);
+        const { data } = await ventasApi.historial(params);
+        setFilas((data.data as FilaHistorial[]) ?? []);
         if (data.pagination) {
           setPagination(data.pagination as Pagination);
         }
@@ -1000,20 +1016,20 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
         setLoading(false);
       }
     },
-    [pagination.limit, fechaDesde, fechaHasta, estadoFilter, usuarioFilter],
+    [pagination.limit, fechaDesde, fechaHasta, tipoFilaFilter, usuarioFilter],
   );
 
   useEffect(() => {
-    fetchVentas(1);
-  }, [fetchVentas]);
+    fetchHistorial(1);
+  }, [fetchHistorial]);
 
   // Refetch when parent signals a cash period was closed
   useEffect(() => {
     if (refreshKey && refreshKey > 0) {
       setPagination((p) => ({ ...p, page: 1 }));
-      fetchVentas(1);
+      fetchHistorial(1);
     }
-  }, [refreshKey, fetchVentas]);
+  }, [refreshKey, fetchHistorial]);
 
   // View sale details
   const viewDetails = async (ventaId: string) => {
@@ -1033,7 +1049,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
   const resetFilters = () => {
     setFechaDesde('');
     setFechaHasta('');
-    setEstadoFilter('');
+    setTipoFilaFilter('');
     setUsuarioFilter('');
   };
 
@@ -1045,7 +1061,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
     try {
       await ventasApi.delete(ventaId);
       setDetailOpen(false);
-      fetchVentas(1);
+      fetchHistorial(1);
       alert('Venta eliminada. El stock fue restituido.');
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number; data?: { error?: { message?: string } } } };
@@ -1085,19 +1101,18 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Estado</Label>
+              <Label className="text-xs">Tipo</Label>
               <Select
-                value={estadoFilter}
-                onValueChange={(v) => setEstadoFilter(v === 'all' ? '' : v)}
+                value={tipoFilaFilter}
+                onValueChange={(v) => setTipoFilaFilter(v === 'all' ? '' : v)}
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="completada">Completada</SelectItem>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="cancelada">Cancelada</SelectItem>
+                  <SelectItem value="venta">Ventas</SelectItem>
+                  <SelectItem value="movimiento">Movimientos</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1135,10 +1150,10 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
               Cargando...
             </div>
-          ) : ventas.length === 0 ? (
+          ) : filas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <ShoppingCart className="mb-2 h-8 w-8" />
-              <p>No hay ventas registradas</p>
+              <p>No hay registros en el historial del período activo</p>
             </div>
           ) : (
             <>
@@ -1155,30 +1170,44 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ventas.map((v) => (
-                      <TableRow key={v.id}>
+                    {filas.map((f) => (
+                      <TableRow key={f.id}>
                         <TableCell className="text-sm">
-                          {formatDate(v.created_at)}
+                          {formatDate(f.created_at)}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {v.usuario_nombre}
-                        </TableCell>
-                        <TableCell className="text-center">{v.cantidad_items}</TableCell>
-                        <TableCell className="text-right font-semibold">
-                          {formatCurrency(v.total)}
+                          {f.usuario_nombre}
                         </TableCell>
                         <TableCell className="text-center">
-                          {estadoBadge(v.estado)}
+                          {f.tipo_fila === 'venta' ? f.cantidad_items : '—'}
+                        </TableCell>
+                        <TableCell
+                          className={
+                            f.estado === 'Egreso'
+                              ? 'text-right font-semibold text-red-600'
+                              : 'text-right font-semibold'
+                          }
+                        >
+                          {f.estado === 'Egreso'
+                            ? `-${formatCurrency(f.monto)}`
+                            : formatCurrency(f.monto)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {estadoBadgeHistorial(f.estado)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => viewDetails(v.id)}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
+                          {f.tipo_fila === 'venta' ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => viewDetails(f.id)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1200,7 +1229,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
                       variant="outline"
                       size="sm"
                       disabled={pagination.page <= 1}
-                      onClick={() => fetchVentas(pagination.page - 1)}
+                      onClick={() => fetchHistorial(pagination.page - 1)}
                     >
                       <ChevronLeft className="h-4 w-4" />
                       Anterior
@@ -1212,7 +1241,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
                       variant="outline"
                       size="sm"
                       disabled={pagination.page >= pagination.totalPages}
-                      onClick={() => fetchVentas(pagination.page + 1)}
+                      onClick={() => fetchHistorial(pagination.page + 1)}
                     >
                       Siguiente
                       <ChevronRight className="h-4 w-4" />

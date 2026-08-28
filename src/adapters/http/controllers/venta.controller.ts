@@ -9,6 +9,7 @@ import {
   VentaIdParamSchema,
   CerrarCajaSchema,
 } from '../../../application/dto/venta.dto.js';
+import { HistorialQuerySchema } from '../../../application/dto/historial.dto.js';
 import {
   CrearMovimientoSchema,
   MovimientoQuerySchema,
@@ -27,6 +28,7 @@ import {
   crearMovimiento,
   listarMovimientos,
 } from '../../../application/use-cases/movimiento-caja.use-case.js';
+import { historialUnificado } from '../../../application/use-cases/historial.use-case.js';
 import type { DomainError } from '../../../shared/types/result.js';
 
 // Helper to handle domain errors
@@ -403,6 +405,39 @@ export async function listarMovimientosHandler(
     success: true,
     data,
     resumen,
+    pagination,
+  });
+}
+
+// GET /api/v1/ventas/historial - Unified history (sales + cash movements)
+export async function historialHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const parsed = HistorialQuerySchema.safeParse(request.query);
+
+  if (!parsed.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Parámetros de consulta inválidos',
+        details: parsed.error.flatten().fieldErrors,
+      },
+    });
+  }
+
+  const result = await historialUnificado(parsed.data);
+
+  if (result.isErr()) {
+    return handleDomainError(reply, result.error);
+  }
+
+  const { data, pagination } = result.value;
+
+  reply.send({
+    success: true,
+    data,
     pagination,
   });
 }

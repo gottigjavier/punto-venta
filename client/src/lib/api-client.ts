@@ -261,12 +261,37 @@ export interface ResumenMovimientos {
   total: number;
 }
 
+/** A unified history row (a sale OR a cash movement) from GET /ventas/historial */
+export interface FilaHistorial {
+  id: string;
+  tipo_fila: 'venta' | 'movimiento';
+  created_at: string;
+  usuario_nombre: string;
+  monto: number;
+  estado: 'Venta' | 'Ingreso' | 'Egreso';
+  cantidad_items: number | null;
+  referencia_id?: string | null;
+}
+
+export interface HistorialQueryParams {
+  page?: number;
+  limit?: number;
+  sort?: 'created_at' | 'monto';
+  order?: 'asc' | 'desc';
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  usuario_id?: string;
+  tipo_fila?: 'venta' | 'movimiento';
+}
+
 export const ventasApi = {
   resumenDia: () => api.get<ApiResponse<unknown>>('/ventas/resumen/dia'),
   ultimasVentas: () => api.get<ApiResponse<unknown[]>>('/ventas/ultimas-ventas'),
   masVendidos: () => api.get<ApiResponse<unknown[]>>('/ventas/mas-vendidos'),
   list: (params?: Record<string, unknown>) =>
     api.get<ApiResponse<unknown[]>>('/ventas', { params }),
+  historial: (params?: HistorialQueryParams) =>
+    api.get<ApiResponse<FilaHistorial[]>>('/ventas/historial', { params }),
   getById: (id: string) => api.get<ApiResponse<unknown>>(`/ventas/${id}`),
   create: (data: unknown) => api.post<ApiResponse<unknown>>('/ventas', data),
   cerrarCaja: (data: { password: string }) => api.post<ApiResponse<unknown>>('/ventas/cierre-caja', data),

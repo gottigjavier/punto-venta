@@ -67,7 +67,7 @@ export const ProductoQuerySchema = z.object({
   sort: z.enum(['nombre', 'codigo', 'precio_venta', 'precio_compra', 'cantidad_aviso', 'created_at', 'updated_at']).default('created_at'),
   order: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(1000).default(20),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 export type ProductoQueryInput = z.infer<typeof ProductoQuerySchema>;

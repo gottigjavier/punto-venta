@@ -12,6 +12,7 @@ import {
   cerrarCajaHandler,
   crearMovimientoHandler,
   listarMovimientosHandler,
+  historialHandler,
 } from '../controllers/venta.controller.js';
 import { authorize } from '../middleware/auth.middleware.js';
 import { registerCierreRoutes } from './cierre.routes.js';
@@ -198,6 +199,69 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     crearMovimientoHandler
+  );
+
+  // GET /api/v1/ventas/historial - Unified history (sales + cash movements)
+  fastify.get(
+    '/historial',
+    {
+      preHandler: authorize('admin', 'gerente'),
+      schema: {
+        description:
+          'Historial unificado del periodo activo: ventas y movimientos de caja, ' +
+          'mergeados en memoria y ordenados globalmente por fecha o monto. ' +
+          'Solo admin/gerente.',
+        tags: ['Ventas'],
+        security: [{ bearerAuth: [] }],
+        querystring: {
+          type: 'object',
+          properties: {
+            page: { type: 'integer' },
+            limit: { type: 'integer' },
+            sort: { type: 'string', enum: ['created_at', 'monto'] },
+            order: { type: 'string', enum: ['asc', 'desc'] },
+            fecha_desde: { type: 'string', description: 'ISO date (inclusive)' },
+            fecha_hasta: { type: 'string', description: 'ISO date (inclusive)' },
+            usuario_id: { type: 'string', description: 'UUID de usuario' },
+            tipo_fila: { type: 'string', enum: ['venta', 'movimiento'] },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    tipo_fila: { type: 'string', enum: ['venta', 'movimiento'] },
+                    created_at: { type: 'string' },
+                    usuario_nombre: { type: 'string' },
+                    monto: { type: 'number' },
+                    estado: { type: 'string', enum: ['Venta', 'Ingreso', 'Egreso'] },
+                    cantidad_items: { type: 'integer', nullable: true },
+                    referencia_id: { type: 'string', nullable: true },
+                  },
+                },
+              },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'integer' },
+                  limit: { type: 'integer' },
+                  total: { type: 'integer' },
+                  totalPages: { type: 'integer' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    historialHandler
   );
 
   // GET /api/v1/ventas
