@@ -36,6 +36,11 @@ const { mockPrisma } = vi.hoisted(() => ({
       create: vi.fn(),
       findFirst: vi.fn(),
     },
+    movimientoCaja: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+      updateMany: vi.fn(),
+    },
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
   },
@@ -647,6 +652,7 @@ describe('Venta Use Cases', () => {
       ];
 
       mockPrisma.venta.findMany.mockResolvedValue(mockVentas);
+      mockPrisma.movimientoCaja.findMany.mockResolvedValue([]);
 
       const result = await getResumenDia();
 
@@ -688,6 +694,7 @@ describe('Venta Use Cases', () => {
     it('should return empty summary when no sales today', async () => {
       mockPrisma.cierreCaja.findFirst.mockResolvedValue(null);
       mockPrisma.venta.findMany.mockResolvedValue([]);
+      mockPrisma.movimientoCaja.findMany.mockResolvedValue([]);
 
       const result = await getResumenDia();
 
@@ -719,6 +726,7 @@ describe('Venta Use Cases', () => {
         fecha_apertura: new Date('2026-07-17T10:00:00Z'),
       });
       mockPrisma.venta.findMany.mockResolvedValue([]);
+      mockPrisma.movimientoCaja.findMany.mockResolvedValue([]);
 
       await getResumenDia();
 
@@ -737,6 +745,7 @@ describe('Venta Use Cases', () => {
         fecha_apertura: new Date('2026-07-15T03:00:00Z'), // 00:00 local UTC-3
       });
       mockPrisma.venta.findMany.mockResolvedValue([]);
+      mockPrisma.movimientoCaja.findMany.mockResolvedValue([]);
 
       const result = await getResumenDia();
 
@@ -756,6 +765,7 @@ describe('Venta Use Cases', () => {
     it('should use empty fecha when no active cierre', async () => {
       mockPrisma.cierreCaja.findFirst.mockResolvedValue(null);
       mockPrisma.venta.findMany.mockResolvedValue([]);
+      mockPrisma.movimientoCaja.findMany.mockResolvedValue([]);
 
       const result = await getResumenDia();
 
@@ -890,6 +900,7 @@ describe('Venta Use Cases', () => {
         },
       ];
       mockPrisma.venta.findMany.mockResolvedValue(mockVentasAbiertas);
+      mockPrisma.movimientoCaja.findMany.mockResolvedValue([]);
 
       // Mock transaction
       mockPrisma.$transaction.mockImplementation(
@@ -904,6 +915,9 @@ describe('Venta Use Cases', () => {
               }),
             },
             venta: {
+              updateMany: vi.fn().mockResolvedValue({}),
+            },
+            movimientoCaja: {
               updateMany: vi.fn().mockResolvedValue({}),
             },
           };

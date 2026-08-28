@@ -150,6 +150,8 @@ export interface CierreListItem {
   fecha_apertura: string;
   fecha_cierre: string | null;
   monto_total: number;
+  ingresos_total: number;
+  egresos_total: number;
   cantidad_ventas: number;
   usuario_apertura: { id: string; nombre_usuario: string };
   usuario_cierre: { id: string; nombre_usuario: string } | null;
@@ -164,16 +166,29 @@ export interface CierreDetalle {
   monto_total: number;
 }
 
+export interface CierreMovimiento {
+  id: string;
+  tipo: 'ingreso' | 'egreso';
+  monto: number;
+  descripcion: string | null;
+  usuario_id: string;
+  created_at: string;
+  usuario: { id: string; nombre_usuario: string };
+}
+
 export interface CierreDetail {
   id: string;
   fecha_apertura: string;
   fecha_cierre: string | null;
   monto_total: number;
+  ingresos_total: number;
+  egresos_total: number;
   cantidad_ventas: number;
   estado: string;
   usuario_apertura: { id: string; nombre_usuario: string };
   usuario_cierre: { id: string; nombre_usuario: string } | null;
   detalles: CierreDetalle[];
+  movimientos: CierreMovimiento[];
 }
 
 export interface CierresQueryParams {
@@ -229,6 +244,23 @@ export const cierresApi = {
 };
 
 // Ventas
+export interface MovimientoCajaItem {
+  id: string;
+  tipo: 'ingreso' | 'egreso';
+  monto: number;
+  descripcion: string | null;
+  usuario_id: string;
+  cierre_caja_id: string | null;
+  created_at: string;
+  usuario?: { id: string; nombre_usuario: string };
+}
+
+export interface ResumenMovimientos {
+  ingresos: number;
+  egresos: number;
+  total: number;
+}
+
 export const ventasApi = {
   resumenDia: () => api.get<ApiResponse<unknown>>('/ventas/resumen/dia'),
   ultimasVentas: () => api.get<ApiResponse<unknown[]>>('/ventas/ultimas-ventas'),
@@ -239,4 +271,18 @@ export const ventasApi = {
   create: (data: unknown) => api.post<ApiResponse<unknown>>('/ventas', data),
   cerrarCaja: (data: { password: string }) => api.post<ApiResponse<unknown>>('/ventas/cierre-caja', data),
   delete: (id: string) => api.delete<ApiResponse<unknown>>(`/ventas/${id}`),
+};
+
+export const movimientosApi = {
+  list: (params?: Record<string, unknown>) =>
+    api.get<ApiResponse<MovimientoCajaItem[]> & { resumen?: ResumenMovimientos }>(
+      '/ventas/movimientos',
+      { params },
+    ),
+  create: (data: {
+    tipo: 'ingreso' | 'egreso';
+    monto: number;
+    descripcion?: string;
+    password: string;
+  }) => api.post<ApiResponse<MovimientoCajaItem>>('/ventas/movimientos', data),
 };

@@ -10,7 +10,7 @@ import { formatDate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -478,6 +478,53 @@ export function AdministracionDetallePage() {
       <p className="text-sm text-muted-foreground text-right font-semibold">
         Total: {formatCurrency(totalMonto)}
       </p>
+
+      {/* Movimientos de caja archivados en este cierre */}
+      {(cierreDetail?.movimientos?.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Movimientos de caja</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Usuario</TableHead>
+                    <TableHead>Producto</TableHead>
+                    <TableHead className="text-right">Monto</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cierreDetail?.movimientos.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="text-sm">{formatDate(m.created_at)}</TableCell>
+                      <TableCell className="text-sm">{m.usuario.nombre_usuario}</TableCell>
+                      <TableCell
+                        className={`text-sm font-medium ${
+                          m.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'
+                        }`}
+                      >
+                        {m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}
+                      </TableCell>
+                      <TableCell
+                        className={`text-right text-sm font-semibold ${
+                          m.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'
+                        }`}
+                      >
+                        {m.tipo === 'ingreso'
+                          ? formatCurrency(m.monto)
+                          : `-${formatCurrency(m.monto)}`}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

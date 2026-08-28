@@ -37,6 +37,8 @@ export async function listCierres(
       fecha_apertura: Date;
       fecha_cierre: Date | null;
       monto_total: number;
+      ingresos_total: number;
+      egresos_total: number;
       cantidad_ventas: number;
       usuario_apertura: { id: string; nombre_usuario: string };
       usuario_cierre: { id: string; nombre_usuario: string } | null;
@@ -160,6 +162,8 @@ export async function listCierres(
       fecha_apertura: c.fecha_apertura,
       fecha_cierre: c.fecha_cierre,
       monto_total: toNumber(c.monto_total),
+      ingresos_total: toNumber(c.ingresos_total),
+      egresos_total: toNumber(c.egresos_total),
       cantidad_ventas: c.cantidad_ventas,
       usuario_apertura: c.usuario_apertura,
       usuario_cierre: c.usuario_cierre,
@@ -191,6 +195,8 @@ export async function getCierreById(
     fecha_apertura: Date;
     fecha_cierre: Date | null;
     monto_total: number;
+    ingresos_total: number;
+    egresos_total: number;
     cantidad_ventas: number;
     estado: string;
     usuario_apertura: { id: string; nombre_usuario: string };
@@ -203,6 +209,15 @@ export async function getCierreById(
       cantidad: number;
       monto_total: number;
     }>;
+    movimientos: Array<{
+      id: string;
+      tipo: 'ingreso' | 'egreso';
+      monto: number;
+      descripcion: string | null;
+      usuario_id: string;
+      created_at: Date;
+      usuario: { id: string; nombre_usuario: string };
+    }>;
   }>
 > {
   try {
@@ -210,6 +225,14 @@ export async function getCierreById(
       where: { id },
       include: {
         detalles: true,
+        movimientos: {
+          include: {
+            usuario: {
+              select: { id: true, nombre_usuario: true },
+            },
+          },
+          orderBy: { created_at: 'asc' },
+        },
         usuario_apertura: {
           select: { id: true, nombre_usuario: true },
         },
@@ -228,6 +251,8 @@ export async function getCierreById(
       fecha_apertura: cierre.fecha_apertura,
       fecha_cierre: cierre.fecha_cierre,
       monto_total: toNumber(cierre.monto_total),
+      ingresos_total: toNumber(cierre.ingresos_total),
+      egresos_total: toNumber(cierre.egresos_total),
       cantidad_ventas: cierre.cantidad_ventas,
       estado: cierre.estado as string,
       usuario_apertura: cierre.usuario_apertura,
@@ -239,6 +264,15 @@ export async function getCierreById(
         nombre: d.nombre,
         cantidad: toNumber(d.cantidad),
         monto_total: toNumber(d.monto_total),
+      })),
+      movimientos: cierre.movimientos.map((m) => ({
+        id: m.id,
+        tipo: m.tipo,
+        monto: toNumber(m.monto),
+        descripcion: m.descripcion,
+        usuario_id: m.usuario_id,
+        created_at: m.created_at,
+        usuario: m.usuario,
       })),
     });
   } catch (error) {

@@ -1,12 +1,18 @@
 // src/adapters/http/controllers/venta.controller.ts
 // Sale HTTP controllers
 import type { FastifyRequest, FastifyReply } from 'fastify';
+import { verifyPassword } from '../../../infrastructure/auth/password.js';
+import { prisma } from '../../../infrastructure/database/prisma/client.js';
 import {
   CreateVentaSchema,
   VentaQuerySchema,
   VentaIdParamSchema,
   CerrarCajaSchema,
 } from '../../../application/dto/venta.dto.js';
+import {
+  CrearMovimientoSchema,
+  MovimientoQuerySchema,
+} from '../../../application/dto/movimiento.dto.js';
 import {
   createVenta,
   getVentaById,
@@ -17,6 +23,10 @@ import {
   deleteVenta,
   cerrarCaja,
 } from '../../../application/use-cases/venta.use-case.js';
+import {
+  crearMovimiento,
+  listarMovimientos,
+} from '../../../application/use-cases/movimiento-caja.use-case.js';
 import type { DomainError } from '../../../shared/types/result.js';
 
 // Helper to handle domain errors
@@ -285,5 +295,114 @@ export async function getMasVendidosHandler(
   reply.send({
     success: true,
     data: result.value,
+  });
+}
+
+// POST /api/v1/ventas/movimientos - Create a cash movement (ingreso/egreso) with password confirmation
+export async function crearMovimientoHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const parsed = CrearMovimientoSchema.safeParse(request.body);
+
+  if (!parsed.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Datos de entrada inválidos',
+        details: parsed.error.flatten().fieldErrors,
+      },
+    });
+  }
+
+  const user = request.user;
+  if (!user) {
+    return reply.status(401).send({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Usuario no autenticado',
+      },
+    });
+  }
+
+  // Validar password
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: user.userId },
+    select: { password_hash: true },
+  });
+
+  if (!usuario) {
+    return reply.status(401).send({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Usuario no encontrado',
+      },
+    });
+  }
+
+  const passwordValid = await verifyPassword(parsed.data.password, usuario.password_hash);
+  if (!passwordValid) {
+    return reply.status(401).send({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Contraseña incorrecta',
+      },
+    });
+  }
+
+  const result = await crearMovimiento(
+    {
+      tipo: parsed.data.tipo,
+      monto: parsed.data.monto,
+      descripcion: parsed.data.descripcion,
+    },
+    user.userId
+  );
+
+  if (result.isErr()) {
+    return handleDomainError(reply, result.error);
+  }
+
+  reply.status(201).send({
+    success: true,
+    data: result.value,
+  });
+}
+
+// GET /api/v1/ventas/movimientos - List cash movements of the active period
+export async function listarMovimientosHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const parsed = MovimientoQuerySchema.safeParse(request.query);
+
+  if (!parsed.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Parámetros de consulta inválidos',
+        details: parsed.error.flatten().fieldErrors,
+      },
+    });
+  }
+
+  const result = await listarMovimientos(parsed.data);
+
+  if (result.isErr()) {
+    return handleDomainError(reply, result.error);
+  }
+
+  const { data, resumen, pagination } = result.value;
+
+  reply.send({
+    success: true,
+    data,
+    resumen,
+    pagination,
   });
 }

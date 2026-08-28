@@ -47,11 +47,13 @@ export interface VentaListItem {
   created_at: Date;
 }
 
-// Resumen diario
+// Resumen diario (periodo activo)
 export interface ResumenDia {
   fecha: string;
   total_ventas: number;
   monto_total: number;
+  ingresos_total: number;
+  egresos_total: number;
   productos_vendidos: Array<{
     producto_id: string;
     nombre: string;
@@ -64,6 +66,22 @@ export interface ResumenDia {
     cantidad_ventas: number;
     monto_total: number;
   }>;
+}
+
+// Movimiento de caja (ingreso/egreso)
+export interface MovimientoCaja {
+  id: string;
+  tipo: 'ingreso' | 'egreso';
+  monto: number;
+  descripcion: string | null;
+  usuario_id: string;
+  cierre_caja_id: string | null;
+  created_at: Date;
+  usuario?: {
+    id: string;
+    nombre_usuario: string;
+    nik_usuario?: string;
+  };
 }
 
 /** Una fila aplanada de venta del cierre (una por línea de producto) */

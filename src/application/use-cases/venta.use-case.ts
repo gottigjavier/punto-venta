@@ -337,12 +337,28 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
       orderBy: { created_at: 'desc' },
     });
 
+    // Get all cash movements of the active period (not yet archived)
+    const movimientos = await prisma.movimientoCaja.findMany({
+      where: { cierre_caja_id: null },
+      select: { tipo: true, monto: true },
+    });
+
     // Calculate totals
     const total_ventas = ventas.length;
-    const monto_total = ventas.reduce(
+    const monto_ventas = ventas.reduce(
       (sum, v) => sum + toNumber(v.total),
       0
     );
+
+    const ingresos = movimientos
+      .filter((m) => m.tipo === 'ingreso')
+      .reduce((sum, m) => sum + toNumber(m.monto), 0);
+    const egresos = movimientos
+      .filter((m) => m.tipo === 'egreso')
+      .reduce((sum, m) => sum + toNumber(m.monto), 0);
+
+    // Total de caja = ventas + ingresos - egresos
+    const monto_total = monto_ventas + ingresos - egresos;
 
     // Aggregate products sold
     const productoMap = new Map<
@@ -401,6 +417,8 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
       fecha,
       total_ventas,
       monto_total,
+      ingresos_total: ingresos,
+      egresos_total: egresos,
       productos_vendidos: Array.from(productoMap.values()),
       ventas_por_usuario: Array.from(usuarioMap.values()),
     };
@@ -574,10 +592,25 @@ export async function cerrarCaja(
     const usuarioAperturaId = primeraVenta.usuario_id;
     const fechaCierre = new Date();
 
-    const montoTotal = ventasAbiertas.reduce(
+    // Cash movements of the active period (also archived on close)
+    const movimientosActivos = await prisma.movimientoCaja.findMany({
+      where: { cierre_caja_id: null },
+      select: { tipo: true, monto: true },
+    });
+
+    const montoVentas = ventasAbiertas.reduce(
       (sum, v) => sum + toNumber(v.total),
       0
     );
+    const ingresos = movimientosActivos
+      .filter((m) => m.tipo === 'ingreso')
+      .reduce((sum, m) => sum + toNumber(m.monto), 0);
+    const egresos = movimientosActivos
+      .filter((m) => m.tipo === 'egreso')
+      .reduce((sum, m) => sum + toNumber(m.monto), 0);
+
+    // Total de caja = ventas + ingresos - egresos
+    const montoTotal = montoVentas + ingresos - egresos;
 
     // Aggregate by vendor
     const usuarioMap = new Map<
@@ -647,6 +680,8 @@ export async function cerrarCaja(
           usuario_apertura_id: usuarioAperturaId,
           usuario_cierre_id: usuarioCierreId,
           monto_total: montoTotal,
+          ingresos_total: ingresos,
+          egresos_total: egresos,
           cantidad_ventas: ventasAbiertas.length,
           estado: 'cerrado',
           detalles: {
@@ -662,6 +697,12 @@ export async function cerrarCaja(
         data: {
           cierre_caja_id: nuevoCierre.id,
         },
+      });
+
+      // Archivar los movimientos del periodo activo al cerrar la caja
+      await tx.movimientoCaja.updateMany({
+        where: { cierre_caja_id: null },
+        data: { cierre_caja_id: nuevoCierre.id },
       });
 
       return nuevoCierre;

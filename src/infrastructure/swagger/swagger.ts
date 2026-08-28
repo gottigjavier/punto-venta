@@ -322,6 +322,8 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
               fecha: { type: 'string', example: '2024-01-15' },
               total_ventas: { type: 'integer', example: 12 },
               monto_total: { type: 'number', example: 15600.0 },
+              ingresos_total: { type: 'number', example: 2000.0 },
+              egresos_total: { type: 'number', example: 1500.0 },
               productos_vendidos: {
                 type: 'array',
                 items: {
@@ -346,6 +348,43 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
                   },
                 },
               },
+            },
+          },
+          MovimientoCaja: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              tipo: { type: 'string', enum: ['ingreso', 'egreso'] },
+              monto: { type: 'number', example: 2000.0 },
+              descripcion: { type: 'string', nullable: true, example: 'Pago a proveedor' },
+              usuario_id: { type: 'string', format: 'uuid' },
+              cierre_caja_id: { type: 'string', format: 'uuid', nullable: true },
+              created_at: { type: 'string', format: 'date-time' },
+              usuario: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  nombre_usuario: { type: 'string' },
+                },
+              },
+            },
+          },
+          CrearMovimientoRequest: {
+            type: 'object',
+            required: ['tipo', 'monto', 'password'],
+            properties: {
+              tipo: { type: 'string', enum: ['ingreso', 'egreso'] },
+              monto: { type: 'number', minimum: 0.01, example: 2000.0 },
+              descripcion: { type: 'string', example: 'Pago a proveedor' },
+              password: { type: 'string', description: 'Contraseña del usuario logueado (confirmación)' },
+            },
+          },
+          ResumenMovimientos: {
+            type: 'object',
+            properties: {
+              ingresos: { type: 'number', example: 5000.0 },
+              egresos: { type: 'number', example: 7000.0 },
+              total: { type: 'number', example: -2000.0 },
             },
           },
           ProductoMasVendido: {

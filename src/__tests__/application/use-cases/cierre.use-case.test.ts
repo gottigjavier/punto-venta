@@ -222,7 +222,10 @@ describe('Cierre Use Cases', () => {
     it('should return cierre with details', async () => {
       mockPrisma.cierreCaja.findUnique.mockResolvedValue({
         ...mockCierre,
+        ingresos_total: 100,
+        egresos_total: 50,
         detalles: mockDetalles,
+        movimientos: [],
       });
 
       const result = await getCierreById('cierre-1');
@@ -231,6 +234,9 @@ describe('Cierre Use Cases', () => {
       if (result.isOk()) {
         expect(result.value.id).toBe('cierre-1');
         expect(result.value.monto_total).toBe(1500);
+        expect(result.value.ingresos_total).toBe(100);
+        expect(result.value.egresos_total).toBe(50);
+        expect(result.value.movimientos).toHaveLength(0);
         expect(result.value.detalles).toHaveLength(2);
         expect(result.value.detalles[0]).toBeDefined();
         expect(result.value.detalles[0]!.tipo).toBe('producto');

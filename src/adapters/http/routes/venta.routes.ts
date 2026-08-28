@@ -10,6 +10,8 @@ import {
   getMasVendidosHandler,
   deleteVentaHandler,
   cerrarCajaHandler,
+  crearMovimientoHandler,
+  listarMovimientosHandler,
 } from '../controllers/venta.controller.js';
 import { authorize } from '../middleware/auth.middleware.js';
 import { registerCierreRoutes } from './cierre.routes.js';
@@ -108,6 +110,94 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     getResumenDiaHandler
+  );
+
+  // GET /api/v1/ventas/movimientos - List movements of active period (all roles)
+  fastify.get(
+    '/movimientos',
+    {
+      preHandler: authorize('admin', 'gerente', 'despachador'),
+      schema: {
+        description:
+          'Lista los movimientos de caja (ingresos/egresos) del periodo activo, ' +
+          'ordenados por fecha/hora, con resumen de ingresos, egresos y total. ' +
+          'Accesible a todos los roles con acceso a ventas.',
+        tags: ['Ventas'],
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean', example: true },
+              data: {
+                type: 'array',
+                items: { type: 'object', additionalProperties: true },
+              },
+              resumen: {
+                type: 'object',
+                properties: {
+                  ingresos: { type: 'number' },
+                  egresos: { type: 'number' },
+                  total: { type: 'number' },
+                },
+              },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'integer' },
+                  limit: { type: 'integer' },
+                  total: { type: 'integer' },
+                  totalPages: { type: 'integer' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    listarMovimientosHandler
+  );
+
+  // POST /api/v1/ventas/movimientos - Create movement (all roles, password confirmed)
+  fastify.post(
+    '/movimientos',
+    {
+      preHandler: authorize('admin', 'gerente', 'despachador'),
+      schema: {
+        description:
+          'Registra un movimiento de caja (ingreso/egreso) en el periodo activo, ' +
+          'con confirmación por password del usuario logueado. ' +
+          'El movimiento queda asociado al usuario y con cierre_caja_id null (periodo activo). ' +
+          'Accesible a todos los roles con acceso a ventas.',
+        tags: ['Ventas'],
+        // NOTE: body validated by Zod (CrearMovimientoSchema) in handler.
+        security: [{ bearerAuth: [] }],
+        response: {
+          201: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean', example: true },
+              data: { type: 'object', additionalProperties: true },
+            },
+          },
+          401: {
+            type: 'object',
+            description: 'UNAUTHORIZED - Contraseña incorrecta o usuario no autenticado',
+            properties: {
+              success: { type: 'boolean', example: false },
+              error: {
+                type: 'object',
+                properties: {
+                  code: { type: 'string', example: 'UNAUTHORIZED' },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    crearMovimientoHandler
   );
 
   // GET /api/v1/ventas
