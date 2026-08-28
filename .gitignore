@@ -25,3 +25,10 @@ backups/
 
 # build artifacts (tsc -b)
 client/tsconfig.tsbuildinfo
+
+# Generated architecture diagrams (from archify) - regenerable, not for VCS
+docs/architecture.html
+docs/architecture.json
+
+# Session/metadata files (persisted in engram, not VCS)
+sessions/
