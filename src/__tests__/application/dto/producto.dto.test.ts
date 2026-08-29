@@ -221,9 +221,19 @@ describe('Producto DTO Validation', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject limit > 100', () => {
+    it('should accept limit up to 1000 (POS catálogo requests limit: 1000)', () => {
       const result = ProductoQuerySchema.safeParse({
-        limit: '101',
+        limit: '1000',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.limit).toBe(1000);
+      }
+    });
+
+    it('should reject limit > 1000', () => {
+      const result = ProductoQuerySchema.safeParse({
+        limit: '1001',
       });
       expect(result.success).toBe(false);
     });

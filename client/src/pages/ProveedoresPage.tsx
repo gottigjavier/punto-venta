@@ -68,6 +68,7 @@ export function ProveedoresPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editing, setEditing] = useState<Proveedor | null>(null);
   const [deleting, setDeleting] = useState<Proveedor | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [newTelefono, setNewTelefono] = useState('');
@@ -201,6 +202,7 @@ export function ProveedoresPage() {
   // -- Delete handlers --
   const openDelete = (proveedor: Proveedor) => {
     setDeleting(proveedor);
+    setDeleteError(null);
     setDeleteOpen(true);
   };
 
@@ -211,9 +213,13 @@ export function ProveedoresPage() {
       await proveedoresApi.delete(deleting.id);
       setDeleteOpen(false);
       setDeleting(null);
+      setDeleteError(null);
       fetchProveedores(pagination.page);
     } catch (e) {
-      console.error('Error deleting proveedor:', e);
+      const msg =
+        (e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ??
+        'No se pudo eliminar el proveedor. Intenta de nuevo.';
+      setDeleteError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -496,6 +502,9 @@ export function ProveedoresPage() {
               <span className="font-semibold text-foreground">{deleting?.razon_social}</span>? Esta
               accion no se puede deshacer.
             </DialogDescription>
+            {deleteError && (
+              <p className="text-sm font-medium text-destructive">{deleteError}</p>
+            )}
           </DialogHeader>
           <DialogFooter>
             <Button

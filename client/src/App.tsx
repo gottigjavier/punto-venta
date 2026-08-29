@@ -11,6 +11,7 @@ import { StockPage } from '@/pages/StockPage';
 import { VentasPage } from '@/pages/VentasPage';
 import { AdministracionPage } from '@/pages/AdministracionPage';
 import { AdministracionDetallePage } from '@/pages/AdministracionDetallePage';
+import { ManualUsuarioPage } from '@/pages/ManualUsuarioPage';
 import { type ReactNode } from 'react';
 
 // Routes a which each role is allowed to navigate. Anything else is redirected.
@@ -18,7 +19,7 @@ import { type ReactNode } from 'react';
 // via API (backend permits those GETs for despachador), but the section nav is
 // restricted. Admin/gerente: everything.
 const ROLE_ALLOWED_PATHS: Record<string, string[]> = {
-  despachador: ['/ventas', '/stock'],
+  despachador: ['/ventas', '/stock', '/manual-usuario'],
 };
 
 // Paths only the admin role may reach. Non-admins are redirected to their home.
@@ -89,6 +90,7 @@ export function App() {
             <Route path="/ventas" element={<VentasPage />} />
             <Route path="/administracion" element={<AdministracionPage />} />
             <Route path="/administracion/:id" element={<AdministracionDetallePage />} />
+            <Route path="/manual-usuario" element={<ManualUsuarioPage />} />
           </Route>
           <Route path="*" element={<NavigateToHome />} />
         </Routes>

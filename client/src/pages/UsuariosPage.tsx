@@ -234,7 +234,7 @@ export function UsuariosPage() {
     setDeleteOpen(true);
   };
 
-  const handleDelete = async () => {
+  const handleDeactivate = async () => {
     if (!deleting) return;
     setSubmitting(true);
     try {
@@ -596,7 +596,7 @@ export function UsuariosPage() {
             <Button
               type="button"
               variant="destructive"
-              onClick={handleDelete}
+              onClick={handleDeactivate}
               disabled={submitting}
             >
               {submitting ? 'Desactivando...' : 'Desactivar'}

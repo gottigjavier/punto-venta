@@ -35,6 +35,7 @@ export function RubrosPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editing, setEditing] = useState<Rubro | null>(null);
   const [deleting, setDeleting] = useState<Rubro | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
 
@@ -97,6 +98,7 @@ export function RubrosPage() {
   // -- Delete handlers --
   const openDelete = (rubro: Rubro) => {
     setDeleting(rubro);
+    setDeleteError(null);
     setDeleteOpen(true);
   };
 
@@ -109,7 +111,10 @@ export function RubrosPage() {
       setDeleting(null);
       fetchRubros();
     } catch (e) {
-      console.error('Error deleting rubro:', e);
+      const msg =
+        (e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ??
+        'No se pudo eliminar el rubro. Intenta de nuevo.';
+      setDeleteError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -266,6 +271,9 @@ export function RubrosPage() {
               <span className="font-semibold text-foreground">{deleting?.nombre}</span>? Esta accion
               no se puede deshacer.
             </DialogDescription>
+            {deleteError && (
+              <p className="text-sm font-medium text-destructive">{deleteError}</p>
+            )}
           </DialogHeader>
           <DialogFooter>
             <Button

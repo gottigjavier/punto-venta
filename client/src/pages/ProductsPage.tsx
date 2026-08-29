@@ -83,6 +83,7 @@ export function ProductsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editing, setEditing] = useState<Producto | null>(null);
   const [deleting, setDeleting] = useState<Producto | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,6 +199,7 @@ export function ProductsPage() {
   // -- Delete handlers --
   const openDelete = (producto: Producto) => {
     setDeleting(producto);
+    setDeleteError(null);
     setDeleteOpen(true);
   };
 
@@ -208,11 +210,14 @@ export function ProductsPage() {
       await productosApi.delete(deleting.id);
       setDeleteOpen(false);
       setDeleting(null);
+      setDeleteError(null);
       setError(null);
       fetchProductos();
     } catch (e) {
-      console.error('Error eliminando producto:', e);
-      setError('No se pudo eliminar el producto. Intenta de nuevo.');
+      const msg =
+        (e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ??
+        'No se pudo eliminar el producto. Intenta de nuevo.';
+      setDeleteError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -550,6 +555,9 @@ export function ProductsPage() {
               <span className="font-semibold text-foreground">{deleting?.nombre}</span>? Esta accion
               no se puede deshacer.
             </DialogDescription>
+            {deleteError && (
+              <p className="text-sm font-medium text-destructive">{deleteError}</p>
+            )}
           </DialogHeader>
           <DialogFooter>
             <Button
