@@ -22,7 +22,7 @@
     "test:e2e:report": "playwright show-report"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "node --experimental-strip-types prisma/seed.ts"
   },
   "keywords": [
     "pos",
