@@ -28,17 +28,12 @@ interface Producto {
   nombre: string;
   codigo?: string;
   precio_venta?: string | number;
-  precio_compra?: string | number;
   stock_actual?: string | number;
-  cantidad_disponible?: number;
   cantidad_aviso?: number;
   activo: boolean;
   rubro?: { id: string; nombre: string };
   proveedor?: { id: string; razon_social: string };
   unidad_medida?: string;
-  fecha_compra?: string;
-  fecha_vencimiento?: string;
-  numero_remesa?: string;
 }
 
 interface Rubro {
@@ -57,16 +52,11 @@ const UNIDADES = ['kg', 'g', 'l', 'ml', 'unidad'] as const;
 const INITIAL_FORM = {
   nombre: '',
   codigo: '',
-  precio_compra: '',
   precio_venta: '',
-  cantidad_disponible: '0',
   rubro_id: '',
   proveedor_id: '',
   cantidad_aviso: '0',
   unidad_medida: 'unidad',
-  fecha_compra: '',
-  fecha_vencimiento: '',
-  numero_remesa: '',
 };
 
 export function ProductsPage() {
@@ -133,16 +123,11 @@ export function ProductsPage() {
     setForm({
       nombre: producto.nombre,
       codigo: producto.codigo ?? '',
-      precio_compra: producto.precio_compra != null ? String(producto.precio_compra) : '',
       precio_venta: producto.precio_venta != null ? String(producto.precio_venta) : '',
-      cantidad_disponible: producto.cantidad_disponible != null ? String(producto.cantidad_disponible) : '0',
       rubro_id: producto.rubro?.id ?? '',
       proveedor_id: producto.proveedor?.id ?? '',
       cantidad_aviso: producto.cantidad_aviso != null ? String(producto.cantidad_aviso) : '0',
       unidad_medida: producto.unidad_medida ?? 'unidad',
-      fecha_compra: producto.fecha_compra ?? '',
-      fecha_vencimiento: producto.fecha_vencimiento ?? '',
-      numero_remesa: producto.numero_remesa ?? '',
     });
     setFormOpen(true);
   };
@@ -150,9 +135,7 @@ export function ProductsPage() {
   const isFormValid = (): boolean => {
     if (!form.nombre.trim()) return false;
     if (!form.codigo.trim()) return false;
-    if (form.precio_compra === '' || Number(form.precio_compra) < 0) return false;
     if (form.precio_venta === '' || Number(form.precio_venta) < 0) return false;
-    if (form.cantidad_disponible === '' || Number(form.cantidad_disponible) < 0) return false;
     if (!form.rubro_id) return false;
     if (!form.proveedor_id) return false;
     return true;
@@ -167,18 +150,13 @@ export function ProductsPage() {
       const payload: Record<string, unknown> = {
         nombre: form.nombre.trim(),
         codigo: form.codigo.trim(),
-        precio_compra: Number(form.precio_compra),
         precio_venta: Number(form.precio_venta),
-        cantidad_disponible: Number(form.cantidad_disponible),
         rubro_id: form.rubro_id,
         proveedor_id: form.proveedor_id,
         unidad_medida: form.unidad_medida,
       };
       const cantAviso = Number(form.cantidad_aviso);
       if (!isNaN(cantAviso) && cantAviso >= 0) payload.cantidad_aviso = cantAviso;
-      if (form.fecha_compra) payload.fecha_compra = form.fecha_compra;
-      if (form.fecha_vencimiento) payload.fecha_vencimiento = form.fecha_vencimiento;
-      if (form.numero_remesa.trim()) payload.numero_remesa = form.numero_remesa.trim();
 
       if (editing) {
         await productosApi.update(editing.id, payload);
@@ -286,7 +264,6 @@ export function ProductsPage() {
                     <TableHead>Nombre</TableHead>
                     <TableHead>Rubro</TableHead>
                     <TableHead>Proveedor</TableHead>
-                    <TableHead className="text-right">P. Compra</TableHead>
                     <TableHead className="text-right">P. Venta</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
                     <TableHead className="text-center">Estado</TableHead>
@@ -295,7 +272,7 @@ export function ProductsPage() {
                 </TableHeader>
                 <TableBody>
                   {productos.map((p) => {
-                    const alerta = (p.cantidad_aviso ?? 0) > 0 && (p.cantidad_disponible ?? 0) < (p.cantidad_aviso ?? 0);
+                    const alerta = (p.cantidad_aviso ?? 0) > 0 && Number(p.stock_actual ?? 0) < (p.cantidad_aviso ?? 0);
                     const stockClass = alerta ? 'text-blue-500' : '';
                     return (
                       <TableRow key={p.id}>
@@ -303,9 +280,6 @@ export function ProductsPage() {
                         <TableCell className="font-medium">{p.nombre}</TableCell>
                         <TableCell>{p.rubro?.nombre ?? '—'}</TableCell>
                         <TableCell className="max-w-[150px] truncate">{p.proveedor?.razon_social ?? '—'}</TableCell>
-                        <TableCell className="text-right">
-                          {p.precio_compra ? `$${Number(p.precio_compra).toFixed(2)}` : '—'}
-                        </TableCell>
                         <TableCell className="text-right">
                           {p.precio_venta ? `$${Number(p.precio_venta).toFixed(2)}` : '—'}
                         </TableCell>
@@ -380,45 +354,17 @@ export function ProductsPage() {
               </div>
             </div>
 
-            {/* Row 2: Precios */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="precio_compra">Precio Compra *</Label>
-                <Input
-                  id="precio_compra"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.precio_compra}
-                  onChange={(e) => setForm((f) => ({ ...f, precio_compra: e.target.value }))}
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="precio_venta">Precio Venta *</Label>
-                <Input
-                  id="precio_venta"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.precio_venta}
-                  onChange={(e) => setForm((f) => ({ ...f, precio_venta: e.target.value }))}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-
-            {/* Row 2b: Cantidad Disponible */}
+            {/* Row 2: Precio Venta */}
             <div className="space-y-2">
-              <Label htmlFor="cantidad_disponible">Cantidad en Stock *</Label>
+              <Label htmlFor="precio_venta">Precio Venta *</Label>
               <Input
-                id="cantidad_disponible"
+                id="precio_venta"
                 type="number"
-                step="0.001"
+                step="0.01"
                 min="0"
-                value={form.cantidad_disponible}
-                onChange={(e) => setForm((f) => ({ ...f, cantidad_disponible: e.target.value }))}
-                placeholder="0"
+                value={form.precio_venta}
+                onChange={(e) => setForm((f) => ({ ...f, precio_venta: e.target.value }))}
+                placeholder="0.00"
               />
             </div>
 
@@ -493,39 +439,6 @@ export function ProductsPage() {
                   placeholder="0"
                 />
               </div>
-            </div>
-
-            {/* Row 5: Dates */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fecha_compra">Fecha Compra</Label>
-                <Input
-                  id="fecha_compra"
-                  type="date"
-                  value={form.fecha_compra}
-                  onChange={(e) => setForm((f) => ({ ...f, fecha_compra: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="fecha_vencimiento">Fecha Vencimiento</Label>
-                <Input
-                  id="fecha_vencimiento"
-                  type="date"
-                  value={form.fecha_vencimiento}
-                  onChange={(e) => setForm((f) => ({ ...f, fecha_vencimiento: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            {/* Row 6: Remesa */}
-            <div className="space-y-2">
-              <Label htmlFor="numero_remesa">Numero de Remesa</Label>
-              <Input
-                id="numero_remesa"
-                value={form.numero_remesa}
-                onChange={(e) => setForm((f) => ({ ...f, numero_remesa: e.target.value }))}
-                placeholder="Numero de remesa (opcional)"
-              />
             </div>
 
             <DialogFooter>

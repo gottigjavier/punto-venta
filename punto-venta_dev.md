@@ -103,7 +103,7 @@ Usuario ──1:N──> Venta
 | proveedor_id | UUID | FK -> Proveedores |
 | fecha_compra | DATE | |
 | fecha_vencimiento | DATE | |
-| numero_remesa | VARCHAR(50) | |
+| numero_lote | VARCHAR(50) | |
 | unidad_medida | ENUM('unidad', 'kg', 'g', 'l', 'ml') | DEFAULT 'unidad' |
 | created_at | TIMESTAMP | |
 | updated_at | TIMESTAMP | |
@@ -320,7 +320,7 @@ if (usuario.intentos_fallidos >= 3) {
      - Verde: stock bajo (< 10 unidades, configurable).
 
 2. **Pestaña de Ingreso**:
-   - Campos: nombre, código, cantidad, precio compra, precio venta, rubro, proveedor, fechas, remesa.
+   - Campos: nombre, código, precio venta, rubro, proveedor, unidad, cantidad aviso (el stock se carga por lote en el módulo Stock).
    - **Autocompletado**: Al ingresar 3+ caracteres en nombre o código, muestra dropdown con coincidencias.
    - Al seleccionar coincidencia, rellena todos los campos (editables).
    - **Validación**: No permite guardar si TODOS los campos coinciden con producto existente.

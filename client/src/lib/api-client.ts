@@ -133,16 +133,84 @@ export const usuariosApi = {
   delete: (id: string) => api.delete<ApiResponse<unknown>>(`/usuarios/${id}`),
 };
 
+// Lotes (N° de Lote) — CRUD sobre el modelo Lote (el stock vive en Lote tras el split)
+export interface LoteItem {
+  id: string;
+  producto_id: string;
+  numero_lote: string | null;
+  cantidad_disponible: number;
+  fecha_compra: string | null;
+  fecha_vencimiento: string | null;
+  precio_compra: number;
+  estado: 'activo' | 'agotado' | 'vencido' | 'descartado';
+  created_at: string;
+  producto: {
+    id: string;
+    nombre: string;
+    codigo: string;
+    unidad_medida: string;
+    precio_venta: number;
+    cantidad_aviso: number;
+  };
+  rubro: { id: string; nombre: string } | null;
+  proveedor: { id: string; razon_social: string } | null;
+  estado_vencimiento: 'vencido' | 'por_vencer' | 'ok';
+  stock_bajo: boolean;
+}
+
+// Payload para crear un lote (POST /lotes)
+export interface CrearLotePayload {
+  producto_id: string;
+  numero_lote?: string | null;
+  cantidad: number;
+  fecha_compra?: string | null;
+  fecha_vencimiento?: string | null;
+  precio_compra: number;
+}
+
+// Payload para editar un lote (PUT /lotes/:id) — NUNCA cantidad_disponible
+export interface EditarLotePayload {
+  numero_lote?: string | null;
+  fecha_compra?: string | null;
+  fecha_vencimiento?: string | null;
+  precio_compra?: number;
+}
+
+export const lotesApi = {
+  list: (params?: Record<string, unknown>) =>
+    api.get<ApiResponse<LoteItem[]>>('/stock', { params }),
+  create: (data: CrearLotePayload) =>
+    api.post<ApiResponse<LoteItem>>('/lotes', data),
+  update: (id: string, data: EditarLotePayload) =>
+    api.put<ApiResponse<LoteItem>>(`/lotes/${id}`, data),
+  retirar: (id: string) =>
+    api.post<ApiResponse<LoteItem>>(`/lotes/${id}/retirar`, {}),
+  delete: (id: string) =>
+    api.delete<ApiResponse<{ success: boolean }>>(`/lotes/${id}`),
+};
+
 // Stock
 export const stockApi = {
   list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<unknown[]>>('/stock', { params }),
+    api.get<ApiResponse<LoteItem[]>>('/stock', { params }),
   ingreso: (data: unknown) => api.post<ApiResponse<unknown>>('/stock/ingreso', data),
-  edit: (id: string, data: unknown) =>
-    api.put<ApiResponse<unknown>>(`/stock/${id}`, data),
   autocomplete: (query: string, tipo?: string) =>
     api.get<ApiResponse<unknown[]>>('/stock/autocomplete', { params: { query, tipo } }),
 };
+
+// Producto (lista con stock_actual tras el split)
+export interface ProductListItem {
+  id: string;
+  nombre: string;
+  codigo: string;
+  precio_venta: number;
+  cantidad_aviso: number;
+  unidad_medida: string;
+  activo: boolean;
+  stock_actual: number;
+  rubro: { id: string; nombre: string } | null;
+  proveedor: { id: string; razon_social: string } | null;
+}
 
 // Cierres de Caja
 export interface CierreListItem {
