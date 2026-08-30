@@ -4,7 +4,6 @@ import type { FastifyInstance } from 'fastify';
 import {
   listStockHandler,
   stockIngresoHandler,
-  stockEditHandler,
   stockAutocompleteHandler,
 } from '../controllers/stock.controller.js';
 import { authorize } from '../middleware/auth.middleware.js';
@@ -17,11 +16,14 @@ export async function stockRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authorize('admin', 'gerente', 'despachador'),
       schema: {
         description:
-          'Listar inventario con alertas de vencimiento y stock bajo.\n\n' +
+          'Listar stock con UNA FILA POR LOTE (N° de Lote), con alertas de vencimiento y stock bajo.\n\n' +
           '## Filtros de alertas\n' +
-          '- `vencimiento_dias`: Días para alerta de vencimiento (default: 30)\n' +
-          '- `stock_bajo`: Filtrar solo stock bajo (< 10 unidades)\n' +
-          '- `vencidos`: Filtrar solo productos vencidos',
+          '- `vencimiento_dias`: Días para clasificar el badge `por_vencer` (default: 30, documentado)\n' +
+          '  - Sin el parámetro el listado devuelve TODOS los lotes vigentes (el badge usa el default 30)\n' +
+          '  - Con el parámetro explícito el listado se acota a la ventana de vencimiento\n' +
+          '- `stock_bajo`: Filtrar solo lotes de productos cuyo stock (suma de lotes activos no vencidos) < `cantidad_aviso` del producto\n' +
+          '- `vencidos`: Filtrar solo lotes vencidos\n' +
+          '- `search`: Búsqueda por nombre/código del producto o por N° de Lote',
         tags: ['Stock'],
         // NOTE: querystring validation is handled by Zod (StockQuerySchema) in
         // listStockHandler. Do NOT duplicate it here — single source of truth.
@@ -81,11 +83,13 @@ export async function stockRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authorize('admin', 'gerente'),
       schema: {
         description:
-          'Ingreso de stock. Crea nuevo producto o actualiza existente.\n\n' +
+          'Ingreso de stock: crea un lote nuevo o SUMA a un lote existente del producto (N° de Lote).\n\n' +
           '## Comportamiento\n' +
-          '- Si el código + proveedor coinciden con un producto existente y TODOS los campos coinciden → Error (no se permite duplicar)\n' +
-          '- Si el código + proveedor coinciden pero hay diferencias → Actualiza el producto existente\n' +
-          '- Si no existe → Crea un nuevo producto',
+          '- Mismo `producto_id` + mismo `numero_lote` + misma `fecha_vencimiento` → SUMA `cantidad` y promedia `precio_compra` ponderado por cantidad sobre el lote existente\n' +
+          '- Mismo `numero_lote` con distinta `fecha_vencimiento` → crea lote SEPARADO\n' +
+          '- `numero_lote` distinto o ausente (NULL) → siempre lote nuevo (nunca mergea)\n' +
+          '- `cantidad_aviso` (opcional): si viene, actualiza el umbral de aviso del producto\n' +
+          '- Si el producto estaba inactivo, el ingreso lo reactiva (`activo = true`)',
         tags: ['Stock'],
         security: [{ bearerAuth: [] }],
         response: {
@@ -102,32 +106,5 @@ export async function stockRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     stockIngresoHandler
-  );
-
-  // PUT /api/v1/stock/:id
-  fastify.put(
-    '/:id',
-    {
-      preHandler: authorize('admin', 'gerente'),
-      schema: {
-        description: 'Editar producto existente en stock. Solo campos enviados serán actualizados.',
-        tags: ['Stock'],
-        // NOTE: params validated by Zod (StockIdParamSchema) in handler.
-        security: [{ bearerAuth: [] }],
-        response: {
-          200: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
-            },
-          },
-
-
-
-        },
-      },
-    },
-    stockEditHandler
   );
 }

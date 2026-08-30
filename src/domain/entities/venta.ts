@@ -13,6 +13,8 @@ export interface DetalleVenta {
   id: string;
   venta_id: string;
   producto_id: string;
+  /** Lote desde el que se consumió esta línea. null = detalle pre-migración (sin trazabilidad). */
+  lote_id?: string | null;
   cantidad: number;
   precio_unitario: number;
   subtotal: number;

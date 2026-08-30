@@ -1,113 +1,119 @@
 // src/application/dto/stock.dto.ts
 // Stock management DTOs with Zod validation
+// Tras el split Producto/Lote, el "ingreso de stock" opera sobre LOTES.
 import { z } from 'zod';
-import { UnidadMedidaSchema } from './producto.dto.js';
 
-// Stock entry (ingreso) schema
+// Stock entry (ingreso) schema — crea o SUMA un lote del producto
 export const StockIngresoSchema = z.object({
-  nombre: z
+  producto_id: z
     .string()
-    .min(1, 'Nombre requerido')
-    .max(200, 'Nombre máximo 200 caracteres'),
-  codigo: z
+    .uuid('ID de producto inválido'),
+  numero_lote: z
     .string()
-    .min(1, 'Código requerido')
-    .max(50, 'Código máximo 50 caracteres'),
+    .max(50, 'Número de lote máximo 50 caracteres')
+    .nullable()
+    .optional()
+    .transform((v) => (v === '' ? null : v)),
   cantidad: z
     .number()
-    .min(0.001, 'Cantidad debe ser mayor a 0'),
-  cantidad_aviso: z
-    .coerce.number()
-    .min(0, 'Cantidad de aviso no puede ser negativa')
+    .positive('Cantidad debe ser mayor a 0'),
+  fecha_compra: z
+    .string()
     .optional()
-    .default(0),
+    .nullable(),
+  fecha_vencimiento: z
+    .string()
+    .optional()
+    .nullable(),
   precio_compra: z
     .number()
     .min(0, 'Precio de compra no puede ser negativo'),
-  precio_venta: z
-    .number()
-    .min(0, 'Precio de venta no puede ser negativo'),
-  rubro_id: z
-    .string()
-    .uuid('ID de rubro inválido'),
-  proveedor_id: z
-    .string()
-    .uuid('ID de proveedor inválido'),
-  fecha_compra: z
-    .string()
+  cantidad_aviso: z
+    .coerce.number()
+    .min(0, 'Cantidad de aviso no puede ser negativa')
     .optional(),
-  fecha_vencimiento: z
-    .string()
-    .optional(),
-  numero_remesa: z
-    .string()
-    .max(50, 'Número de remesa máximo 50 caracteres')
-    .optional(),
-  unidad_medida: UnidadMedidaSchema.default('unidad'),
 });
 
 export type StockIngresoInput = z.infer<typeof StockIngresoSchema>;
 
-// Stock edit schema (existing product)
-export const StockEditSchema = z.object({
-  id: z.string().uuid('ID de producto inválido'),
-  nombre: z
+// Crear lote — idem al ingreso pero SIN actualizar cantidad_aviso del producto
+export const CrearLoteSchema = z.object({
+  producto_id: z
     .string()
-    .min(1, 'Nombre requerido')
-    .max(200, 'Nombre máximo 200 caracteres')
-    .optional(),
-  codigo: z
+    .uuid('ID de producto inválido'),
+  numero_lote: z
     .string()
-    .min(1, 'Código requerido')
-    .max(50, 'Código máximo 50 caracteres')
-    .optional(),
+    .max(50, 'Número de lote máximo 50 caracteres')
+    .nullable()
+    .optional()
+    .transform((v) => (v === '' ? null : v)),
   cantidad: z
     .number()
-    .min(0, 'Cantidad no puede ser negativa')
-    .optional(),
-  cantidad_aviso: z
-    .coerce.number()
-    .min(0, 'Cantidad de aviso no puede ser negativa')
-    .optional(),
+    .positive('Cantidad debe ser mayor a 0'),
+  fecha_compra: z
+    .string()
+    .optional()
+    .nullable(),
+  fecha_vencimiento: z
+    .string()
+    .optional()
+    .nullable(),
+  precio_compra: z
+    .number()
+    .min(0, 'Precio de compra no puede ser negativo'),
+});
+
+export type CrearLoteInput = z.infer<typeof CrearLoteSchema>;
+
+// Editar lote — NUNCA toca cantidad_disponible (el stock solo cambia por ingreso/venta)
+export const EditarLoteSchema = z.object({
+  numero_lote: z
+    .string()
+    .max(50, 'Número de lote máximo 50 caracteres')
+    .nullable()
+    .optional()
+    .transform((v) => (v === '' ? null : v)),
+  fecha_compra: z
+    .string()
+    .optional()
+    .nullable(),
+  fecha_vencimiento: z
+    .string()
+    .optional()
+    .nullable(),
   precio_compra: z
     .number()
     .min(0, 'Precio de compra no puede ser negativo')
     .optional(),
-  precio_venta: z
-    .number()
-    .min(0, 'Precio de venta no puede ser negativo')
-    .optional(),
-  rubro_id: z
-    .string()
-    .uuid('ID de rubro inválido')
-    .optional(),
-  proveedor_id: z
-    .string()
-    .uuid('ID de proveedor inválido')
-    .optional(),
-  fecha_compra: z
-    .string()
-    .optional(),
-  fecha_vencimiento: z
-    .string()
-    .optional(),
-  numero_remesa: z
-    .string()
-    .max(50, 'Número de remesa máximo 50 caracteres')
-    .optional(),
-  unidad_medida: UnidadMedidaSchema.optional(),
 });
 
-export type StockEditInput = z.infer<typeof StockEditSchema>;
+export type EditarLoteInput = z.infer<typeof EditarLoteSchema>;
 
-// Stock query params for listing
+// Lote ID param
+export const LoteIdParamSchema = z.object({
+  id: z.string().uuid('ID de lote inválido'),
+});
+
+export type LoteIdParam = z.infer<typeof LoteIdParamSchema>;
+
+// Stock query params for listing — sort keys de LOTE
 export const StockQuerySchema = z.object({
   search: z.string().optional(),
   rubro_id: z.string().uuid().optional(),
   vencimiento_dias: z.coerce.number().int().min(1).optional(),
   stock_bajo: z.coerce.boolean().optional(),
   vencidos: z.coerce.boolean().optional(),
-  sort: z.enum(['nombre', 'codigo', 'cantidad_disponible', 'cantidad_aviso', 'precio_venta', 'fecha_vencimiento', 'created_at']).default('created_at'),
+  sort: z
+    .enum([
+      'numero_lote',
+      'fecha_vencimiento',
+      'fecha_compra',
+      'precio_compra',
+      'cantidad_disponible',
+      'created_at',
+      'producto.nombre',
+    ])
+    .default('created_at'),
   order: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

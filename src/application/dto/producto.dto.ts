@@ -5,7 +5,7 @@ import { z } from 'zod';
 // Unidad de medida enum
 export const UnidadMedidaSchema = z.enum(['unidad', 'kg', 'g', 'l', 'ml']);
 
-// Create product schema
+// Create product schema — solo datos generales del producto (sin stock/compra/vencimiento)
 export const CreateProductoSchema = z.object({
   nombre: z
     .string()
@@ -15,17 +15,11 @@ export const CreateProductoSchema = z.object({
     .string()
     .min(1, 'Código requerido')
     .max(50, 'Código máximo 50 caracteres'),
-  cantidad_disponible: z
-    .number()
-    .min(0, 'Cantidad no puede ser negativa'),
   cantidad_aviso: z
     .coerce.number()
     .min(0, 'Cantidad de aviso no puede ser negativa')
     .optional()
     .default(0),
-  precio_compra: z
-    .number()
-    .min(0, 'Precio de compra no puede ser negativo'),
   precio_venta: z
     .number()
     .min(0, 'Precio de venta no puede ser negativo'),
@@ -35,17 +29,8 @@ export const CreateProductoSchema = z.object({
   proveedor_id: z
     .string()
     .uuid('ID de proveedor inválido'),
-  fecha_compra: z
-    .string()
-    .optional(),
-  fecha_vencimiento: z
-    .string()
-    .optional(),
-  numero_remesa: z
-    .string()
-    .max(50, 'Número de remesa máximo 50 caracteres')
-    .optional(),
   unidad_medida: UnidadMedidaSchema.default('unidad'),
+  // NOTA: `activo` NO es editable por el usuario en este cambio (soft delete vía DELETE).
 });
 
 export type CreateProductoInput = z.infer<typeof CreateProductoSchema>;
@@ -64,7 +49,7 @@ export const ProductoQuerySchema = z.object({
   proveedor_id: z.string().uuid().optional(),
   fecha_desde: z.string().optional().transform((val) => (val ? new Date(val) : undefined)),
   fecha_hasta: z.string().optional().transform((val) => (val ? new Date(val) : undefined)),
-  sort: z.enum(['nombre', 'codigo', 'precio_venta', 'precio_compra', 'cantidad_aviso', 'created_at', 'updated_at']).default('created_at'),
+  sort: z.enum(['nombre', 'codigo', 'precio_venta', 'cantidad_aviso', 'created_at', 'updated_at']).default('created_at'),
   order: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(1000).default(20),

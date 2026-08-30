@@ -1,11 +1,20 @@
 // src/application/use-cases/stock.use-case.ts
 // Stock management use cases
+// Tras el split Producto/Lote, el stock vive en Lote. El "ingreso" opera sobre
+// lotes (merge-a-sumar con promedio ponderado) y el listado devuelve UNA FILA
+// POR LOTE. El retiro de vencidos es LAZY (se marca al leer).
 import { ok, err } from 'neverthrow';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../infrastructure/database/prisma/client.js';
 import type { AppResult } from '../../shared/types/result.js';
-import { notFoundError, conflictError, databaseError, validationError } from '../../shared/types/result.js';
-import type { Producto, ProductoWithRelations } from '../../domain/entities/producto.js';
-import type { StockIngresoInput, StockEditInput, StockQueryInput } from '../dto/stock.dto.js';
+import { notFoundError, conflictError, databaseError } from '../../shared/types/result.js';
+import type { Producto } from '../../domain/entities/producto.js';
+import type { LoteWithRelations } from '../../domain/entities/lote.js';
+import type {
+  StockIngresoInput,
+  StockQueryInput,
+  EditarLoteInput,
+} from '../dto/stock.dto.js';
 import { logger } from '../../infrastructure/logging/logger.js';
 
 // Helper to convert Prisma Decimal to number
@@ -18,12 +27,17 @@ function toNumber(val: unknown): number {
   return 0;
 }
 
+// Helper: round a number to 2 decimals (money)
+function round2(val: number): number {
+  return Math.round(val * 100) / 100;
+}
+
 // Helper: get YYYY-MM-DD string of a Date in UTC-3 (America/Argentina/Buenos_Aires)
 // Shifts -3h from UTC to get the UTC-3 local date, using pure ms arithmetic.
 // Used ONLY for "now" (Date.now() is in UTC). Product dates from the DB use
 // toISOString().slice(0,10) directly since they're stored as UTC midnight
 // representing the local date the user entered.
-function toUTC3DateString(date: Date): string {
+export function toUTC3DateString(date: Date): string {
   const UTC3_OFFSET_MS = 3 * 60 * 60 * 1000;
   const ms = date.getTime() - UTC3_OFFSET_MS; // subtract to go from UTC to UTC-3
   // Days since Unix epoch
@@ -42,126 +56,372 @@ function toUTC3DateString(date: Date): string {
   return `${yr}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-// Stock item with alerts
-interface StockItem extends ProductoWithRelations {
+// Prisma include compartido por todas las consultas de lote con relaciones.
+// Lote NO tiene rubro/proveedor directos: se obtienen vía producto y se "suben"
+// al nivel superior en el mapeo (shape del LoteWithRelations).
+const loteInclude = {
+  producto: {
+    include: {
+      rubro: {
+        select: { id: true, nombre: true },
+      },
+      proveedor: {
+        select: { id: true, razon_social: true },
+      },
+    },
+  },
+} satisfies Prisma.LoteInclude;
+
+// Convierte un lote (con Decimales y relaciones) a LoteWithRelations tipado
+function mapLote(loteRaw: unknown): LoteWithRelations {
+  const l = loteRaw as {
+    id: string;
+    producto_id: string;
+    numero_lote: string | null;
+    cantidad_disponible: unknown;
+    fecha_compra: Date | null;
+    fecha_vencimiento: Date | null;
+    precio_compra: unknown;
+    estado: 'activo' | 'agotado' | 'vencido' | 'descartado';
+    created_at: Date;
+    producto: {
+      id: string;
+      nombre: string;
+      codigo: string;
+      unidad_medida: string;
+      precio_venta: unknown;
+      cantidad_aviso: unknown;
+      rubro: { id: string; nombre: string };
+      proveedor: { id: string; razon_social: string };
+    };
+  };
+  return {
+    id: l.id,
+    producto_id: l.producto_id,
+    numero_lote: l.numero_lote,
+    cantidad_disponible: toNumber(l.cantidad_disponible),
+    fecha_compra: l.fecha_compra,
+    fecha_vencimiento: l.fecha_vencimiento,
+    precio_compra: toNumber(l.precio_compra),
+    estado: l.estado,
+    created_at: l.created_at,
+    producto: {
+      id: l.producto.id,
+      nombre: l.producto.nombre,
+      codigo: l.producto.codigo,
+      unidad_medida: l.producto.unidad_medida as LoteWithRelations['producto']['unidad_medida'],
+      precio_venta: toNumber(l.producto.precio_venta),
+      cantidad_aviso: toNumber(l.producto.cantidad_aviso),
+    },
+    rubro: l.producto.rubro,
+    proveedor: l.producto.proveedor,
+  };
+}
+
+// ==== Helper compartido: retiro lazy de lotes vencidos ====
+// Marca vencidos TODOS los lotes activos cuya fecha_vencimiento < hoy (UTC-3).
+// Se ejecuta al inicio de toda lectura de stock y de createVenta.
+// Idempotente: solo cambia activo → vencido.
+export async function retirarLotesVencidos(tx?: Prisma.TransactionClient): Promise<void> {
+  const hoyStr = toUTC3DateString(new Date());
+  await (tx ?? prisma).lote.updateMany({
+    where: {
+      estado: 'activo',
+      fecha_vencimiento: { lt: new Date(hoyStr + 'T00:00:00.000Z') },
+    },
+    data: { estado: 'vencido' },
+  });
+}
+
+// Filas del listado de stock: UNA FILA POR LOTE con alertas del producto
+export interface StockLoteRow extends LoteWithRelations {
   estado_vencimiento: 'vencido' | 'por_vencer' | 'ok';
   stock_bajo: boolean;
 }
 
-// Get stock list with alerts
-export async function listStock(
+// Ingreso de stock sobre un lote del producto (antes stockIngreso).
+// Merge: mismo (producto_id, numero_lote, fecha_vencimiento) → SUMA cantidad y
+// promedia precio_compra ponderado. numero_lote NULL NUNCA mergea (lote nuevo).
+export async function loteIngreso(
+  input: StockIngresoInput
+): Promise<AppResult<{ lote: LoteWithRelations; esNuevo: boolean }>> {
+  try {
+    // Verificar que el producto exista
+    const producto = await prisma.producto.findUnique({
+      where: { id: input.producto_id },
+    });
+
+    if (!producto) {
+      return err(notFoundError('Producto', input.producto_id));
+    }
+
+    // Buscar lote existente con la merge-key (numero_lote NULL jamás mergea)
+    let existing: { id: string; cantidad_disponible: unknown; precio_compra: unknown } | null = null;
+    if (input.numero_lote != null) {
+      existing = await prisma.lote.findFirst({
+        where: {
+          producto_id: input.producto_id,
+          numero_lote: input.numero_lote,
+          fecha_vencimiento: input.fecha_vencimiento
+            ? new Date(input.fecha_vencimiento)
+            : null,
+        },
+      });
+    }
+
+    let loteRaw: unknown;
+    let esNuevo = false;
+
+    if (existing) {
+      // Merge: sumar cantidad + promedio ponderado de precio_compra
+      const qOld = toNumber(existing.cantidad_disponible);
+      const qNew = input.cantidad;
+      const pOld = toNumber(existing.precio_compra);
+      const pNew = input.precio_compra;
+      const precioPromedio = round2((qOld * pOld + qNew * pNew) / (qOld + qNew));
+
+      loteRaw = await prisma.lote.update({
+        where: { id: existing.id },
+        data: {
+          cantidad_disponible: { increment: input.cantidad },
+          precio_compra: precioPromedio,
+          // Re-aporte: vuelve a activo aunque estuviera descartado/agotado
+          estado: 'activo',
+          ...(input.fecha_compra ? { fecha_compra: new Date(input.fecha_compra) } : {}),
+        },
+        include: loteInclude,
+      });
+
+      logger.info(
+        { loteId: existing.id, productoId: input.producto_id, numeroLote: input.numero_lote },
+        'Stock sumado a lote existente via ingreso'
+      );
+    } else {
+      esNuevo = true;
+      loteRaw = await prisma.lote.create({
+        data: {
+          producto_id: input.producto_id,
+          numero_lote: input.numero_lote ?? null,
+          cantidad_disponible: input.cantidad,
+          fecha_compra: input.fecha_compra ? new Date(input.fecha_compra) : null,
+          fecha_vencimiento: input.fecha_vencimiento ? new Date(input.fecha_vencimiento) : null,
+          precio_compra: input.precio_compra,
+          estado: 'activo',
+        },
+        include: loteInclude,
+      });
+
+      logger.info(
+        { loteId: (loteRaw as { id: string }).id, productoId: input.producto_id, numeroLote: input.numero_lote ?? null },
+        'Lote creado via ingreso'
+      );
+    }
+
+    // Actualizar umbral de aviso si viene
+    if (input.cantidad_aviso !== undefined) {
+      await prisma.producto.update({
+        where: { id: input.producto_id },
+        data: { cantidad_aviso: input.cantidad_aviso },
+      });
+    }
+
+    // Reactivar producto si estaba inactivo (el ingreso de stock lo reactiva)
+    if (!producto.activo) {
+      await prisma.producto.update({
+        where: { id: input.producto_id },
+        data: { activo: true },
+      });
+    }
+
+    if (esNuevo) {
+      logger.info({ productoId: input.producto_id }, 'Producto inactivo reactivado por ingreso');
+    }
+
+    return ok({ lote: mapLote(loteRaw), esNuevo });
+  } catch (error) {
+    logger.error({ error, input }, 'Error en ingreso de stock');
+    return err(databaseError('Error en ingreso de stock', error as Error));
+  }
+}
+
+// Listado de stock (antes listStock) — UNA FILA POR LOTE.
+export async function loteList(
   query: StockQueryInput
-): Promise<AppResult<{ data: StockItem[]; pagination: {
+): Promise<AppResult<{ data: StockLoteRow[]; pagination: {
   page: number;
   limit: number;
   total: number;
   totalPages: number;
 } }>> {
   try {
+    // Lazy pass: marcar vencidos antes de calcular
+    await retirarLotesVencidos();
+
     const { search, rubro_id, vencimiento_dias, stock_bajo, vencidos, sort, order, page, limit } = query;
     const skip = (page - 1) * limit;
 
-    // UTC-3 local date as string for correct day-boundary comparisons.
-    // A product with fecha_vencimiento = D is VIGENTE during ALL of day D.
-    // It becomes "vencido" only after midnight of D+1.
-    // BUGFIX: original code did Date.now()+3h then setHours(0) which operated in
-    // runtime-local timezone (often UTC), making "today" start at 03:00 UTC-3.
-    // Fix: compute YYYY-MM-DD string in UTC-3, compare as strings.
     const ahora = new Date(Date.now());
     const hoyStr = toUTC3DateString(ahora);
-
-    // Midnight of today in UTC-3 (as UTC Date) for Prisma lt/gte queries
     const limiteVencidos = new Date(hoyStr + 'T00:00:00.000Z');
+    // D = vencimiento_dias ?? 30 (default del badge "por_vencer")
+    const D = vencimiento_dias ?? 30;
+    const fechalimitePorVencer = new Date(limiteVencidos.getTime() + D * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
 
-    const futureDate =
-      vencimiento_dias !== undefined
-        ? new Date(limiteVencidos.getTime() + vencimiento_dias * 24 * 60 * 60 * 1000)
-        : null;
-
-    // Build where clause
-    const where: Record<string, unknown> = {};
+    // Construir cláusula where (sobre Lote, con producto.activo == true)
+    const and: Prisma.LoteWhereInput[] = [];
+    and.push({ producto: { activo: true } });
 
     if (search) {
-      where.OR = [
-        { nombre: { contains: search, mode: 'insensitive' } },
-        { codigo: { contains: search, mode: 'insensitive' } },
-      ];
+      and.push({
+        OR: [
+          {
+            producto: {
+              OR: [
+                { nombre: { contains: search, mode: 'insensitive' } },
+                { codigo: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+          { numero_lote: { contains: search, mode: 'insensitive' } },
+        ],
+      });
     }
 
     if (rubro_id) {
-      where.rubro_id = rubro_id;
+      and.push({ producto: { rubro_id } });
     }
 
-    // Filter by stock status
-    if (stock_bajo) {
-      where.cantidad_disponible = { lt: 10 };
-    }
-
-    // Filter by expiration status
+    // Filtro por vencidos: estado vencido O fecha vencimiento < hoy
     if (vencidos) {
-      where.fecha_vencimiento = { lt: limiteVencidos };
-    } else if (futureDate) {
-      // Products expiring soon (but not yet expired)
-      where.AND = [
-        { fecha_vencimiento: { gte: limiteVencidos } },
-        { fecha_vencimiento: { lte: futureDate } },
-      ];
+      and.push({
+        OR: [
+          { estado: 'vencido' },
+          { fecha_vencimiento: { lt: limiteVencidos } },
+        ],
+      });
+    } else if (vencimiento_dias !== undefined) {
+      // Filtro por ventana SOLO si vencimiento_dias viene explícito
+      const futureDate = new Date(limiteVencidos.getTime() + vencimiento_dias * 24 * 60 * 60 * 1000);
+      and.push({
+        AND: [
+          { fecha_vencimiento: { gte: limiteVencidos } },
+          { fecha_vencimiento: { lte: futureDate } },
+        ],
+      });
     }
 
-    // Build orderBy
-    const orderBy: Record<string, string> = { [sort]: order };
+    const where: Prisma.LoteWhereInput = { AND: and };
 
-    // Execute query
-    const [productos, total] = await Promise.all([
-      prisma.producto.findMany({
+    // orderBy según sort key de lote (producto.nombre es anidado)
+    const orderBy =
+      sort === 'producto.nombre'
+        ? [{ producto: { nombre: order } }]
+        : [{ [sort]: order }];
+
+    const [lotes, total] = await Promise.all([
+      prisma.lote.findMany({
         where,
-        include: {
-          rubro: {
-            select: { id: true, nombre: true },
-          },
-          proveedor: {
-            select: { id: true, razon_social: true },
-          },
-        },
+        include: loteInclude,
         orderBy,
         skip,
         take: limit,
       }),
-      prisma.producto.count({ where }),
+      prisma.lote.count({ where }),
     ]);
 
-    // Map to stock items with alerts
-    const stockItems: StockItem[] = productos.map((p) => {
-      let estado_vencimiento: 'vencido' | 'por_vencer' | 'ok' = 'ok';
+    // stock_bajo: SUM de cantidad_disponible de lotes activos NO vencidos del producto
+    // Debemos agregar por producto sobre la página (no hardcode lt:10).
+    const productoIds = [...new Set((lotes as Array<{ producto_id: string }>).map((l) => l.producto_id))];
+    let sumasPorProducto = new Map<string, number>();
 
-      if (p.fecha_vencimiento) {
-        // The DB stores fecha_vencimiento as UTC midnight (e.g. 2026-07-17T00:00:00Z)
-        // which represents the local date the user intended. toISOString().slice(0,10)
-        // extracts that YYYY-MM-DD directly — no timezone shift needed.
-        // hoyStr uses -3h shift (UTC→UTC-3) because Date.now() is in UTC.
-        const vencStr = new Date(p.fecha_vencimiento).toISOString().slice(0, 10);
+    if (productoIds.length > 0) {
+      const lotesActivos = await prisma.lote.findMany({
+        where: {
+          producto_id: { in: productoIds },
+          estado: 'activo',
+          OR: [
+            { fecha_vencimiento: null },
+            { fecha_vencimiento: { gte: limiteVencidos } },
+          ],
+        },
+        select: { producto_id: true, cantidad_disponible: true },
+      });
+
+      sumasPorProducto = lotesActivos.reduce<Map<string, number>>((acc, l) => {
+        acc.set(l.producto_id, (acc.get(l.producto_id) ?? 0) + toNumber(l.cantidad_disponible));
+        return acc;
+      }, new Map());
+    }
+
+    const data: StockLoteRow[] = (lotes as Array<{
+      id: string;
+      producto_id: string;
+      numero_lote: string | null;
+      cantidad_disponible: unknown;
+      fecha_compra: Date | null;
+      fecha_vencimiento: Date | null;
+      precio_compra: unknown;
+      estado: 'activo' | 'agotado' | 'vencido' | 'descartado';
+      created_at: Date;
+      producto: {
+        id: string;
+        nombre: string;
+        codigo: string;
+        unidad_medida: string;
+        precio_venta: unknown;
+        cantidad_aviso: unknown;
+        rubro: { id: string; nombre: string };
+        proveedor: { id: string; razon_social: string };
+      };
+    }>).map((l) => {
+      let estado_vencimiento: 'vencido' | 'por_vencer' | 'ok' = 'ok';
+      if (l.fecha_vencimiento) {
+        const vencStr = new Date(l.fecha_vencimiento).toISOString().slice(0, 10);
         if (vencStr < hoyStr) {
           estado_vencimiento = 'vencido';
-        } else if (futureDate && vencStr <= futureDate.toISOString().slice(0, 10)) {
+        } else if (vencStr <= fechalimitePorVencer) {
           estado_vencimiento = 'por_vencer';
         }
       }
 
+      const sumaDisponible = sumasPorProducto.get(l.producto_id) ?? 0;
+      const cantidadAviso = toNumber(l.producto.cantidad_aviso);
+      const stockBajo = sumaDisponible < cantidadAviso;
+
       return {
-        ...p,
-        cantidad_disponible: toNumber(p.cantidad_disponible),
-        cantidad_aviso: toNumber(p.cantidad_aviso),
-        precio_compra: toNumber(p.precio_compra),
-        precio_venta: toNumber(p.precio_venta),
+        id: l.id,
+        producto_id: l.producto_id,
+        numero_lote: l.numero_lote,
+        cantidad_disponible: toNumber(l.cantidad_disponible),
+        fecha_compra: l.fecha_compra,
+        fecha_vencimiento: l.fecha_vencimiento,
+        precio_compra: toNumber(l.precio_compra),
+        estado: l.estado,
+        created_at: l.created_at,
+        producto: {
+          id: l.producto.id,
+          nombre: l.producto.nombre,
+          codigo: l.producto.codigo,
+          unidad_medida: l.producto.unidad_medida as LoteWithRelations['producto']['unidad_medida'],
+          precio_venta: toNumber(l.producto.precio_venta),
+          cantidad_aviso: cantidadAviso,
+        },
+        rubro: l.producto.rubro,
+        proveedor: l.producto.proveedor,
         estado_vencimiento,
-        stock_bajo: toNumber(p.cantidad_disponible) < 10,
-      } as StockItem;
+        stock_bajo: stockBajo,
+      };
     });
+
+    // Aplicar filtro stock_bajo en memoria (no filtró en la query por depender del agregado)
+    const dataFiltrada = stock_bajo ? data.filter((row) => row.stock_bajo) : data;
 
     const totalPages = Math.ceil(total / limit);
 
     return ok({
-      data: stockItems,
+      data: dataFiltrada,
       pagination: {
         page,
         limit,
@@ -175,214 +435,143 @@ export async function listStock(
   }
 }
 
-// Stock entry (ingreso)
-export async function stockIngreso(
-  input: StockIngresoInput
-): Promise<AppResult<Producto>> {
+// Editar un lote — NUNCA toca cantidad_disponible.
+export async function loteEdit(
+  id: string,
+  input: EditarLoteInput
+): Promise<AppResult<LoteWithRelations>> {
   try {
-    // Check if product with same code and supplier already exists
-    const existing = await prisma.producto.findFirst({
-      where: {
-        codigo: input.codigo,
-        proveedor_id: input.proveedor_id,
-      },
-    });
+    const lote = await prisma.lote.findUnique({ where: { id } });
 
-    if (existing) {
-      // Check if ALL fields match
-      const allFieldsMatch =
-        existing.nombre === input.nombre &&
-        toNumber(existing.cantidad_disponible) === input.cantidad &&
-        toNumber(existing.precio_compra) === input.precio_compra &&
-        toNumber(existing.precio_venta) === input.precio_venta &&
-        existing.rubro_id === input.rubro_id &&
-        existing.unidad_medida === input.unidad_medida &&
-        existing.fecha_compra?.toISOString().split('T')[0] === input.fecha_compra &&
-        existing.fecha_vencimiento?.toISOString().split('T')[0] === input.fecha_vencimiento &&
-        existing.numero_remesa === input.numero_remesa;
-
-      if (allFieldsMatch) {
-        return err(validationError('No se puede guardar: todos los campos coinciden con un producto existente'));
-      }
-
-      // If not all fields match, update the existing product
-      const updated = await prisma.producto.update({
-        where: { id: existing.id },
-        data: {
-          nombre: input.nombre,
-          cantidad_disponible: input.cantidad,
-          cantidad_aviso: input.cantidad_aviso,
-          precio_compra: input.precio_compra,
-          precio_venta: input.precio_venta,
-          rubro_id: input.rubro_id,
-          fecha_compra: input.fecha_compra ? new Date(input.fecha_compra) : null,
-          fecha_vencimiento: input.fecha_vencimiento ? new Date(input.fecha_vencimiento) : null,
-          numero_remesa: input.numero_remesa ?? null,
-          unidad_medida: input.unidad_medida,
-        },
-      });
-
-      const result: Producto = {
-        ...updated,
-        cantidad_disponible: toNumber(updated.cantidad_disponible),
-        cantidad_aviso: toNumber(updated.cantidad_aviso),
-        precio_compra: toNumber(updated.precio_compra),
-        precio_venta: toNumber(updated.precio_venta),
-      };
-
-      logger.info({ productoId: updated.id, codigo: updated.codigo }, 'Stock actualizado via ingreso');
-      return ok(result);
+    if (!lote) {
+      return err(notFoundError('Lote', id));
     }
 
-    // Verify rubro exists
-    const rubro = await prisma.rubro.findUnique({
-      where: { id: input.rubro_id },
-    });
+    const nuevoNumero = input.numero_lote !== undefined ? input.numero_lote : lote.numero_lote;
+    const nuevoVenc = input.fecha_vencimiento !== undefined
+      ? (input.fecha_vencimiento ? new Date(input.fecha_vencimiento) : null)
+      : lote.fecha_vencimiento;
 
-    if (!rubro) {
-      return err(notFoundError('Rubro', input.rubro_id));
-    }
-
-    // Verify proveedor exists
-    const proveedor = await prisma.proveedor.findUnique({
-      where: { id: input.proveedor_id },
-    });
-
-    if (!proveedor) {
-      return err(notFoundError('Proveedor', input.proveedor_id));
-    }
-
-    // Create new product
-    const producto = await prisma.producto.create({
-      data: {
-        nombre: input.nombre,
-        codigo: input.codigo,
-        cantidad_disponible: input.cantidad,
-        cantidad_aviso: input.cantidad_aviso,
-        precio_compra: input.precio_compra,
-        precio_venta: input.precio_venta,
-        rubro_id: input.rubro_id,
-        proveedor_id: input.proveedor_id,
-        fecha_compra: input.fecha_compra ? new Date(input.fecha_compra) : null,
-        fecha_vencimiento: input.fecha_vencimiento ? new Date(input.fecha_vencimiento) : null,
-        numero_remesa: input.numero_remesa ?? null,
-        unidad_medida: input.unidad_medida,
-      },
-    });
-
-    const result: Producto = {
-      ...producto,
-      cantidad_disponible: toNumber(producto.cantidad_disponible),
-      cantidad_aviso: toNumber(producto.cantidad_aviso),
-      precio_compra: toNumber(producto.precio_compra),
-      precio_venta: toNumber(producto.precio_venta),
-    };
-
-    logger.info({ productoId: producto.id, codigo: producto.codigo }, 'Stock creado via ingreso');
-    return ok(result);
-  } catch (error) {
-    logger.error({ error, input }, 'Error en ingreso de stock');
-    return err(databaseError('Error en ingreso de stock', error as Error));
-  }
-}
-
-// Stock edit (existing product)
-export async function stockEdit(
-  input: StockEditInput
-): Promise<AppResult<Producto>> {
-  try {
-    const { id, ...data } = input;
-
-    // Check if product exists
-    const existing = await prisma.producto.findUnique({
-      where: { id },
-    });
-
-    if (!existing) {
-      return err(notFoundError('Producto', id));
-    }
-
-    // If code is being changed, check uniqueness for this supplier
-    if (data.codigo) {
-      const proveedorId = data.proveedor_id ?? existing.proveedor_id;
-      const codeExists = await prisma.producto.findFirst({
+    // Conflicto: si el par (numero_lote, fecha_vencimiento) queda igual a OTRO lote del producto
+    if (nuevoNumero != null) {
+      const duplicado = await prisma.lote.findFirst({
         where: {
-          codigo: data.codigo,
-          proveedor_id: proveedorId,
+          producto_id: lote.producto_id,
+          numero_lote: nuevoNumero,
+          fecha_vencimiento: nuevoVenc,
           id: { not: id },
         },
       });
 
-      if (codeExists) {
-        return err(conflictError('Producto', `Código ${data.codigo} ya existe para este proveedor`));
+      if (duplicado) {
+        return err(conflictError('Lote', 'Existe otro lote con el mismo N° de Lote y fecha de vencimiento'));
       }
     }
 
-    // Verify rubro exists if changing
-    if (data.rubro_id) {
-      const rubro = await prisma.rubro.findUnique({
-        where: { id: data.rubro_id },
-      });
-
-      if (!rubro) {
-        return err(notFoundError('Rubro', data.rubro_id));
-      }
-    }
-
-    // Verify proveedor exists if changing
-    if (data.proveedor_id) {
-      const proveedor = await prisma.proveedor.findUnique({
-        where: { id: data.proveedor_id },
-      });
-
-      if (!proveedor) {
-        return err(notFoundError('Proveedor', data.proveedor_id));
-      }
-    }
-
-    // Build update data, converting undefined to null for nullable fields
-    const updateData: Record<string, unknown> = {};
-    if (data.nombre !== undefined) updateData.nombre = data.nombre;
-    if (data.codigo !== undefined) updateData.codigo = data.codigo;
-    if (data.cantidad !== undefined) updateData.cantidad_disponible = data.cantidad;
-    if (data.cantidad_aviso !== undefined) updateData.cantidad_aviso = data.cantidad_aviso;
-    if (data.precio_compra !== undefined) updateData.precio_compra = data.precio_compra;
-    if (data.precio_venta !== undefined) updateData.precio_venta = data.precio_venta;
-    if (data.rubro_id !== undefined) updateData.rubro_id = data.rubro_id;
-    if (data.proveedor_id !== undefined) updateData.proveedor_id = data.proveedor_id;
-    if (data.fecha_compra !== undefined) updateData.fecha_compra = data.fecha_compra ? new Date(data.fecha_compra) : null;
-    if (data.fecha_vencimiento !== undefined) updateData.fecha_vencimiento = data.fecha_vencimiento ? new Date(data.fecha_vencimiento) : null;
-    if (data.numero_remesa !== undefined) updateData.numero_remesa = data.numero_remesa ?? null;
-    if (data.unidad_medida !== undefined) updateData.unidad_medida = data.unidad_medida;
-
-    const producto = await prisma.producto.update({
+    const updated = await prisma.lote.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...(input.numero_lote !== undefined ? { numero_lote: input.numero_lote } : {}),
+        ...(input.fecha_compra !== undefined
+          ? { fecha_compra: input.fecha_compra ? new Date(input.fecha_compra) : null }
+          : {}),
+        ...(input.fecha_vencimiento !== undefined
+          ? { fecha_vencimiento: input.fecha_vencimiento ? new Date(input.fecha_vencimiento) : null }
+          : {}),
+        ...(input.precio_compra !== undefined ? { precio_compra: input.precio_compra } : {}),
+      },
+      include: loteInclude,
     });
 
-    const result: Producto = {
-      ...producto,
-      cantidad_disponible: toNumber(producto.cantidad_disponible),
-      cantidad_aviso: toNumber(producto.cantidad_aviso),
-      precio_compra: toNumber(producto.precio_compra),
-      precio_venta: toNumber(producto.precio_venta),
-    };
-
-    logger.info({ productoId: producto.id, codigo: producto.codigo }, 'Stock actualizado');
-    return ok(result);
+    logger.info({ loteId: id, productoId: lote.producto_id }, 'Lote editado');
+    return ok(mapLote(updated));
   } catch (error) {
-    logger.error({ error, id: input.id }, 'Error al editar stock');
-    return err(databaseError('Error al editar stock', error as Error));
+    logger.error({ error, id }, 'Error al editar lote');
+    return err(databaseError('Error al editar lote', error as Error));
   }
 }
 
-// Search products for autocomplete
+// Retirar un lote (marcar descartado) — solo desde activo/agotado.
+export async function loteRetirar(id: string): Promise<AppResult<LoteWithRelations>> {
+  try {
+    const lote = await prisma.lote.findUnique({ where: { id } });
+
+    if (!lote) {
+      return err(notFoundError('Lote', id));
+    }
+
+    if (lote.estado !== 'activo' && lote.estado !== 'agotado') {
+      return err({
+        code: 'CONFLICT',
+        message: 'Solo se puede retirar un lote desde estado activo/agotado',
+        resource: 'Lote',
+      });
+    }
+
+    const updated = await prisma.lote.update({
+      where: { id },
+      data: { estado: 'descartado' },
+      include: loteInclude,
+    });
+
+    logger.info({ loteId: id, productoId: lote.producto_id }, 'Lote retirado (descartado)');
+    return ok(mapLote(updated));
+  } catch (error) {
+    logger.error({ error, id }, 'Error al retirar lote');
+    return err(databaseError('Error al retirar lote', error as Error));
+  }
+}
+
+// Borrado físico de lote — SOLO si no tiene DetalleVenta que lo referencie.
+export async function loteDelete(id: string): Promise<AppResult<{ success: boolean }>> {
+  try {
+    const lote = await prisma.lote.findUnique({ where: { id } });
+
+    if (!lote) {
+      return err(notFoundError('Lote', id));
+    }
+
+    const detalle = await prisma.detalleVenta.findFirst({ where: { lote_id: id } });
+
+    if (detalle) {
+      return err({
+        code: 'CONFLICT',
+        message: 'El lote tiene ventas asociadas: solo puede retirarse',
+        resource: 'Lote',
+      });
+    }
+
+    try {
+      await prisma.lote.delete({ where: { id } });
+    } catch (e) {
+      // La FK RESTRICT es la red de seguridad final (ruta de carrera)
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        return err({
+          code: 'CONFLICT',
+          message: 'El lote tiene ventas asociadas: solo puede retirarse',
+          resource: 'Lote',
+        });
+      }
+      throw e;
+    }
+
+    logger.info({ loteId: id }, 'Lote eliminado fisicamente');
+    return ok({ success: true });
+  } catch (error) {
+    logger.error({ error, id }, 'Error al eliminar lote');
+    return err(databaseError('Error al eliminar lote', error as Error));
+  }
+}
+
+// Buscar productos activos para autocomplete (con stock_actual)
 export async function searchProductos(
   query: string,
   tipo: 'nombre' | 'codigo' = 'nombre'
 ): Promise<AppResult<Producto[]>> {
   try {
-    const where: Record<string, unknown> = {};
+    await retirarLotesVencidos();
+
+    const where: Prisma.ProductoWhereInput = { activo: true };
 
     if (tipo === 'nombre') {
       where.nombre = { contains: query, mode: 'insensitive' };
@@ -404,18 +593,70 @@ export async function searchProductos(
       orderBy: { nombre: 'asc' },
     });
 
-    // Convert Decimal to number
-    const data: Producto[] = productos.map((p) => ({
-      ...p,
-      cantidad_disponible: toNumber(p.cantidad_disponible),
-      cantidad_aviso: toNumber(p.cantidad_aviso),
-      precio_compra: toNumber(p.precio_compra),
-      precio_venta: toNumber(p.precio_venta),
-    }));
-
+    const data = await mapProductosConStock(productos, limiteVencidos());
     return ok(data);
   } catch (error) {
     logger.error({ error, query }, 'Error al buscar productos');
     return err(databaseError('Error al buscar productos', error as Error));
   }
 }
+
+// ==== Helpers compartidos de producto con stock_actual ====
+
+function limiteVencidos(): Date {
+  const hoyStr = toUTC3DateString(new Date());
+  return new Date(hoyStr + 'T00:00:00.000Z');
+}
+
+// Toma productos crudos (Prisma) y agrega stock_actual = SUM(lotes activos NO vencidos)
+async function mapProductosConStock(
+  productos: Array<{
+    id: string;
+    nombre: string;
+    codigo: string;
+    cantidad_aviso: unknown;
+    precio_venta: unknown;
+    rubro_id: string;
+    proveedor_id: string;
+    unidad_medida: string;
+    activo: boolean;
+    created_at: Date;
+    updated_at: Date | null;
+  }>,
+  limite: Date
+): Promise<Producto[]> {
+  const ids = productos.map((p) => p.id);
+  const lotesActivos = ids.length
+    ? await prisma.lote.findMany({
+        where: {
+          producto_id: { in: ids },
+          estado: 'activo',
+          OR: [
+            { fecha_vencimiento: null },
+            { fecha_vencimiento: { gte: limite } },
+          ],
+        },
+        select: { producto_id: true, cantidad_disponible: true },
+      })
+    : [];
+
+  const sumas = lotesActivos.reduce<Map<string, number>>((acc, l) => {
+    acc.set(l.producto_id, (acc.get(l.producto_id) ?? 0) + toNumber(l.cantidad_disponible));
+    return acc;
+  }, new Map());
+
+  return productos.map((p) => ({
+    ...p,
+    cantidad_aviso: toNumber(p.cantidad_aviso),
+    precio_venta: toNumber(p.precio_venta),
+    unidad_medida: p.unidad_medida as Producto['unidad_medida'],
+    stock_actual: sumas.get(p.id) ?? 0,
+    lotes: [],
+  }));
+}
+
+// ==== Aliases de compatibilidad (hasta Batch 4 actualice los controllers) ====
+// Deprecado: el stock ahora se lista por lote. Punto de entrada nuevo: loteList.
+export const listStock = loteList;
+// Deprecado: el ingreso ahora opera sobre lotes. Punto de entrada nuevo: loteIngreso.
+export const stockIngreso = loteIngreso;

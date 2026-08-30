@@ -170,6 +170,8 @@ export async function updateProductoHandler(
 }
 
 // DELETE /api/v1/productos/:id
+// Soft delete: setea activo = false (la fila y su historial se conservan).
+// Bloqueado si el producto tiene al menos un lote activo (VALIDATION_ERROR).
 export async function deleteProductoHandler(
   request: FastifyRequest,
   reply: FastifyReply
@@ -195,7 +197,7 @@ export async function deleteProductoHandler(
 
   reply.send({
     success: true,
-    data: { message: 'Producto eliminado exitosamente' },
+    data: result.value,
   });
 }
 

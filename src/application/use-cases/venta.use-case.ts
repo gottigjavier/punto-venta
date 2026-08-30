@@ -1,11 +1,16 @@
 // src/application/use-cases/venta.use-case.ts
 // Sale use cases
+// createVenta consume stock por LOTE bajo FEFO (fecha_vencimiento ASC, created_at
+// ASC, NULLs al final) y SPLITEA una línea en N DetalleVenta (uno por lote), cada
+// uno con su lote_id. deleteVenta revierte el stock POR LOTE y rechaza ventas
+// pre-migración (lote_id null).
 import { ok, err } from 'neverthrow';
 import { prisma } from '../../infrastructure/database/prisma/client.js';
 import type { AppResult } from '../../shared/types/result.js';
 import {
   notFoundError,
   databaseError,
+  validationError,
 } from '../../shared/types/result.js';
 import type {
   VentaWithDetalles,
@@ -16,6 +21,7 @@ import type {
 import type { CreateVentaInput, VentaQueryInput } from '../dto/venta.dto.js';
 import { logger } from '../../infrastructure/logging/logger.js';
 import { verifyPassword } from '../../infrastructure/auth/password.js';
+import { retirarLotesVencidos, toUTC3DateString } from './stock.use-case.js';
 
 // Helper to convert Prisma Decimal to number
 function toNumber(val: unknown): number {
@@ -25,6 +31,11 @@ function toNumber(val: unknown): number {
     return (val as { toNumber: () => number }).toNumber();
   }
   return 0;
+}
+
+// Helper: round to 2 decimals (money)
+function round2(val: number): number {
+  return Math.round(val * 100) / 100;
 }
 
 // Helper to build start/end of day
@@ -40,16 +51,36 @@ function endOfDay(date: Date): Date {
   return d;
 }
 
-// Create a sale (atomic transaction)
+// Medianoche de hoy en UTC (UTC-3) para filtrar lotes NO vencidos
+function limiteHoy(): Date {
+  const hoyStr = toUTC3DateString(new Date());
+  return new Date(hoyStr + 'T00:00:00.000Z');
+}
+
+// Error interno para interrumpir la transacción con stock insuficiente (rollback)
+class StockInsuficienteError extends Error {
+  disponible: number;
+  solicitado: number;
+  productoId: string;
+  constructor(disponible: number, solicitado: number, productoId: string) {
+    super(`Stock insuficiente para producto ${productoId}`);
+    this.disponible = disponible;
+    this.solicitado = solicitado;
+    this.productoId = productoId;
+  }
+}
+
+// Create a sale (atomic transaction) — FEFO en cascada sobre lotes
 export async function createVenta(
   input: CreateVentaInput,
   usuarioId: string
 ): Promise<AppResult<VentaWithDetalles>> {
   try {
-    // 1. Verify all products exist and have sufficient stock
+    // 1. Verify all products exist
     const productIds = input.productos.map((p) => p.producto_id);
     const productos = await prisma.producto.findMany({
       where: { id: { in: productIds } },
+      select: { id: true },
     });
 
     if (productos.length !== productIds.length) {
@@ -58,71 +89,99 @@ export async function createVenta(
       return err(notFoundError('Producto', missingId));
     }
 
-    // 2. Build a map for quick lookup and validate stock
-    const productoMap = new Map(
-      productos.map((p) => [p.id, p])
-    );
-
-    for (const item of input.productos) {
-      const producto = productoMap.get(item.producto_id);
-      if (!producto) {
-        return err(notFoundError('Producto', item.producto_id));
-      }
-
-      const stockDisponible = toNumber(producto.cantidad_disponible);
-      if (stockDisponible < item.cantidad) {
-        return err({
-          code: 'STOCK_INSUFFICIENT',
-          message: `Stock insuficiente para producto ${producto.codigo}`,
-          disponible: stockDisponible,
-          solicitado: item.cantidad,
-        });
-      }
-    }
-
-    // 3. Calculate total
-    const total = input.productos.reduce(
-      (sum, item) => sum + item.cantidad * item.precio_unitario,
-      0
-    );
-
-    // 4. Execute atomic transaction
+    // 2. Execute atomic transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create venta
+      // Agrupar líneas por producto_id (una línea puede venir repetida)
+      const agrupadas = new Map<string, { cantidad: number; precio_unitario: number }>();
+      for (const item of input.productos) {
+        const curr = agrupadas.get(item.producto_id) ?? {
+          cantidad: 0,
+          precio_unitario: item.precio_unitario,
+        };
+        curr.cantidad += item.cantidad;
+        agrupadas.set(item.producto_id, curr);
+      }
+
+      // Crear venta (total se ajusta al final según subtotales reales)
       const venta = await tx.venta.create({
         data: {
           usuario_id: usuarioId,
-          total,
+          total: 0,
           estado: 'completada',
         },
       });
 
-      // Create detalles and update stock
-      const detallesPromises = input.productos.map(async (item) => {
-        const detalle = await tx.detalleVenta.create({
-          data: {
-            venta_id: venta.id,
-            producto_id: item.producto_id,
-            cantidad: item.cantidad,
-            precio_unitario: item.precio_unitario,
-            subtotal: item.cantidad * item.precio_unitario,
+      const inicioHoy = limiteHoy();
+      let total = 0;
+      const detallesCreados: Array<{ id: string }> = [];
+
+      for (const [productoId, linea] of agrupadas) {
+        // (1) lazy pass de vencidos dentro de la transacción
+        await retirarLotesVencidos(tx);
+
+        // (2) lotes activos NO vencidos, ordenados FEFO (NULLs al final)
+        const lotesRaw = await tx.lote.findMany({
+          where: {
+            producto_id: productoId,
+            estado: 'activo',
+            OR: [
+              { fecha_vencimiento: null },
+              { fecha_vencimiento: { gte: inicioHoy } },
+            ],
           },
+          orderBy: [{ fecha_vencimiento: 'asc' }, { created_at: 'asc' }],
         });
 
-        // Decrement stock
-        await tx.producto.update({
-          where: { id: item.producto_id },
-          data: {
-            cantidad_disponible: {
-              decrement: item.cantidad,
+        // NULLs al final del orden FEFO (manejo en memoria)
+        const lotes = [
+          ...lotesRaw.filter((l) => l.fecha_vencimiento !== null),
+          ...lotesRaw.filter((l) => l.fecha_vencimiento === null),
+        ];
+
+        // (3) validar stock suficiente
+        const disponible = lotes.reduce((sum, l) => sum + toNumber(l.cantidad_disponible), 0);
+        if (disponible < linea.cantidad) {
+          throw new StockInsuficienteError(disponible, linea.cantidad, productoId);
+        }
+
+        // (4) descontar en cascada
+        let resto = linea.cantidad;
+        for (const lote of lotes) {
+          if (resto <= 0) break;
+          const disponibleLote = toNumber(lote.cantidad_disponible);
+          if (disponibleLote <= 0) continue; // saltar agotados
+
+          const take = Math.min(disponibleLote, resto);
+          const nuevoDisponible = disponibleLote - take;
+
+          await tx.lote.update({
+            where: { id: lote.id },
+            data: {
+              cantidad_disponible: { decrement: take },
+              ...(nuevoDisponible === 0 ? { estado: 'agotado' } : {}),
             },
-          },
-        });
+          });
 
-        return detalle;
-      });
+          // (5) UN DetalleVenta por lote
+          const subtotal = round2(take * linea.precio_unitario);
+          const detalle = await tx.detalleVenta.create({
+            data: {
+              venta_id: venta.id,
+              producto_id: productoId,
+              lote_id: lote.id,
+              cantidad: take,
+              precio_unitario: linea.precio_unitario,
+              subtotal,
+            },
+          });
+          detallesCreados.push(detalle);
+          total += subtotal;
+          resto -= take;
+        }
+      }
 
-      const detalles = await Promise.all(detallesPromises);
+      // Fijar el total = Σ subtotales (invariante)
+      await tx.venta.update({ where: { id: venta.id }, data: { total } });
 
       // Fetch complete venta with relations
       const ventaCompleta = await tx.venta.findUnique({
@@ -141,7 +200,7 @@ export async function createVenta(
         },
       });
 
-      return { venta: ventaCompleta, detalles };
+      return { venta: ventaCompleta, detalles: detallesCreados };
     });
 
     if (!result.venta) {
@@ -165,6 +224,14 @@ export async function createVenta(
     );
     return ok(response);
   } catch (error) {
+    if (error instanceof StockInsuficienteError) {
+      return err({
+        code: 'STOCK_INSUFFICIENT',
+        message: `Stock insuficiente para producto ${error.productoId}: disponible ${error.disponible}, solicitado ${error.solicitado}`,
+        disponible: error.disponible,
+        solicitado: error.solicitado,
+      });
+    }
     logger.error({ error, input, usuarioId }, 'Error al crear venta');
     return err(databaseError('Error al crear venta', error as Error));
   }
@@ -360,7 +427,7 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
     // Total de caja = ventas + ingresos - egresos
     const monto_total = monto_ventas + ingresos - egresos;
 
-    // Aggregate products sold
+    // Aggregate products sold (por producto_id — los detalles split se suman)
     const productoMap = new Map<
       string,
       { producto_id: string; nombre: string; cantidad_total: number; monto_total: number }
@@ -473,7 +540,7 @@ export async function getUltimasVentasPorProducto(): Promise<
   }
 }
 
-// Delete a completed sale, restoring stock
+// Delete a completed sale, restoring stock POR LOTE
 export async function deleteVenta(
   id: string
 ): Promise<AppResult<{ id: string }>> {
@@ -502,17 +569,46 @@ export async function deleteVenta(
       });
     }
 
+    // Rechazar ventas pre-migración (sin trazabilidad por lote)
+    if (venta.detalles_venta.some((d) => d.lote_id === null)) {
+      return err(validationError('Venta pre-migración: no se puede revertir por lote'));
+    }
+
+    const hoyStr = toUTC3DateString(new Date());
+
     await prisma.$transaction(async (tx) => {
-      // Restore stock for each detail
+      // Restore stock for each detail by lote
       for (const detalle of venta.detalles_venta) {
-        await tx.producto.update({
-          where: { id: detalle.producto_id },
+        if (!detalle.lote_id) continue; // ya validado que no es null
+        await tx.lote.update({
+          where: { id: detalle.lote_id },
           data: {
             cantidad_disponible: {
               increment: toNumber(detalle.cantidad),
             },
           },
         });
+      }
+
+      // Si el lote estaba en 'agotado' y ahora tiene cantidad > 0 → reactivar
+      // (a 'activo', o 'vencido' si su fecha de vencimiento ya pasó)
+      const loteIds = [
+        ...new Set(venta.detalles_venta.map((d) => d.lote_id).filter((x): x is string => x != null)),
+      ];
+
+      for (const loteId of loteIds) {
+        const lote = await tx.lote.findUnique({ where: { id: loteId } });
+        if (!lote) continue;
+        const qty = toNumber(lote.cantidad_disponible);
+        if (qty > 0 && lote.estado === 'agotado') {
+          const vencido = lote.fecha_vencimiento
+            ? new Date(lote.fecha_vencimiento).toISOString().slice(0, 10) < hoyStr
+            : false;
+          await tx.lote.update({
+            where: { id: loteId },
+            data: { estado: vencido ? 'vencido' : 'activo' },
+          });
+        }
       }
 
       await tx.detalleVenta.deleteMany({ where: { venta_id: id } });

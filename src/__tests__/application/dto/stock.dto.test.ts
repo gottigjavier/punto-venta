@@ -1,39 +1,89 @@
 // src/__tests__/application/dto/stock.dto.test.ts
 // Stock DTO validation tests
+// Tras el split Producto/Lote, el ingreso opera sobre LOTES (producto_id +
+// numero_lote + cantidad) y el CRUD de lotes usa CrearLoteSchema/EditarLoteSchema.
 import { describe, it, expect } from 'vitest';
 import {
   StockIngresoSchema,
-  StockEditSchema,
+  CrearLoteSchema,
+  EditarLoteSchema,
+  LoteIdParamSchema,
   StockQuerySchema,
   StockAutocompleteSchema,
 } from '../../../application/dto/stock.dto.js';
 
+const PRODUCTO_ID = '123e4567-e89b-12d3-a456-426614174000';
+
 describe('Stock DTO Validation', () => {
   describe('StockIngresoSchema', () => {
     const validIngreso = {
-      nombre: 'Pan integral',
-      codigo: 'PAN-001',
+      producto_id: PRODUCTO_ID,
+      numero_lote: 'L-001',
       cantidad: 45,
       precio_compra: 150,
-      precio_venta: 250,
-      rubro_id: '123e4567-e89b-12d3-a456-426614174000',
-      proveedor_id: '123e4567-e89b-12d3-a456-426614174001',
     };
 
-    it('should validate a valid stock entry', () => {
+    it('should validate a valid stock entry (producto_id + numero_lote + cantidad)', () => {
       const result = StockIngresoSchema.safeParse(validIngreso);
       expect(result.success).toBe(true);
     });
 
-    it('should require nombre', () => {
-      const { nombre, ...withoutNombre } = validIngreso;
-      const result = StockIngresoSchema.safeParse(withoutNombre);
+    it('should accept optional fechas and omit them when absent', () => {
+      const result = StockIngresoSchema.safeParse({
+        ...validIngreso,
+        fecha_compra: '2024-01-15',
+        fecha_vencimiento: '2024-12-31',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.fecha_compra).toBe('2024-01-15');
+        expect(result.data.fecha_vencimiento).toBe('2024-12-31');
+      }
+    });
+
+    it('should reject legacy payload shape (nombre/codigo/rubro_id)', () => {
+      // Un payload con la forma vieja (sin producto_id) debe fallar
+      const result = StockIngresoSchema.safeParse({
+        nombre: 'Pan integral',
+        codigo: 'PAN-001',
+        cantidad: 45,
+        precio_compra: 150,
+        rubro_id: '123e4567-e89b-12d3-a456-426614174010',
+        proveedor_id: '123e4567-e89b-12d3-a456-426614174011',
+      });
       expect(result.success).toBe(false);
     });
 
-    it('should require codigo', () => {
-      const { codigo, ...withoutCodigo } = validIngreso;
-      const result = StockIngresoSchema.safeParse(withoutCodigo);
+    it('should NOT expose legacy fields in the parsed output', () => {
+      // Zod 4 hace strip de keys desconocidas: si mandan codigo/nombre,
+      // el output parseado NO los contiene
+      const result = StockIngresoSchema.safeParse({
+        ...validIngreso,
+        codigo: 'LEGACY',
+        nombre: 'Legacy',
+        rubro_id: 'legacy',
+        numero_remesa: 'REM-001',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect('codigo' in result.data).toBe(false);
+        expect('nombre' in result.data).toBe(false);
+        expect('rubro_id' in result.data).toBe(false);
+        expect('numero_remesa' in result.data).toBe(false);
+      }
+    });
+
+    it('should require producto_id', () => {
+      const { producto_id, ...withoutProducto } = validIngreso;
+      const result = StockIngresoSchema.safeParse(withoutProducto);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject invalid producto_id uuid', () => {
+      const result = StockIngresoSchema.safeParse({
+        ...validIngreso,
+        producto_id: 'not-a-uuid',
+      });
       expect(result.success).toBe(false);
     });
 
@@ -61,71 +111,120 @@ describe('Stock DTO Validation', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should require precio_venta >= 0', () => {
+    it('should accept numero_lote absent (nunca mergea por vencimiento)', () => {
+      const { numero_lote, ...sinLote } = validIngreso;
+      const result = StockIngresoSchema.safeParse(sinLote);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.numero_lote).toBeUndefined();
+      }
+    });
+
+    it('should accept numero_lote null', () => {
       const result = StockIngresoSchema.safeParse({
         ...validIngreso,
-        precio_venta: -1,
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('should require rubro_id', () => {
-      const { rubro_id, ...withoutRubro } = validIngreso;
-      const result = StockIngresoSchema.safeParse(withoutRubro);
-      expect(result.success).toBe(false);
-    });
-
-    it('should require proveedor_id', () => {
-      const { proveedor_id, ...withoutProveedor } = validIngreso;
-      const result = StockIngresoSchema.safeParse(withoutProveedor);
-      expect(result.success).toBe(false);
-    });
-
-    it('should accept optional fields', () => {
-      const result = StockIngresoSchema.safeParse({
-        ...validIngreso,
-        fecha_compra: '2024-01-15',
-        fecha_vencimiento: '2024-12-31',
-        numero_remesa: 'REM-001',
-        unidad_medida: 'kg',
+        numero_lote: null,
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.fecha_compra).toBe('2024-01-15');
-        expect(result.data.fecha_vencimiento).toBe('2024-12-31');
+        expect(result.data.numero_lote).toBeNull();
+      }
+    });
+
+    it('should transform empty string numero_lote to null', () => {
+      const result = StockIngresoSchema.safeParse({
+        ...validIngreso,
+        numero_lote: '',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.numero_lote).toBeNull();
       }
     });
   });
 
-  describe('StockEditSchema', () => {
-    it('should validate partial edit', () => {
-      const result = StockEditSchema.safeParse({
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        nombre: 'Pan integral actualizado',
-      });
+  describe('CrearLoteSchema', () => {
+    const validLote = {
+      producto_id: PRODUCTO_ID,
+      numero_lote: 'L-002',
+      cantidad: 10,
+      precio_compra: 120,
+    };
+
+    it('should validate a valid lote creation', () => {
+      const result = CrearLoteSchema.safeParse(validLote);
       expect(result.success).toBe(true);
     });
 
-    it('should require valid id', () => {
-      const result = StockEditSchema.safeParse({
-        id: 'invalid-uuid',
-        nombre: 'Pan',
-      });
+    it('should require producto_id', () => {
+      const { producto_id, ...sinProducto } = validLote;
+      const result = CrearLoteSchema.safeParse(sinProducto);
       expect(result.success).toBe(false);
     });
 
-    it('should allow empty edit (only id)', () => {
-      const result = StockEditSchema.safeParse({
-        id: '123e4567-e89b-12d3-a456-426614174000',
+    it('should reject cantidad <= 0', () => {
+      const result = CrearLoteSchema.safeParse({ ...validLote, cantidad: 0 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should NOT include cantidad_aviso in the parsed output', () => {
+      // Crear lote NO actualiza el umbral del producto (eso es del ingreso)
+      const result = CrearLoteSchema.safeParse({
+        ...validLote,
+        cantidad_aviso: 99,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect('cantidad_aviso' in result.data).toBe(false);
+      }
+    });
+  });
+
+  describe('EditarLoteSchema', () => {
+    it('should validate a partial edit (numero_lote/fechas/precio_compra)', () => {
+      const result = EditarLoteSchema.safeParse({
+        numero_lote: 'L-001-actualizado',
+        fecha_compra: '2024-02-01',
+        fecha_vencimiento: '2025-01-31',
+        precio_compra: 130,
       });
       expect(result.success).toBe(true);
     });
 
-    it('should reject negative cantidad', () => {
-      const result = StockEditSchema.safeParse({
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        cantidad: -1,
+    it('should allow empty edit', () => {
+      const result = EditarLoteSchema.safeParse({});
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject negative precio_compra', () => {
+      const result = EditarLoteSchema.safeParse({ precio_compra: -1 });
+      expect(result.success).toBe(false);
+    });
+
+    it('should NOT accept cantidad/cantidad_disponible (el stock solo cambia por ingreso/venta)', () => {
+      // Zod 4 hace strip de keys desconocidas: cantidad queda fuera del output
+      const result = EditarLoteSchema.safeParse({
+        cantidad: 5,
+        cantidad_disponible: 7,
+        precio_compra: 130,
       });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect('cantidad' in result.data).toBe(false);
+        expect('cantidad_disponible' in result.data).toBe(false);
+        expect(result.data.precio_compra).toBe(130);
+      }
+    });
+  });
+
+  describe('LoteIdParamSchema', () => {
+    it('should validate a valid UUID', () => {
+      const result = LoteIdParamSchema.safeParse({ id: PRODUCTO_ID });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid UUID', () => {
+      const result = LoteIdParamSchema.safeParse({ id: 'invalid-uuid' });
       expect(result.success).toBe(false);
     });
   });
@@ -146,7 +245,7 @@ describe('Stock DTO Validation', () => {
     it('should parse query parameters', () => {
       const result = StockQuerySchema.safeParse({
         search: 'pan',
-        rubro_id: '123e4567-e89b-12d3-a456-426614174000',
+        rubro_id: PRODUCTO_ID,
         vencimiento_dias: '15',
         stock_bajo: 'true',
         vencidos: 'false',
@@ -158,32 +257,41 @@ describe('Stock DTO Validation', () => {
         expect(result.data.search).toBe('pan');
         expect(result.data.vencimiento_dias).toBe(15);
         expect(result.data.stock_bajo).toBe(true);
-        // Note: z.coerce.boolean('false') returns true in Zod (non-empty string = truthy)
-        // The API layer handles this by using query parameter presence, not string coercion
-        expect(result.data.vencidos).toBe(true);
       }
+    });
+
+    it('should accept sort keys de lote', () => {
+      const result = StockQuerySchema.safeParse({ sort: 'numero_lote' });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.sort).toBe('numero_lote');
+      }
+    });
+
+    it('should reject sort keys legacy de producto', () => {
+      const result = StockQuerySchema.safeParse({ sort: 'cantidad_aviso' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject vencimiento_dias < 1', () => {
+      const result = StockQuerySchema.safeParse({ vencimiento_dias: 0 });
+      expect(result.success).toBe(false);
     });
   });
 
   describe('StockAutocompleteSchema', () => {
     it('should validate valid autocomplete query', () => {
-      const result = StockAutocompleteSchema.safeParse({
-        query: 'pan',
-      });
+      const result = StockAutocompleteSchema.safeParse({ query: 'pan' });
       expect(result.success).toBe(true);
     });
 
     it('should require minimum 3 characters', () => {
-      const result = StockAutocompleteSchema.safeParse({
-        query: 'pa',
-      });
+      const result = StockAutocompleteSchema.safeParse({ query: 'pa' });
       expect(result.success).toBe(false);
     });
 
     it('should default tipo to nombre', () => {
-      const result = StockAutocompleteSchema.safeParse({
-        query: 'pan',
-      });
+      const result = StockAutocompleteSchema.safeParse({ query: 'pan' });
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.tipo).toBe('nombre');

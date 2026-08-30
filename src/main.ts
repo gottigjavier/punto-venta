@@ -14,6 +14,7 @@ import { proveedorRoutes } from './adapters/http/routes/proveedor.routes.js';
 import { rubroRoutes } from './adapters/http/routes/rubro.routes.js';
 import { usuarioRoutes } from './adapters/http/routes/usuario.routes.js';
 import { stockRoutes } from './adapters/http/routes/stock.routes.js';
+import { loteRoutes } from './adapters/http/routes/lotes.routes.js';
 import { ventaRoutes } from './adapters/http/routes/venta.routes.js';
 
 // Performance metrics in memory
@@ -138,6 +139,7 @@ async function bootstrap(): Promise<void> {
   await fastify.register(rubroRoutes, { prefix: '/api/v1/rubros' });
   await fastify.register(usuarioRoutes, { prefix: '/api/v1/usuarios' });
   await fastify.register(stockRoutes, { prefix: '/api/v1/stock' });
+  await fastify.register(loteRoutes, { prefix: '/api/v1/lotes' });
   await fastify.register(ventaRoutes, { prefix: '/api/v1/ventas' });
 
   // ===== Start server =====
@@ -157,6 +159,7 @@ async function bootstrap(): Promise<void> {
     logger.info(`📂 Rubros: http://localhost:${port}/api/v1/rubros`);
     logger.info(`👤 Usuarios: http://localhost:${port}/api/v1/usuarios`);
     logger.info(`📈 Stock: http://localhost:${port}/api/v1/stock`);
+    logger.info(`📦 Lotes: http://localhost:${port}/api/v1/lotes`);
     logger.info(`💰 Ventas: http://localhost:${port}/api/v1/ventas`);
   } catch (error) {
     logger.error(error, 'Error starting server');

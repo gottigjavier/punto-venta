@@ -636,7 +636,7 @@ export function ManualUsuarioPage() {
               el producto aparece como "Por vencer" o "Vencido" en el módulo Stock
               cuando corresponde.
             </li>
-            <li><span className="font-medium">Numero de Remesa</span> — el número de la remesa o entrega (opcional, para control de tráficos/productos que reciben).</li>
+            <li><span className="font-medium">N° de Lote</span> — se asigna al ingresar stock (crear un lote) en el módulo Stock; identifica la entrega o remesa (opcional, para control de tráficos).</li>
           </ul>
 
           <h3 className="text-base font-semibold">Editar y eliminar</h3>

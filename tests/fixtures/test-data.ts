@@ -83,12 +83,30 @@ export interface ProductoResponse {
   id: string;
   nombre: string;
   codigo: string;
-  cantidad_disponible: number;
-  precio_compra: number;
+  stock_actual: number;
   precio_venta: number;
+  cantidad_aviso: number;
   rubro_id: string;
   proveedor_id: string;
   unidad_medida: string;
+  activo: boolean;
+}
+
+// Respuesta de un lote (fila de stock tras el split Producto/Lote)
+export interface LoteResponse {
+  id: string;
+  producto_id: string;
+  numero_lote: string | null;
+  cantidad_disponible: number;
+  fecha_compra: string | null;
+  fecha_vencimiento: string | null;
+  precio_compra: number;
+  estado: 'activo' | 'agotado' | 'vencido' | 'descartado';
+  producto: {
+    id: string;
+    nombre: string;
+    codigo: string;
+  };
 }
 
 export interface RubroResponse {
@@ -123,9 +141,7 @@ export class ApiClient {
   }
 
   private getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    const headers: Record<string, string> = {};
     if (this.accessToken) {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
@@ -142,6 +158,10 @@ export class ApiClient {
       headers: this.getHeaders(),
     };
     if (body) {
+      // Solo fijar Content-Type cuando hay body. En POST sin body (logout,
+      // unlock) enviar 'application/json' con body vacío hace que Fastify
+      // responda 400 (no puede parsear JSON vacío).
+      (options.headers as Record<string, string>)['Content-Type'] = 'application/json';
       options.body = JSON.stringify(body);
     }
 

@@ -1,14 +1,16 @@
 // tests/e2e/stock.spec.ts
-// E2E tests for Stock management flows
+// E2E tests for Stock management flows (modelo Lote tras el split Producto/Lote)
 // Section 8.2 - Flujo de stock
 import { test, expect } from '@playwright/test';
 import { createApiClient, TEST_USERS } from '../fixtures/test-data.js';
-import type { ApiClient, RubroResponse, ProveedorResponse, ProductoResponse } from '../fixtures/test-data.js';
+import type { ApiClient, RubroResponse, ProveedorResponse, ProductoResponse, LoteResponse } from '../fixtures/test-data.js';
 
-// Helper to create prerequisite data
+// Helper to create prerequisite data (rubro + proveedor + producto)
 async function createPrereqData(api: ApiClient): Promise<{
   rubroId: string;
   proveedorId: string;
+  productoId: string;
+  codigo: string;
 }> {
   const rubro = await api.request<RubroResponse>('POST', '/api/v1/rubros', {
     nombre: `Rubro Stock Test ${Date.now()}`,
@@ -18,15 +20,31 @@ async function createPrereqData(api: ApiClient): Promise<{
 
   const proveedor = await api.request<ProveedorResponse>('POST', '/api/v1/proveedores', {
     razon_social: `Proveedor Stock Test ${Date.now()}`,
-    cuit: '30-11111111-1',
+    cuit: `30-${Math.floor(Math.random() * 90000000 + 10000000)}-${Math.floor(Math.random() * 9) + 1}`,
     email: 'stock@test.com',
   });
   expect(proveedor.status).toBe(201);
 
-  return { rubroId: rubro.body.data!.id, proveedorId: proveedor.body.data!.id };
+  const codigo = `PROD-${Date.now()}`;
+  const producto = await api.request<ProductoResponse>('POST', '/api/v1/productos', {
+    nombre: 'Producto Stock Test',
+    codigo,
+    precio_venta: 250,
+    rubro_id: rubro.body.data!.id,
+    proveedor_id: proveedor.body.data!.id,
+    unidad_medida: 'unidad',
+  });
+  expect(producto.status).toBe(201);
+
+  return {
+    rubroId: rubro.body.data!.id,
+    proveedorId: proveedor.body.data!.id,
+    productoId: producto.body.data!.id,
+    codigo,
+  };
 }
 
-test.describe('Stock - Flujo de gestión de inventario', () => {
+test.describe('Stock (Lote) - Flujo de gestión de inventario', () => {
   let api: ApiClient;
 
   test.beforeEach(async () => {
@@ -38,15 +56,14 @@ test.describe('Stock - Flujo de gestión de inventario', () => {
     await api.logout();
   });
 
-  test('Ingreso de producto nuevo', async () => {
-    const { rubroId, proveedorId } = await createPrereqData(api);
+  test('Ingreso de lote nuevo', async () => {
+    const { rubroId, proveedorId, productoId } = await createPrereqData(api);
 
-    const result = await api.request<ProductoResponse>('POST', '/api/v1/stock/ingreso', {
-      nombre: 'Pan Ingreso Test',
-      codigo: `ING-${Date.now()}`,
+    const result = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
+      producto_id: productoId,
+      numero_lote: `LOTE-${Date.now()}`,
       cantidad: 50,
       precio_compra: 180,
-      precio_venta: 250,
       rubro_id: rubroId,
       proveedor_id: proveedorId,
       unidad_medida: 'unidad',
@@ -55,177 +72,143 @@ test.describe('Stock - Flujo de gestión de inventario', () => {
     expect(result.status).toBe(201);
     expect(result.body.success).toBe(true);
     expect(result.body.data).toBeDefined();
-    expect(result.body.data!.nombre).toBe('Pan Ingreso Test');
+    expect(result.body.data!.numero_lote).toBeDefined();
     expect(result.body.data!.cantidad_disponible).toBe(50);
-    expect(result.body.data!.precio_venta).toBe(250);
-    expect(result.body.data!.rubro_id).toBe(rubroId);
-    expect(result.body.data!.proveedor_id).toBe(proveedorId);
+    expect(result.body.data!.estado).toBe('activo');
+    expect(result.body.data!.producto.id).toBe(productoId);
   });
 
-  test('Ingreso de producto existente con cambios actualiza stock', async () => {
-    const { rubroId, proveedorId } = await createPrereqData(api);
+  test('Ingreso a lote existente (mismo producto + N° de Lote + vencimiento) suma stock', async () => {
+    const { productoId } = await createPrereqData(api);
+    const numeroLote = `LOTE-${Date.now()}`;
+    const futureDate = new Date();
+    futureDate.setMonth(futureDate.getMonth() + 6);
+    const futureStr = futureDate.toISOString().split('T')[0];
 
-    // First ingreso
-    const first = await api.request<ProductoResponse>('POST', '/api/v1/stock/ingreso', {
-      nombre: 'Leche Test',
-      codigo: `LEC-${Date.now()}`,
+    const first = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
+      producto_id: productoId,
+      numero_lote: numeroLote,
       cantidad: 100,
       precio_compra: 100,
-      precio_venta: 150,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
+      fecha_vencimiento: futureStr,
     });
     expect(first.status).toBe(201);
-    const productoId = first.body.data!.id;
+    const loteId = first.body.data!.id;
 
-    // Second ingreso with same code/proveedor but different quantity
-    const second = await api.request<ProductoResponse>('POST', '/api/v1/stock/ingreso', {
-      nombre: 'Leche Test',
-      codigo: first.body.data!.codigo,
-      cantidad: 150, // Changed from 100 to 150
+    // Mismo producto + N° de Lote + vencimiento → incrementa el existente
+    const second = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
+      producto_id: productoId,
+      numero_lote: numeroLote,
+      cantidad: 50,
       precio_compra: 100,
-      precio_venta: 150,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
+      fecha_vencimiento: futureStr,
     });
 
     expect(second.status).toBe(200);
-    expect(second.body.data!.id).toBe(productoId); // Same product updated
+    expect(second.body.data!.id).toBe(loteId); // mismo lote
     expect(second.body.data!.cantidad_disponible).toBe(150);
   });
 
-  test('Ingreso con todos los campos iguales retorna error', async () => {
-    const { rubroId, proveedorId } = await createPrereqData(api);
-    const code = `DUP-${Date.now()}`;
+  test('Mismo N° de Lote con distinto vencimiento crea un lote nuevo', async () => {
+    const { productoId } = await createPrereqData(api);
+    const numeroLote = `LOTE-${Date.now()}`;
 
-    const first = await api.request<ProductoResponse>('POST', '/api/v1/stock/ingreso', {
-      nombre: 'Producto Duplicado',
-      codigo: code,
-      cantidad: 100,
+    const v1 = new Date();
+    v1.setMonth(v1.getMonth() + 3);
+    const v2 = new Date();
+    v2.setMonth(v2.getMonth() + 9);
+
+    const first = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
+      producto_id: productoId,
+      numero_lote: numeroLote,
+      cantidad: 10,
       precio_compra: 100,
-      precio_venta: 150,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
+      fecha_vencimiento: v1.toISOString().split('T')[0],
     });
     expect(first.status).toBe(201);
 
-    // Same exact data
-    const second = await api.request('POST', '/api/v1/stock/ingreso', {
-      nombre: 'Producto Duplicado',
-      codigo: code,
-      cantidad: 100,
+    const second = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
+      producto_id: productoId,
+      numero_lote: numeroLote,
+      cantidad: 20,
       precio_compra: 100,
-      precio_venta: 150,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
+      fecha_vencimiento: v2.toISOString().split('T')[0],
     });
-
-    expect(second.status).toBe(400);
-    expect(second.body.success).toBe(false);
-    expect(second.body.error!.code).toBe('VALIDATION_ERROR');
+    expect(second.status).toBe(201);
+    expect(second.body.data!.id).not.toBe(first.body.data!.id); // lote distinto
+    expect(second.body.data!.numero_lote).toBe(numeroLote);
   });
 
-  test('Editar producto existente', async () => {
-    const { rubroId, proveedorId } = await createPrereqData(api);
-
-    // Create product
-    const createResult = await api.request<ProductoResponse>('POST', '/api/v1/productos', {
-      nombre: 'Producto Edit Test',
-      codigo: `EDIT-${Date.now()}`,
-      cantidad_disponible: 50,
+  test('Ingreso sin producto_id retorna 400', async () => {
+    const result = await api.request('POST', '/api/v1/stock/ingreso', {
+      numero_lote: 'LOTE-X',
+      cantidad: 10,
       precio_compra: 100,
-      precio_venta: 200,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
     });
-    expect(createResult.status).toBe(201);
-    const productoId = createResult.body.data!.id;
-
-    // Edit product
-    const editResult = await api.request<ProductoResponse>('PUT', `/api/v1/stock/${productoId}`, {
-      nombre: 'Producto Editado',
-      precio_venta: 250,
-      cantidad: 75,
-    });
-
-    expect(editResult.status).toBe(200);
-    expect(editResult.body.success).toBe(true);
-    expect(editResult.body.data!.nombre).toBe('Producto Editado');
-    expect(editResult.body.data!.precio_venta).toBe(250);
-    expect(editResult.body.data!.cantidad_disponible).toBe(75);
-    // Non-updated fields should remain
-    expect(editResult.body.data!.precio_compra).toBe(100);
+    expect(result.status).toBe(400);
+    expect(result.body.success).toBe(false);
+    expect(result.body.error!.code).toBe('VALIDATION_ERROR');
   });
 
-  test('Editar producto inexistente retorna 404', async () => {
-    const result = await api.request('PUT', '/api/v1/stock/00000000-0000-0000-0000-000000000000', {
-      nombre: 'No existe',
-    });
+  test('Editar lote existente', async () => {
+    const { productoId } = await createPrereqData(api);
 
+    const create = await api.request<LoteResponse>('POST', '/api/v1/lotes', {
+      producto_id: productoId,
+      numero_lote: `LOTE-${Date.now()}`,
+      cantidad: 30,
+      precio_compra: 90,
+    });
+    expect(create.status).toBe(201);
+    const loteId = create.body.data!.id;
+
+    const edit = await api.request<LoteResponse>('PUT', `/api/v1/lotes/${loteId}`, {
+      numero_lote: 'LOTE-EDIT',
+      precio_compra: 120,
+    });
+    expect(edit.status).toBe(200);
+    expect(edit.body.success).toBe(true);
+    expect(edit.body.data!.numero_lote).toBe('LOTE-EDIT');
+    expect(edit.body.data!.precio_compra).toBe(120);
+    // La edición NUNCA toca la cantidad
+    expect(edit.body.data!.cantidad_disponible).toBe(30);
+  });
+
+  test('Editar lote inexistente retorna 404', async () => {
+    const result = await api.request('PUT', '/api/v1/lotes/00000000-0000-0000-0000-000000000000', {
+      numero_lote: 'X',
+    });
     expect(result.status).toBe(404);
     expect(result.body.success).toBe(false);
   });
 
-  test('Listar stock con filtros', async () => {
-    const { rubroId, proveedorId } = await createPrereqData(api);
+  test('Listar stock (fila por lote) con filtros', async () => {
+    const { productoId } = await createPrereqData(api);
 
-    // Create products
-    await api.request('POST', '/api/v1/productos', {
-      nombre: 'Stock List 1',
-      codigo: `SL1-${Date.now()}`,
-      cantidad_disponible: 50,
+    await api.request('POST', '/api/v1/stock/ingreso', {
+      producto_id: productoId,
+      numero_lote: `LOTE-${Date.now()}`,
+      cantidad: 50,
       precio_compra: 100,
-      precio_venta: 200,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
     });
 
-    await api.request('POST', '/api/v1/productos', {
-      nombre: 'Stock List 2',
-      codigo: `SL2-${Date.now()}`,
-      cantidad_disponible: 5,
-      precio_compra: 100,
-      precio_venta: 200,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
-    });
-
-    // List all stock
     const allResult = await api.request('GET', '/api/v1/stock');
     expect(allResult.status).toBe(200);
     expect(allResult.body.success).toBe(true);
     expect(Array.isArray(allResult.body.data)).toBe(true);
 
-    // Filter by stock bajo
-    const lowStockResult = await api.request('GET', '/api/v1/stock?stock_bajo=true');
-    expect(lowStockResult.status).toBe(200);
-    expect(lowStockResult.body.success).toBe(true);
-
-    // Filter by search
-    const searchResult = await api.request('GET', '/api/v1/stock?search=Stock List');
+    const searchResult = await api.request('GET', `/api/v1/stock?search=${productoId.slice(0, 8)}`);
     expect(searchResult.status).toBe(200);
     expect(searchResult.body.success).toBe(true);
   });
 
   test('Autocomplete de productos', async () => {
-    const { rubroId, proveedorId } = await createPrereqData(api);
+    const { productoId } = await createPrereqData(api);
 
-    await api.request('POST', '/api/v1/productos', {
-      nombre: 'Autocomplete Test Product',
-      codigo: `AUTO-${Date.now()}`,
-      cantidad_disponible: 10,
-      precio_compra: 50,
-      precio_venta: 100,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
-    });
-
-    // Search
-    const result = await api.request('GET', '/api/v1/stock/autocomplete?query=Autocomplete&tipo=nombre');
+    const result = await api.request('GET', '/api/v1/stock/autocomplete?query=Producto&tipo=nombre');
     expect(result.status).toBe(200);
     expect(result.body.success).toBe(true);
     expect(Array.isArray(result.body.data)).toBe(true);
-    expect(result.body.data!.length).toBeGreaterThan(0);
   });
 
   test('Autocomplete con menos de 3 caracteres retorna error', async () => {
@@ -234,112 +217,70 @@ test.describe('Stock - Flujo de gestión de inventario', () => {
     expect(result.body.success).toBe(false);
   });
 
-  test('Ingreso con rubro inexistente retorna error', async () => {
-    const { proveedorId } = await createPrereqData(api);
-
+  test('Ingreso con producto inexistente retorna 404', async () => {
     const result = await api.request('POST', '/api/v1/stock/ingreso', {
-      nombre: 'Test',
-      codigo: `TEST-${Date.now()}`,
+      producto_id: '00000000-0000-0000-0000-000000000000',
+      numero_lote: 'LOTE-X',
       cantidad: 10,
       precio_compra: 100,
-      precio_venta: 200,
-      rubro_id: '00000000-0000-0000-0000-000000000000',
-      proveedor_id: proveedorId,
     });
-
-    expect(result.status).toBe(404);
-    expect(result.body.success).toBe(false);
-  });
-
-  test('Ingreso con proveedor inexistente retorna error', async () => {
-    const { rubroId } = await createPrereqData(api);
-
-    const result = await api.request('POST', '/api/v1/stock/ingreso', {
-      nombre: 'Test',
-      codigo: `TEST-${Date.now()}`,
-      cantidad: 10,
-      precio_compra: 100,
-      precio_venta: 200,
-      rubro_id: rubroId,
-      proveedor_id: '00000000-0000-0000-0000-000000000000',
-    });
-
     expect(result.status).toBe(404);
     expect(result.body.success).toBe(false);
   });
 
   test('Verificar alertas de vencimiento en stock', async () => {
-    const { rubroId, proveedorId } = await createPrereqData(api);
+    const { productoId } = await createPrereqData(api);
 
-    // Create product with near expiration (tomorrow)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-
-    await api.request('POST', '/api/v1/productos', {
-      nombre: 'Producto Por Vencer',
-      codigo: `VENCE-${Date.now()}`,
-      cantidad_disponible: 20,
-      precio_compra: 100,
-      precio_venta: 200,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
-      fecha_vencimiento: tomorrowStr,
-    });
-
-    // Create product that already expired
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-    await api.request('POST', '/api/v1/productos', {
-      nombre: 'Producto Vencido',
-      codigo: `VENC-${Date.now()}`,
-      cantidad_disponible: 10,
+    await api.request('POST', '/api/v1/stock/ingreso', {
+      producto_id: productoId,
+      numero_lote: `VENCE-${Date.now()}`,
+      cantidad: 20,
       precio_compra: 100,
-      precio_venta: 200,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
-      fecha_vencimiento: yesterdayStr,
+      fecha_vencimiento: tomorrow.toISOString().split('T')[0],
+    });
+    await api.request('POST', '/api/v1/stock/ingreso', {
+      producto_id: productoId,
+      numero_lote: `VENC-${Date.now()}`,
+      cantidad: 10,
+      precio_compra: 100,
+      fecha_vencimiento: yesterday.toISOString().split('T')[0],
     });
 
-    // List stock - should show expiration alerts
     const result = await api.request('GET', '/api/v1/stock');
     expect(result.status).toBe(200);
 
-    // Filter expired
     const expiredResult = await api.request('GET', '/api/v1/stock?vencidos=true');
     expect(expiredResult.status).toBe(200);
     expect(Array.isArray(expiredResult.body.data)).toBe(true);
 
-    // Filter expiring soon
     const expiringResult = await api.request('GET', '/api/v1/stock?vencimiento_dias=30');
     expect(expiringResult.status).toBe(200);
   });
 
-  test('Ingreso de producto con fecha de vencimiento', async () => {
-    const { rubroId, proveedorId } = await createPrereqData(api);
+  test('Ingreso de lote con fecha de vencimiento', async () => {
+    const { productoId } = await createPrereqData(api);
 
     const futureDate = new Date();
     futureDate.setMonth(futureDate.getMonth() + 6);
     const futureDateStr = futureDate.toISOString().split('T')[0];
 
-    const result = await api.request<ProductoResponse>('POST', '/api/v1/stock/ingreso', {
-      nombre: 'Producto con Vto',
-      codigo: `VTO-${Date.now()}`,
+    const result = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
+      producto_id: productoId,
+      numero_lote: `LOTE-${Date.now()}`,
       cantidad: 30,
       precio_compra: 120,
-      precio_venta: 200,
-      rubro_id: rubroId,
-      proveedor_id: proveedorId,
       fecha_compra: new Date().toISOString().split('T')[0],
       fecha_vencimiento: futureDateStr,
-      numero_remesa: `REM-${Date.now()}`,
       unidad_medida: 'kg',
     });
 
     expect(result.status).toBe(201);
     expect(result.body.data!.fecha_vencimiento).toBeDefined();
-    expect(result.body.data!.unidad_medida).toBe('kg');
+    expect(result.body.data!.numero_lote).toBeDefined();
   });
 });

@@ -16,6 +16,8 @@ const DetalleVentaInputSchema = z.object({
 });
 
 // Create sale schema
+// NOTA: el split por lote (FEFO) es interno del use-case. El input de cada línea
+// sigue siendo producto_id + cantidad + precio_unitario; NO expone lote_id.
 export const CreateVentaSchema = z.object({
   productos: z
     .array(DetalleVentaInputSchema)

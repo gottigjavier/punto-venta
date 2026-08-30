@@ -28,7 +28,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
                 type: 'object',
                 properties: {
                   accessToken: { type: 'string' },
-                  user: { type: 'object' },
+                  user: { type: 'object', additionalProperties: true },
                 },
               },
             },

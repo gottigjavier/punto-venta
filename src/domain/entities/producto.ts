@@ -1,20 +1,23 @@
 // src/domain/entities/producto.ts
-// Producto entity
+// Producto entity — información general del producto (maestro).
+// El stock/compra/vencimiento ya NO viven acá: van en Lote (ver ./lote.ts).
+import type { Lote } from './lote.js';
+
+// Unidad de medida (compartida con Lote.producto.unidad_medida)
+export type UnidadMedida = 'unidad' | 'kg' | 'g' | 'l' | 'ml';
 
 export interface Producto {
   id: string;
   nombre: string;
   codigo: string;
-  cantidad_disponible: number;
   cantidad_aviso: number;
-  precio_compra: number;
   precio_venta: number;
   rubro_id: string;
   proveedor_id: string;
-  fecha_compra: Date | null;
-  fecha_vencimiento: Date | null;
-  numero_remesa: string | null;
-  unidad_medida: 'unidad' | 'kg' | 'g' | 'l' | 'ml';
+  unidad_medida: UnidadMedida;
+  activo: boolean;
+  stock_actual: number; // calculado: SUM de lotes activos NO vencidos
+  lotes: Lote[];
   created_at: Date;
   updated_at: Date | null;
 }
@@ -31,10 +34,24 @@ export interface ProductoWithRelations extends Producto {
   };
 }
 
-// Product for stock view
-export interface ProductoStock extends Producto {
-  rubro_nombre: string;
-  proveedor_razon_social: string;
+// Fila de stock (ahora es UNA FILA DE LOTE, no un producto)
+export interface ProductoStock extends Lote {
+  rubro: {
+    id: string;
+    nombre: string;
+  };
+  proveedor: {
+    id: string;
+    razon_social: string;
+  };
+  producto: {
+    id: string;
+    nombre: string;
+    codigo: string;
+    unidad_medida: UnidadMedida;
+    precio_venta: number;
+    cantidad_aviso: number;
+  };
   estado_vencimiento: 'vencido' | 'por_vencer' | 'ok';
   stock_bajo: boolean;
 }
@@ -42,5 +59,5 @@ export interface ProductoStock extends Producto {
 // Product list item (without full relations)
 export type ProductoListItem = Pick<
   Producto,
-  'id' | 'nombre' | 'codigo' | 'cantidad_disponible' | 'precio_venta' | 'unidad_medida'
+  'id' | 'nombre' | 'codigo' | 'stock_actual' | 'precio_venta' | 'unidad_medida'
 >;

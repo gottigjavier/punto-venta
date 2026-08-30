@@ -3,14 +3,12 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import {
   StockIngresoSchema,
-  StockEditSchema,
   StockQuerySchema,
   StockAutocompleteSchema,
 } from '../../../application/dto/stock.dto.js';
 import {
-  listStock,
-  stockIngreso,
-  stockEdit,
+  loteList,
+  loteIngreso,
   searchProductos,
 } from '../../../application/use-cases/stock.use-case.js';
 import type { DomainError } from '../../../shared/types/result.js';
@@ -59,7 +57,7 @@ export async function listStockHandler(
     });
   }
 
-  const result = await listStock(parsed.data);
+  const result = await loteList(parsed.data);
 
   if (result.isErr()) {
     return handleDomainError(reply, result.error);
@@ -92,48 +90,16 @@ export async function stockIngresoHandler(
     });
   }
 
-  const result = await stockIngreso(parsed.data);
+  const result = await loteIngreso(parsed.data);
 
   if (result.isErr()) {
     return handleDomainError(reply, result.error);
   }
 
-  reply.status(201).send({
+  const { esNuevo, lote } = result.value;
+  reply.status(esNuevo ? 201 : 200).send({
     success: true,
-    data: result.value,
-  });
-}
-
-// PUT /api/v1/stock/:id
-export async function stockEditHandler(
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<void> {
-  const params = request.params as { id: string };
-  const body = request.body as Record<string, unknown>;
-
-  const parsed = StockEditSchema.safeParse({ ...body, id: params.id });
-
-  if (!parsed.success) {
-    return reply.status(400).send({
-      success: false,
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
-        details: parsed.error.flatten().fieldErrors,
-      },
-    });
-  }
-
-  const result = await stockEdit(parsed.data);
-
-  if (result.isErr()) {
-    return handleDomainError(reply, result.error);
-  }
-
-  reply.send({
-    success: true,
-    data: result.value,
+    data: lote,
   });
 }
 

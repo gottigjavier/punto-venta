@@ -171,7 +171,12 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
     {
       preHandler: authorize('admin'),
       schema: {
-        description: 'Eliminar producto. Solo administradores.',
+        description:
+          'Soft delete: desactiva el producto (activo = false). No borra la fila; ' +
+          'conserva historial de ventas y lotes.\n\n' +
+          '## Restricciones\n' +
+          '- Bloqueado con VALIDATION_ERROR si el producto tiene al menos un lote activo (retirar o agotar lotes primero)\n' +
+          '- El producto inactivo se oculta de listados y búsquedas',
         tags: ['Productos'],
         // NOTE: params validation is handled by Zod (*IdParamSchema) in the
         // handler. Single source of truth — do not duplicate here.
@@ -184,7 +189,7 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
               data: {
                 type: 'object',
                 properties: {
-                  message: { type: 'string', example: 'Producto eliminado exitosamente' },
+                  success: { type: 'boolean', example: true },
                 },
               },
             },
