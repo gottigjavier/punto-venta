@@ -374,11 +374,19 @@ function POSView() {
       if (!mountedRef.current) return;
       setMasVendidosMap(vendidosMap);
 
-      // Sort: most-sold products first (by total historical quantity),
-      // never-sold products alphabetically at the end
+      // Sort: 3 groups — (1) sold + stock → most sold first,
+      // (2) never-sold + stock → alphabetical, (3) no stock → last
       const sorted = [...products].sort((a, b) => {
         const ca = vendidosMap.get(a.id)?.veces_vendido ?? 0;
         const cb = vendidosMap.get(b.id)?.veces_vendido ?? 0;
+        const hasStockA = a.stock_actual > 0;
+        const hasStockB = b.stock_actual > 0;
+
+        // Group 3: no stock → always last
+        if (!hasStockA && hasStockB) return 1;
+        if (hasStockA && !hasStockB) return -1;
+
+        // Both have stock (groups 1 & 2)
         if (ca > 0 && cb > 0) return cb - ca;       // both sold: most sold first
         if (ca > 0 && cb === 0) return -1;          // a sold, b not → a first
         if (ca === 0 && cb > 0) return 1;           // b sold, a not → b first
