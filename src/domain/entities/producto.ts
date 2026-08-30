@@ -16,6 +16,7 @@ export interface Producto {
   proveedor_id: string;
   unidad_medida: UnidadMedida;
   activo: boolean;
+  vencimiento_preaviso_dias?: number;
   stock_actual: number; // calculado: SUM de lotes activos NO vencidos
   lotes: Lote[];
   created_at: Date;

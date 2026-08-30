@@ -128,6 +128,86 @@ describe('Producto DTO Validation', () => {
         CreateProductoSchema.safeParse({ ...validProducto, proveedor_id: 'no-uuid' }).success
       ).toBe(false);
     });
+
+    // --- vencimiento_preaviso_dias tests ---
+    it('should default vencimiento_preaviso_dias to 30 when omitted', () => {
+      const result = CreateProductoSchema.safeParse({
+        ...validProducto,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.vencimiento_preaviso_dias).toBe(30);
+      }
+    });
+
+    it('should accept vencimiento_preaviso_dias: 0 (sin preaviso)', () => {
+      const result = CreateProductoSchema.safeParse({
+        ...validProducto,
+        vencimiento_preaviso_dias: 0,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.vencimiento_preaviso_dias).toBe(0);
+      }
+    });
+
+    it('should accept vencimiento_preaviso_dias: 60 (custom)', () => {
+      const result = CreateProductoSchema.safeParse({
+        ...validProducto,
+        vencimiento_preaviso_dias: 60,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.vencimiento_preaviso_dias).toBe(60);
+      }
+    });
+
+    it('should accept vencimiento_preaviso_dias: 365 (max)', () => {
+      const result = CreateProductoSchema.safeParse({
+        ...validProducto,
+        vencimiento_preaviso_dias: 365,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.vencimiento_preaviso_dias).toBe(365);
+      }
+    });
+
+    it('should reject vencimiento_preaviso_dias: -1 (below min)', () => {
+      const result = CreateProductoSchema.safeParse({
+        ...validProducto,
+        vencimiento_preaviso_dias: -1,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject vencimiento_preaviso_dias: 366 (above max)', () => {
+      const result = CreateProductoSchema.safeParse({
+        ...validProducto,
+        vencimiento_preaviso_dias: 366,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject vencimiento_preaviso_dias: 30.5 (non-integer)', () => {
+      const result = CreateProductoSchema.safeParse({
+        ...validProducto,
+        vencimiento_preaviso_dias: 30.5,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should coerce string "30" to number 30', () => {
+      const result = CreateProductoSchema.safeParse({
+        ...validProducto,
+        vencimiento_preaviso_dias: '30',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.vencimiento_preaviso_dias).toBe(30);
+        expect(typeof result.data.vencimiento_preaviso_dias).toBe('number');
+      }
+    });
   });
 
   describe('UpdateProductoSchema', () => {
@@ -156,6 +236,28 @@ describe('Producto DTO Validation', () => {
       if (result.success) {
         expect('cantidad_disponible' in result.data).toBe(false);
         expect('precio_compra' in result.data).toBe(false);
+      }
+    });
+
+    it('should accept vencimiento_preaviso_dias in partial update', () => {
+      const result = UpdateProductoSchema.safeParse({
+        id: PRODUCTO_ID,
+        vencimiento_preaviso_dias: 45,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.vencimiento_preaviso_dias).toBe(45);
+      }
+    });
+
+    it('should allow updating vencimiento_preaviso_dias to 0', () => {
+      const result = UpdateProductoSchema.safeParse({
+        id: PRODUCTO_ID,
+        vencimiento_preaviso_dias: 0,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.vencimiento_preaviso_dias).toBe(0);
       }
     });
   });
@@ -204,6 +306,28 @@ describe('Producto DTO Validation', () => {
     it('should reject sort keys de lote (stock en lote no es campo de producto)', () => {
       const result = ProductoQuerySchema.safeParse({ sort: 'numero_lote' });
       expect(result.success).toBe(false);
+    });
+
+    it('should parse activo como enum true/false (string, NO coerce)', () => {
+      const t = ProductoQuerySchema.safeParse({ activo: 'true' });
+      expect(t.success).toBe(true);
+      if (t.success) expect(t.data.activo).toBe('true');
+
+      const f = ProductoQuerySchema.safeParse({ activo: 'false' });
+      expect(f.success).toBe(true);
+      if (f.success) expect(f.data.activo).toBe('false');
+    });
+
+    it('activo ausente → undefined (default preserva listados actuales)', () => {
+      const result = ProductoQuerySchema.safeParse({});
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.activo).toBeUndefined();
+    });
+
+    it('activo inválido (no true/false) → safeParse FAIL (400 vía controller)', () => {
+      expect(ProductoQuerySchema.safeParse({ activo: 'banana' }).success).toBe(false);
+      expect(ProductoQuerySchema.safeParse({ activo: 'TRUE' }).success).toBe(false);
+      expect(ProductoQuerySchema.safeParse({ activo: 1 }).success).toBe(false);
     });
   });
 

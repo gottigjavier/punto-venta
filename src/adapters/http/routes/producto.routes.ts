@@ -7,6 +7,7 @@ import {
   createProductoHandler,
   updateProductoHandler,
   deleteProductoHandler,
+  restoreProductoHandler,
   searchProductosHandler,
 } from '../controllers/producto.controller.js';
 import { authorize } from '../middleware/auth.middleware.js';
@@ -200,5 +201,45 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     deleteProductoHandler
+  );
+
+  // POST /api/v1/productos/:id/restore
+  // Restaurar producto inactivo (activo=false → true).
+  // Idempotente: si ya está activo → 200 no-op (no toca DB).
+  // Bloqueado con VALIDATION_ERROR (400) si tiene lote activo: "El producto tiene stock activo: retirar o agotar lotes primero".
+  // Requiere rol admin o gerente (coherente con create/update).
+  fastify.post(
+    '/:id/restore',
+    {
+      preHandler: authorize('admin', 'gerente'),
+      schema: {
+        description:
+          'Restaurar un producto inactivo (activo = true).\n\n' +
+          '## Comportamiento\n' +
+          '- **Idempotente**: si el producto ya está activo, retorna 200 OK sin modificar la base de datos.\n' +
+          '- **Validación**: bloqueado con 400 VALIDATION_ERROR si el producto tiene al menos un lote con estado \'activo\'. Mensaje: "El producto tiene stock activo: retirar o agotar lotes primero".\n' +
+          '- **No encontrado**: 404 si el ID no existe.\n' +
+          '- **Historial intacto**: no modifica ventas, cierres, lotes, precios ni ningún dato existente — solo cambia `activo` de false a true.\n\n' +
+          '## Respuestas\n' +
+          '- 200: Producto restaurado (o no-op si ya estaba activo).\n' +
+          '- 400: Producto tiene stock activo (lotes activos sin retirar).\n' +
+          '- 404: Producto no encontrado.\n' +
+          '- 403: Sin permisos (requiere admin o gerente).',
+        tags: ['Productos'],
+        // NOTE: params validation is handled by Zod (ProductoIdParamSchema) in the
+        // handler. Single source of truth — do not duplicate here.
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean', example: true },
+              data: { type: 'object', additionalProperties: true },
+            },
+          },
+        },
+      },
+    },
+    restoreProductoHandler
   );
 }

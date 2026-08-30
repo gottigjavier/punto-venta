@@ -30,6 +30,13 @@ export const CreateProductoSchema = z.object({
     .string()
     .uuid('ID de proveedor inválido'),
   unidad_medida: UnidadMedidaSchema.default('unidad'),
+  vencimiento_preaviso_dias: z
+    .coerce.number()
+    .int()
+    .min(0, 'Preaviso no puede ser negativo')
+    .max(365, 'Preaviso máximo 365 días')
+    .optional()
+    .default(30),
   // NOTA: `activo` NO es editable por el usuario en este cambio (soft delete vía DELETE).
 });
 
@@ -53,6 +60,9 @@ export const ProductoQuerySchema = z.object({
   order: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(1000).default(20),
+  // RF-04/RF-11: filtro de productos inactivos. Enum string (NO coerce.boolean — Boolean('false')→true).
+  // 'banana' → safeParse FAIL → 400 vía controller. Default undefined → listProductos usa activo=true (cero regresión).
+  activo: z.enum(['true', 'false']).optional(),
 });
 
 export type ProductoQueryInput = z.infer<typeof ProductoQuerySchema>;

@@ -647,9 +647,22 @@ export function ManualUsuarioPage() {
           </p>
           <p>
             Para <span className="font-medium">eliminar</span>, tocá la papelera. El sistema te pregunta
-            "¿Estás seguro de que querés eliminar el producto X? Esta acción no se
-            puede deshacer." Al confirmar, el producto desaparece del catálogo. Usalo
-            con cuidado: borrar es para siempre.
+            "¿Estás seguro de que querés eliminar el producto X?" Al confirmar, el producto se
+            <span className="font-medium"> desactiva</span>: desaparece del catálogo y del POS, pero sus
+            datos se conservan y podés restaurarlo más adelante.
+          </p>
+          <p>
+            Con el botón <span className="font-medium">Inactivos</span> arriba de la lista ves los
+            productos desactivados. Cada fila tiene un botón <span className="font-medium">Restaurar</span>{" "}
+            (solo Admin y Gerente) que vuelve a activar el producto y lo reincorpora al catálogo. También
+            podés recrearlo: si al crear un producto el sistema detecta que ese código ya existe pero como
+            inactivo, te va a ofrecer la opción de <span className="font-medium">restaurar el producto
+            existente</span>.
+          </p>
+          <p>
+            No se borra nada de forma definitiva: respetá que no se puede restaurar un producto que aún
+            tiene <span className="font-medium">stock activo</span> (lotes con inventario disponible);
+            primero retirá o agotá ese stock.
           </p>
           <Ejemplo title="Ejemplo de alta">
             <p>
@@ -871,13 +884,9 @@ export function ManualUsuarioPage() {
             <li><span className="font-medium">Búsqueda</span> por nombre o código.</li>
             <li>Selector de <span className="font-medium">Rubro</span> ("Todos los rubros" o uno particular).</li>
             <li>
-              El botón <span className="font-medium">Stock bajo</span>: al activarlo deja a la vista solo los
-              productos que están por debajo del aviso de stock (los que se pintan en
-              azul). Se resalta cuando está activo.
-            </li>
-            <li>
-              El botón <span className="font-medium">Vencidos</span>: deja a la vista solo los productos
-              vencidos o por vencer. También se resalta cuando está activo.
+              El botón <span className="font-medium">Archivados</span>: al activarlo cambia la vista y deja
+              ver solo los lotes archivados (agotados, vencidos o descartados). En esa
+              vista no se puede retirar un lote. Se resalta cuando está activo.
             </li>
             <li>Botón de <span className="font-medium">actualizar</span> y el botón <span className="font-medium">Limpiar filtros</span>.</li>
           </ul>
@@ -1140,10 +1149,10 @@ export function ManualUsuarioPage() {
         <CardContent className="space-y-4 text-sm leading-relaxed">
           <ul className="ml-5 list-disc space-y-2">
             <li>
-              <span className="font-medium">Antes de empezar, revisá el Stock.</span> Con los botones
-              "Stock bajo" y "Vencidos" vés en un segundo qué hay que reponer o
-              vender. Así nunca te queda el cliente esperando por un producto que no
-              tenés.
+              <span className="font-medium">Antes de empezar, revisá el Stock.</span> El listado por defecto
+              muestra solo los lotes activos; con el botón "Archivados" vés en un
+              segundo los lotes agotados, vencidos o descartados. Así nunca te queda el
+              cliente esperando por un producto que no tenés.
             </li>
             <li>
               <span className="font-medium">Usá la cantidad sugerida.</span> Cuando tocás un producto que ya

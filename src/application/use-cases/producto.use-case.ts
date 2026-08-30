@@ -5,10 +5,10 @@
 // activos NO vencidos) tras un lazy pass de vencidos. deleteProducto pasa a
 // SOFT DELETE (activo=false).
 import { ok, err } from 'neverthrow';
-import { Prisma } from '@prisma/client';
+import { Prisma, Producto as PrismaProducto } from '@prisma/client';
 import { prisma } from '../../infrastructure/database/prisma/client.js';
 import type { AppResult } from '../../shared/types/result.js';
-import { notFoundError, conflictError, databaseError, validationError } from '../../shared/types/result.js';
+import { notFoundError, conflictError, conflictRestaurableError, databaseError, validationError } from '../../shared/types/result.js';
 import type { Producto, ProductoWithRelations } from '../../domain/entities/producto.js';
 import type { Lote } from '../../domain/entities/lote.js';
 import type {
@@ -117,6 +117,7 @@ export async function getProductoById(
       cantidad_aviso: toNumber(producto.cantidad_aviso),
       precio_venta: toNumber(producto.precio_venta),
       unidad_medida: producto.unidad_medida as ProductoWithRelations['unidad_medida'],
+      vencimiento_preaviso_dias: producto.vencimiento_preaviso_dias ?? undefined,
       stock_actual: sumas.get(id) ?? 0,
       lotes,
     };
@@ -128,7 +129,7 @@ export async function getProductoById(
   }
 }
 
-// List products with pagination and filters (excluye inactivos)
+// List products with pagination and filters (excluye inactivos por default)
 export async function listProductos(
   query: ProductoQueryInput
 ): Promise<AppResult<{ data: ProductoWithRelations[]; pagination: {
@@ -140,11 +141,16 @@ export async function listProductos(
   try {
     await retirarLotesVencidos();
 
-    const { search, rubro_id, proveedor_id, fecha_desde, fecha_hasta, sort, order, page, limit } = query;
+    const { search, rubro_id, proveedor_id, fecha_desde, fecha_hasta, sort, order, page, limit, activo } = query;
     const skip = (page - 1) * limit;
 
-    // Build where clause
-    const where: Prisma.ProductoWhereInput = { activo: true };
+    // Build where clause — default activo=true (cero regresión); si activo se pasa, úsalo
+    const where: Prisma.ProductoWhereInput = {};
+    if (activo !== undefined) {
+      where.activo = activo === 'true';
+    } else {
+      where.activo = true;
+    }
 
     if (search) {
       where.OR = [
@@ -201,6 +207,7 @@ export async function listProductos(
       cantidad_aviso: toNumber(p.cantidad_aviso),
       precio_venta: toNumber(p.precio_venta),
       unidad_medida: p.unidad_medida as ProductoWithRelations['unidad_medida'],
+      vencimiento_preaviso_dias: p.vencimiento_preaviso_dias ?? undefined,
       stock_actual: sumas.get(p.id) ?? 0,
       lotes: lotesPorProducto.get(p.id) ?? [],
     }));
@@ -222,20 +229,55 @@ export async function listProductos(
   }
 }
 
+// Detección compartida de conflicto de unicidad (codigo, proveedor_id) para
+// create/update/P2002: distingue el caso "inactivo sin lotes activos" (restaurable)
+// del CONFLICT normal (activo, o inactivo con stock heredado). Solo consulta
+// lote.findFirst en el path de conflicto con producto inactivo — el happy path
+// sigue con una sola query.
+type ConflictoCodigo =
+  | { tipo: 'libre' }
+  | { tipo: 'activo'; producto: PrismaProducto }
+  | { tipo: 'inactivo_sin_stock'; producto: PrismaProducto }
+  | { tipo: 'inactivo_con_stock'; producto: PrismaProducto };
+
+async function detectarConflictoCodigo(
+  codigo: string,
+  proveedorId: string,
+  excluirId?: string
+): Promise<ConflictoCodigo> {
+  const existing = await prisma.producto.findFirst({
+    where: { codigo, proveedor_id: proveedorId, ...(excluirId ? { id: { not: excluirId } } : {}) },
+  });
+  if (!existing) return { tipo: 'libre' };
+  if (existing.activo) return { tipo: 'activo', producto: existing };
+  const loteActivo = await prisma.lote.findFirst({
+    where: { producto_id: existing.id, estado: 'activo' },
+    select: { id: true },
+  });
+  return loteActivo
+    ? { tipo: 'inactivo_con_stock', producto: existing }
+    : { tipo: 'inactivo_sin_stock', producto: existing };
+}
+
 // Create product (sin datos de stock/compra — esos van al lote)
 export async function createProducto(
   input: CreateProductoInput
 ): Promise<AppResult<Producto>> {
   try {
     // Check if code already exists for this supplier (mensaje amistoso antes del P2002)
-    const existing = await prisma.producto.findFirst({
-      where: {
-        codigo: input.codigo,
-        proveedor_id: input.proveedor_id,
-      },
-    });
+    const conflicto = await detectarConflictoCodigo(input.codigo, input.proveedor_id);
 
-    if (existing) {
+    if (conflicto.tipo !== 'libre') {
+      // RF-05: inactivo sin lotes activos → payload diferenciado (sugiere restauración)
+      if (conflicto.tipo === 'inactivo_sin_stock') {
+        return err(
+          conflictRestaurableError('Producto', {
+            producto_id: conflicto.producto.id,
+            message: `Ya existe un producto inactivo con el código ${input.codigo} para este proveedor`,
+          })
+        );
+      }
+      // RF-06/RF-07: activo o inactivo con stock heredado → CONFLICT normal (byte-idéntico)
       return err(conflictError('Producto', `Código ${input.codigo} ya existe para este proveedor`));
     }
 
@@ -266,6 +308,7 @@ export async function createProducto(
         rubro_id: input.rubro_id,
         proveedor_id: input.proveedor_id,
         unidad_medida: input.unidad_medida,
+        vencimiento_preaviso_dias: input.vencimiento_preaviso_dias ?? 30,
         activo: true,
       },
     });
@@ -275,6 +318,7 @@ export async function createProducto(
       cantidad_aviso: toNumber(producto.cantidad_aviso),
       precio_venta: toNumber(producto.precio_venta),
       unidad_medida: producto.unidad_medida as Producto['unidad_medida'],
+      vencimiento_preaviso_dias: producto.vencimiento_preaviso_dias ?? undefined,
       stock_actual: 0,
       lotes: [],
     };
@@ -282,8 +326,19 @@ export async function createProducto(
     logger.info({ productoId: producto.id, codigo: producto.codigo }, 'Producto creado');
     return ok(result);
   } catch (error) {
-    // Red de seguridad: unique compuesto (codigo, proveedor_id) en DB
+    // Red de seguridad: unique compuesto (codigo, proveedor_id) en DB.
+    // Race condition: el findFirst no detectó pero la DB sí — re-chequeo para
+    // no perder el caso restaurable; si ya no existe → 409 genérico de siempre.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const conflicto = await detectarConflictoCodigo(input.codigo, input.proveedor_id);
+      if (conflicto.tipo === 'inactivo_sin_stock') {
+        return err(
+          conflictRestaurableError('Producto', {
+            producto_id: conflicto.producto.id,
+            message: `Ya existe un producto inactivo con el código ${input.codigo} para este proveedor`,
+          })
+        );
+      }
       return err(conflictError('Producto', `Código ${input.codigo} ya existe para este proveedor`));
     }
     logger.error({ error, input }, 'Error al crear producto');
@@ -310,15 +365,19 @@ export async function updateProducto(
     // If code is being changed, check uniqueness for this supplier
     if (data.codigo) {
       const proveedorId = data.proveedor_id ?? existing.proveedor_id;
-      const codeExists = await prisma.producto.findFirst({
-        where: {
-          codigo: data.codigo,
-          proveedor_id: proveedorId,
-          id: { not: id },
-        },
-      });
+      const conflicto = await detectarConflictoCodigo(data.codigo, proveedorId, id);
 
-      if (codeExists) {
+      if (conflicto.tipo !== 'libre') {
+        // RF-08 (espejo de RF-05): inactivo sin lotes activos → restaurable
+        if (conflicto.tipo === 'inactivo_sin_stock') {
+          return err(
+            conflictRestaurableError('Producto', {
+              producto_id: conflicto.producto.id,
+              message: `Ya existe un producto inactivo con el código ${data.codigo} para este proveedor`,
+            })
+          );
+        }
+        // RF-08: activo o inactivo con stock heredado → CONFLICT normal
         return err(conflictError('Producto', `Código ${data.codigo} ya existe para este proveedor`));
       }
     }
@@ -354,6 +413,7 @@ export async function updateProducto(
     if (data.rubro_id !== undefined) updateData.rubro_id = data.rubro_id;
     if (data.proveedor_id !== undefined) updateData.proveedor_id = data.proveedor_id;
     if (data.unidad_medida !== undefined) updateData.unidad_medida = data.unidad_medida;
+    if (data.vencimiento_preaviso_dias !== undefined) updateData.vencimiento_preaviso_dias = data.vencimiento_preaviso_dias;
 
     const producto = await prisma.producto.update({
       where: { id },
@@ -368,6 +428,7 @@ export async function updateProducto(
       cantidad_aviso: toNumber(producto.cantidad_aviso),
       precio_venta: toNumber(producto.precio_venta),
       unidad_medida: producto.unidad_medida as Producto['unidad_medida'],
+      vencimiento_preaviso_dias: producto.vencimiento_preaviso_dias ?? undefined,
       stock_actual: sumas.get(id) ?? 0,
       lotes,
     };
@@ -375,7 +436,23 @@ export async function updateProducto(
     logger.info({ productoId: producto.id, codigo: producto.codigo }, 'Producto actualizado');
     return ok(result);
   } catch (error) {
+    // Red de seguridad: unique compuesto (codigo, proveedor_id) en DB.
+    // Race condition: re-chequeo para no perder el caso restaurable; si no se
+    // pueden derivar codigo+proveedor del payload, 409 genérico de siempre.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const codigo = typeof input.codigo === 'string' ? input.codigo : '';
+      const proveedorId = typeof input.proveedor_id === 'string' ? input.proveedor_id : '';
+      if (codigo && proveedorId) {
+        const conflicto = await detectarConflictoCodigo(codigo, proveedorId, input.id);
+        if (conflicto.tipo === 'inactivo_sin_stock') {
+          return err(
+            conflictRestaurableError('Producto', {
+              producto_id: conflicto.producto.id,
+              message: `Ya existe un producto inactivo con el código ${codigo} para este proveedor`,
+            })
+          );
+        }
+      }
       return err(conflictError('Producto', `Código ya existe para este proveedor`));
     }
     logger.error({ error, id: input.id }, 'Error al actualizar producto');
@@ -423,6 +500,77 @@ export async function deleteProducto(
   }
 }
 
+// Restore product → espejo inverso del soft delete (activo=true).
+// Idempotente: si ya está activo → 200 no-op sin tocar DB. Bloqueado (VALIDATION_ERROR)
+// si el producto tiene al menos un lote activo (mismo criterio y mensaje que deleteProducto).
+export async function restoreProducto(id: string): Promise<AppResult<Producto>> {
+  try {
+    const existing = await prisma.producto.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      return err(notFoundError('Producto', id));
+    }
+
+    // Idempotencia: ya activo → 200 no-op. NO se toca DB; se calcula el stock
+    // actual para devolver el Producto completo (mismo armado que updateProducto).
+    if (existing.activo) {
+      const sumas = await calcularStockPorProducto([id]);
+      const lotes = await lotesVigentesDe([id]);
+
+      const result: Producto = {
+        ...existing,
+        cantidad_aviso: toNumber(existing.cantidad_aviso),
+        precio_venta: toNumber(existing.precio_venta),
+        unidad_medida: existing.unidad_medida as Producto['unidad_medida'],
+        vencimiento_preaviso_dias: existing.vencimiento_preaviso_dias ?? undefined,
+        stock_actual: sumas.get(id) ?? 0,
+        lotes,
+      };
+
+      return ok(result);
+    }
+
+    // Bloqueado si hay stock activo sin retirar
+    const loteActivo = await prisma.lote.findFirst({
+      where: {
+        producto_id: id,
+        estado: 'activo',
+      },
+      select: { id: true },
+    });
+
+    if (loteActivo) {
+      return err(validationError('El producto tiene stock activo: retirar o agotar lotes primero'));
+    }
+
+    const producto = await prisma.producto.update({
+      where: { id },
+      data: { activo: true },
+    });
+
+    const sumas = await calcularStockPorProducto([id]);
+    const lotes = await lotesVigentesDe([id]);
+
+    const result: Producto = {
+      ...producto,
+      cantidad_aviso: toNumber(producto.cantidad_aviso),
+      precio_venta: toNumber(producto.precio_venta),
+      unidad_medida: producto.unidad_medida as Producto['unidad_medida'],
+      vencimiento_preaviso_dias: producto.vencimiento_preaviso_dias ?? undefined,
+      stock_actual: sumas.get(id) ?? 0,
+      lotes,
+    };
+
+    logger.info({ productoId: producto.id, codigo: producto.codigo }, 'Producto restaurado');
+    return ok(result);
+  } catch (error) {
+    logger.error({ error, id }, 'Error al restaurar producto');
+    return err(databaseError('Error al restaurar producto', error as Error));
+  }
+}
+
 // Search products for autocomplete (solo activos, con stock_actual)
 export async function searchProductos(
   query: string,
@@ -459,6 +607,7 @@ export async function searchProductos(
       cantidad_aviso: toNumber(p.cantidad_aviso),
       precio_venta: toNumber(p.precio_venta),
       unidad_medida: p.unidad_medida as Producto['unidad_medida'],
+      vencimiento_preaviso_dias: p.vencimiento_preaviso_dias ?? undefined,
       stock_actual: sumas.get(p.id) ?? 0,
       lotes: lotesPorProducto.get(p.id) ?? [],
     }));

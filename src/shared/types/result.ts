@@ -8,7 +8,7 @@ export type DomainError =
   | { code: 'NOT_FOUND'; message: string; resource?: string }
   | { code: 'UNAUTHORIZED'; message: string }
   | { code: 'FORBIDDEN'; message: string }
-  | { code: 'CONFLICT'; message: string; resource?: string }
+  | { code: 'CONFLICT'; message: string; resource?: string; producto_id?: string; activo?: boolean; restaurable?: boolean }
   | { code: 'ACCOUNT_LOCKED'; message: string; lockedUntil?: Date }
   | { code: 'INVALID_CREDENTIALS'; message: string }
   | { code: 'STOCK_INSUFFICIENT'; message: string; disponible?: number; solicitado?: number }
@@ -43,6 +43,23 @@ export function conflictError(resource: string, detail?: string): DomainError {
     code: 'CONFLICT',
     message: `${resource} ya existe${detail ? `: ${detail}` : ''}`,
     resource,
+  };
+}
+
+// CONFLICT con payload diferenciado (RF-05): sugiere restauración de un
+// producto inactivo sin lotes activos. Campos top-level opcionales — el 409
+// no-restaurable queda byte-idéntico (handleDomainError hace spread condicional).
+export function conflictRestaurableError(
+  resource: string,
+  opts: { producto_id: string; message: string }
+): DomainError {
+  return {
+    code: 'CONFLICT',
+    message: opts.message,
+    resource,
+    producto_id: opts.producto_id,
+    activo: false,
+    restaurable: true,
   };
 }
 

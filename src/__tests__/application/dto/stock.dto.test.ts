@@ -198,27 +198,56 @@ describe('Stock DTO Validation', () => {
       if (result.success) {
         expect(result.data.page).toBe(1);
         expect(result.data.limit).toBe(20);
-        expect(result.data.vencimiento_dias).toBeUndefined();
+        expect(result.data.archivados).toBeUndefined();
         expect(result.data.sort).toBe('created_at');
         expect(result.data.order).toBe('desc');
       }
     });
 
-    it('should parse query parameters', () => {
+    it('should parse query parameters (sin legacy)', () => {
       const result = StockQuerySchema.safeParse({
         search: 'pan',
         rubro_id: PRODUCTO_ID,
-        vencimiento_dias: '15',
-        stock_bajo: 'true',
-        vencidos: 'false',
+        archivados: 'true',
         page: '2',
         limit: '10',
       });
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.search).toBe('pan');
-        expect(result.data.vencimiento_dias).toBe(15);
-        expect(result.data.stock_bajo).toBe(true);
+        expect(result.data.archivados).toBe('true');
+      }
+    });
+
+    it('should accept archivados=true y archivados=false', () => {
+      expect(StockQuerySchema.safeParse({ archivados: 'true' }).success).toBe(true);
+      const f = StockQuerySchema.safeParse({ archivados: 'false' });
+      expect(f.success).toBe(true);
+      if (f.success) {
+        expect(f.data.archivados).toBe('false');
+      }
+    });
+
+    it('should leave archivados undefined when absent', () => {
+      const result = StockQuerySchema.safeParse({});
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.archivados).toBeUndefined();
+      }
+    });
+
+    it('should strip legacy params vencidos/stock_bajo/vencimiento_dias (NFR-02)', () => {
+      const result = StockQuerySchema.safeParse({
+        vencidos: 'true',
+        stock_bajo: 'true',
+        vencimiento_dias: '30',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).not.toHaveProperty('vencidos');
+        expect(result.data).not.toHaveProperty('stock_bajo');
+        expect(result.data).not.toHaveProperty('vencimiento_dias');
+        expect(result.data.archivados).toBeUndefined();
       }
     });
 
@@ -235,8 +264,8 @@ describe('Stock DTO Validation', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject vencimiento_dias < 1', () => {
-      const result = StockQuerySchema.safeParse({ vencimiento_dias: 0 });
+    it('should reject archivados=banana (valor no booleano → 400)', () => {
+      const result = StockQuerySchema.safeParse({ archivados: 'banana' });
       expect(result.success).toBe(false);
     });
   });

@@ -7,6 +7,7 @@ import {
   createProducto,
   updateProducto,
   deleteProducto,
+  restoreProducto,
   searchProductos,
 } from '../../../application/use-cases/producto.use-case.js';
 import type { ProductoQueryInput, CreateProductoInput } from '../../../application/dto/producto.dto.js';
@@ -154,6 +155,27 @@ describe('Producto Use Cases (modelo Lote)', () => {
       );
     });
 
+    it('listProductos filtra activo=false cuando query.activo="false"', async () => {
+      mockPrisma.producto.findMany.mockResolvedValue([mockProductoDb()]);
+      mockPrisma.producto.count.mockResolvedValue(1);
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+      mockPrisma.lote.aggregate.mockResolvedValue({ _sum: { cantidad_disponible: 0 } });
+
+      await listProductos({
+        page: 1,
+        limit: 20,
+        sort: 'created_at',
+        order: 'desc',
+        fecha_desde: undefined,
+        fecha_hasta: undefined,
+        activo: 'false',
+      });
+
+      expect(mockPrisma.producto.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ activo: false }) })
+      );
+    });
+
     it('searchProductos filtra activo=true', async () => {
       mockPrisma.producto.findMany.mockResolvedValue([mockProductoDb()]);
       mockPrisma.lote.findMany.mockResolvedValue([]);
@@ -168,6 +190,39 @@ describe('Producto Use Cases (modelo Lote)', () => {
           }),
         })
       );
+    });
+
+    // --- vencimiento_preaviso_dias in read operations ---
+    it('listProductos incluye vencimiento_preaviso_dias en la respuesta', async () => {
+      const productos = [mockProductoDb({ vencimiento_preaviso_dias: 45 })];
+      mockPrisma.producto.findMany.mockResolvedValue(productos);
+      mockPrisma.producto.count.mockResolvedValue(1);
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await listProductos({
+        page: 1,
+        limit: 20,
+        sort: 'created_at',
+        order: 'desc',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.data[0].vencimiento_preaviso_dias).toBe(45);
+      }
+    });
+
+    it('searchProductos incluye vencimiento_preaviso_dias en la respuesta', async () => {
+      const productos = [mockProductoDb({ vencimiento_preaviso_dias: 45 })];
+      mockPrisma.producto.findMany.mockResolvedValue(productos);
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await searchProductos('pan', 'nombre');
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value[0].vencimiento_preaviso_dias).toBe(45);
+      }
     });
   });
 
@@ -208,6 +263,62 @@ describe('Producto Use Cases (modelo Lote)', () => {
       expect(result._unsafeUnwrapErr().code).toBe('CONFLICT');
     });
 
+    // RF-05: conflicto con INACTIVO sin lotes activos → payload diferenciado (restaurable)
+    it('CONFLICT restaurable si el código duplica con producto INACTIVO sin lotes activos', async () => {
+      mockPrisma.producto.findFirst.mockResolvedValue(mockProductoDb({ activo: false }));
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await createProducto(baseInput);
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error.code).toBe('CONFLICT');
+      expect(error.producto_id).toBe(PRODUCTO_ID);
+      expect(error.activo).toBe(false);
+      expect(error.restaurable).toBe(true);
+      expect(error.message).toContain('Ya existe un producto inactivo con el código');
+    });
+
+    // RF-06: conflicto con INACTIVO CON lote activo → CONFLICT normal (sin campos extra)
+    it('CONFLICT normal si el inactivo tiene lote activo (stock heredado)', async () => {
+      mockPrisma.producto.findFirst.mockResolvedValue(mockProductoDb({ activo: false }));
+      mockPrisma.lote.findFirst.mockResolvedValue({ id: 'lote-activo', estado: 'activo' });
+
+      const result = await createProducto(baseInput);
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error.code).toBe('CONFLICT');
+      expect('producto_id' in error).toBe(false);
+      expect('activo' in error).toBe(false);
+      expect('restaurable' in error).toBe(false);
+    });
+
+    // RF-07: conflicto con ACTIVO → CONFLICT normal (sin campos extra) y sin query de lote
+    it('CONFLICT normal si el código duplica con producto ACTIVO', async () => {
+      mockPrisma.producto.findFirst.mockResolvedValue(mockProductoDb({ activo: true }));
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await createProducto(baseInput);
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error.code).toBe('CONFLICT');
+      expect('producto_id' in error).toBe(false);
+      expect('restaurable' in error).toBe(false);
+      expect(mockPrisma.lote.findFirst).not.toHaveBeenCalled();
+    });
+
+    // Happy path sin regresión: sin conflicto no se consulta lote (una sola query)
+    it('happy path sin conflicto: no consulta lote.findFirst', async () => {
+      mockPrisma.producto.findFirst.mockResolvedValue(null);
+      mockPrisma.rubro.findUnique.mockResolvedValue({ id: 'rubro-1' });
+      mockPrisma.proveedor.findUnique.mockResolvedValue({ id: 'prov-1' });
+      mockPrisma.producto.create.mockResolvedValue(mockProductoDb({ cantidad_aviso: 0 }));
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await createProducto(baseInput);
+      expect(result.isOk()).toBe(true);
+      expect(mockPrisma.lote.findFirst).not.toHaveBeenCalled();
+    });
+
     it('NOT_FOUND si el rubro no existe', async () => {
       mockPrisma.producto.findFirst.mockResolvedValue(null);
       mockPrisma.rubro.findUnique.mockResolvedValue(null);
@@ -215,6 +326,64 @@ describe('Producto Use Cases (modelo Lote)', () => {
       const result = await createProducto(baseInput);
       expect(result.isErr()).toBe(true);
       expect(result._unsafeUnwrapErr().code).toBe('NOT_FOUND');
+    });
+
+    // --- vencimiento_preaviso_dias tests ---
+    it('crea producto con vencimiento_preaviso_dias personalizado (60)', async () => {
+      mockPrisma.producto.findFirst.mockResolvedValue(null);
+      mockPrisma.rubro.findUnique.mockResolvedValue({ id: 'rubro-1' });
+      mockPrisma.proveedor.findUnique.mockResolvedValue({ id: 'prov-1' });
+      mockPrisma.producto.create.mockResolvedValue(
+        mockProductoDb({ cantidad_aviso: 0, vencimiento_preaviso_dias: 60 })
+      );
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await createProducto({ ...baseInput, vencimiento_preaviso_dias: 60 });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.vencimiento_preaviso_dias).toBe(60);
+      }
+      // Verify the create call includes the field
+      expect(mockPrisma.producto.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ vencimiento_preaviso_dias: 60 }),
+        })
+      );
+    });
+
+    it('crea producto sin vencimiento_preaviso_dias → default 30 en DB', async () => {
+      mockPrisma.producto.findFirst.mockResolvedValue(null);
+      mockPrisma.rubro.findUnique.mockResolvedValue({ id: 'rubro-1' });
+      mockPrisma.proveedor.findUnique.mockResolvedValue({ id: 'prov-1' });
+      mockPrisma.producto.create.mockResolvedValue(
+        mockProductoDb({ cantidad_aviso: 0, vencimiento_preaviso_dias: 30 })
+      );
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await createProducto(baseInput); // sin vencimiento_preaviso_dias
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.vencimiento_preaviso_dias).toBe(30);
+      }
+    });
+
+    it('crea producto con vencimiento_preaviso_dias: 0 (sin preaviso)', async () => {
+      mockPrisma.producto.findFirst.mockResolvedValue(null);
+      mockPrisma.rubro.findUnique.mockResolvedValue({ id: 'rubro-1' });
+      mockPrisma.proveedor.findUnique.mockResolvedValue({ id: 'prov-1' });
+      mockPrisma.producto.create.mockResolvedValue(
+        mockProductoDb({ cantidad_aviso: 0, vencimiento_preaviso_dias: 0 })
+      );
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await createProducto({ ...baseInput, vencimiento_preaviso_dias: 0 });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.vencimiento_preaviso_dias).toBe(0);
+      }
     });
 
     // NOTA: el P2002 (unique codigo+proveedor a nivel DB) es el fallback de
@@ -244,11 +413,135 @@ describe('Producto Use Cases (modelo Lote)', () => {
     it('CONFLICT si el código duplica', async () => {
       const existing = mockProductoDb();
       mockPrisma.producto.findUnique.mockResolvedValue(existing);
-      mockPrisma.producto.findFirst.mockResolvedValue({ id: 'otro-id' });
+      mockPrisma.producto.findFirst.mockResolvedValue(mockProductoDb({ id: 'otro-id' }));
 
       const result = await updateProducto({ id: PRODUCTO_ID, codigo: 'DUPLICADO' });
       expect(result.isErr()).toBe(true);
       expect(result._unsafeUnwrapErr().code).toBe('CONFLICT');
+    });
+
+    // RF-08: conflicto con INACTIVO sin lotes activos → restaurable, excluyendo el propio id
+    it('CONFLICT restaurable al editar código conflictivo con inactivo sin lotes (id excluido)', async () => {
+      const existing = mockProductoDb();
+      mockPrisma.producto.findUnique.mockResolvedValue(existing);
+      mockPrisma.producto.findFirst.mockResolvedValue(
+        mockProductoDb({ id: 'otro-id', activo: false, codigo: 'DUPLICADO' })
+      );
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await updateProducto({ id: PRODUCTO_ID, codigo: 'DUPLICADO' });
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error.code).toBe('CONFLICT');
+      expect(error.producto_id).toBe('otro-id');
+      expect(error.activo).toBe(false);
+      expect(error.restaurable).toBe(true);
+      expect(mockPrisma.producto.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { not: PRODUCTO_ID } }),
+        })
+      );
+    });
+
+    // RF-08: conflicto con INACTIVO CON lote activo → CONFLICT normal
+    it('CONFLICT normal si el conflicto es con inactivo CON lote activo', async () => {
+      const existing = mockProductoDb();
+      mockPrisma.producto.findUnique.mockResolvedValue(existing);
+      mockPrisma.producto.findFirst.mockResolvedValue(mockProductoDb({ id: 'otro-id', activo: false }));
+      mockPrisma.lote.findFirst.mockResolvedValue({ id: 'lote-activo', estado: 'activo' });
+
+      const result = await updateProducto({ id: PRODUCTO_ID, codigo: 'DUPLICADO' });
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error.code).toBe('CONFLICT');
+      expect('producto_id' in error).toBe(false);
+      expect('restaurable' in error).toBe(false);
+    });
+
+    // RF-08: conflicto con ACTIVO → CONFLICT normal
+    it('CONFLICT normal si el conflicto es con otro producto ACTIVO', async () => {
+      const existing = mockProductoDb();
+      mockPrisma.producto.findUnique.mockResolvedValue(existing);
+      mockPrisma.producto.findFirst.mockResolvedValue(mockProductoDb({ id: 'otro-id', activo: true }));
+
+      const result = await updateProducto({ id: PRODUCTO_ID, codigo: 'DUPLICADO' });
+      expect(result.isErr()).toBe(true);
+      const error = result._unsafeUnwrapErr();
+      expect(error.code).toBe('CONFLICT');
+      expect('producto_id' in error).toBe(false);
+      expect('restaurable' in error).toBe(false);
+    });
+
+    // Happy path sin regresión
+    it('happy path sin conflicto: no consulta lote.findFirst', async () => {
+      const existing = mockProductoDb();
+      mockPrisma.producto.findUnique.mockResolvedValue(existing);
+      mockPrisma.producto.findFirst.mockResolvedValue(null);
+      mockPrisma.producto.update.mockResolvedValue({ ...existing, nombre: 'Nuevo nombre' });
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await updateProducto({ id: PRODUCTO_ID, nombre: 'Nuevo nombre' });
+      expect(result.isOk()).toBe(true);
+      expect(mockPrisma.lote.findFirst).not.toHaveBeenCalled();
+    });
+
+    // --- vencimiento_preaviso_dias tests ---
+    it('actualiza vencimiento_preaviso_dias de 30 a 60', async () => {
+      const existing = mockProductoDb({ vencimiento_preaviso_dias: 30 });
+      mockPrisma.producto.findUnique.mockResolvedValue(existing);
+      mockPrisma.producto.findFirst.mockResolvedValue(null);
+      mockPrisma.producto.update.mockResolvedValue(
+        { ...existing, vencimiento_preaviso_dias: 60 }
+      );
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await updateProducto({ id: PRODUCTO_ID, vencimiento_preaviso_dias: 60 });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.vencimiento_preaviso_dias).toBe(60);
+      }
+      // Verify update call includes the field
+      expect(mockPrisma.producto.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ vencimiento_preaviso_dias: 60 }),
+        })
+      );
+    });
+
+    it('actualiza otros campos SIN tocar vencimiento_preaviso_dias', async () => {
+      const existing = mockProductoDb({ vencimiento_preaviso_dias: 60 });
+      mockPrisma.producto.findUnique.mockResolvedValue(existing);
+      mockPrisma.producto.findFirst.mockResolvedValue(null);
+      mockPrisma.producto.update.mockResolvedValue({ ...existing, nombre: 'Nuevo nombre' });
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await updateProducto({ id: PRODUCTO_ID, nombre: 'Nuevo nombre' });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.vencimiento_preaviso_dias).toBe(60); // preservado
+      }
+      // Verify update call does NOT include vencimiento_preaviso_dias
+      const updateCall = mockPrisma.producto.update.mock.calls[0];
+      expect(updateCall[0]?.data).not.toHaveProperty('vencimiento_preaviso_dias');
+    });
+
+    it('actualiza vencimiento_preaviso_dias a 0 (desactivar preaviso)', async () => {
+      const existing = mockProductoDb({ vencimiento_preaviso_dias: 30 });
+      mockPrisma.producto.findUnique.mockResolvedValue(existing);
+      mockPrisma.producto.findFirst.mockResolvedValue(null);
+      mockPrisma.producto.update.mockResolvedValue(
+        { ...existing, vencimiento_preaviso_dias: 0 }
+      );
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await updateProducto({ id: PRODUCTO_ID, vencimiento_preaviso_dias: 0 });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.vencimiento_preaviso_dias).toBe(0);
+      }
     });
   });
 
@@ -294,6 +587,152 @@ describe('Producto Use Cases (modelo Lote)', () => {
       const result = await deleteProducto('non-existent');
       expect(result.isErr()).toBe(true);
       expect(result._unsafeUnwrapErr().code).toBe('NOT_FOUND');
+    });
+  });
+
+  // ----------------------------------------------------------------------
+  describe('restoreProducto', () => {
+    // ---- Restauración permitida: inactivo sin lote activo → activo=true ----
+    it('restaura producto inactivo sin lotes activos (update activo:true)', async () => {
+      const producto = mockProductoDb({ activo: false });
+      mockPrisma.producto.findUnique.mockResolvedValue(producto);
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+      mockPrisma.producto.update.mockResolvedValue({ ...producto, activo: true });
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await restoreProducto(PRODUCTO_ID);
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.activo).toBe(true);
+        expect(result.value.stock_actual).toBe(0);
+        expect(result.value.lotes).toEqual([]);
+      }
+      expect(mockPrisma.producto.update).toHaveBeenCalledWith({
+        where: { id: PRODUCTO_ID },
+        data: { activo: true },
+      });
+    });
+
+    // RF-02: acepta restauración con 0 lotes asociados
+    it('acepta restauración con 0 lotes', async () => {
+      const producto = mockProductoDb({ activo: false });
+      mockPrisma.producto.findUnique.mockResolvedValue(producto);
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+      mockPrisma.producto.update.mockResolvedValue({ ...producto, activo: true });
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await restoreProducto(PRODUCTO_ID);
+
+      expect(result.isOk()).toBe(true);
+      expect(mockPrisma.producto.update).toHaveBeenCalledWith({
+        where: { id: PRODUCTO_ID },
+        data: { activo: true },
+      });
+    });
+
+    // RF-01/RF-02: lotes agotados/vencidos (ninguno activo) → ok; estados intactos
+    it('restaura con lotes agotados/vencidos sin tocar sus estados', async () => {
+      const producto = mockProductoDb({ activo: false });
+      mockPrisma.producto.findUnique.mockResolvedValue(producto);
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+      mockPrisma.producto.update.mockResolvedValue({ ...producto, activo: true });
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await restoreProducto(PRODUCTO_ID);
+
+      expect(result.isOk()).toBe(true);
+      expect(mockPrisma.producto.update).toHaveBeenCalledWith({
+        where: { id: PRODUCTO_ID },
+        data: { activo: true },
+      });
+      expect(mockPrisma.lote.updateMany).not.toHaveBeenCalled();
+    });
+
+    // --- vencimiento_preaviso_dias preservation ---
+    it('restaura producto archivado preservando vencimiento_preaviso_dias personalizado (60)', async () => {
+      const producto = mockProductoDb({ activo: false, vencimiento_preaviso_dias: 60 });
+      mockPrisma.producto.findUnique.mockResolvedValue(producto);
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+      mockPrisma.producto.update.mockResolvedValue({ ...producto, activo: true });
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await restoreProducto(PRODUCTO_ID);
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.activo).toBe(true);
+        expect(result.value.vencimiento_preaviso_dias).toBe(60); // preservado
+      }
+      // Verify update call only touches activo, not vencimiento_preaviso_dias
+      expect(mockPrisma.producto.update).toHaveBeenCalledWith({
+        where: { id: PRODUCTO_ID },
+        data: { activo: true },
+      });
+    });
+
+    it('restaura producto archivado con default 30 preservando 30', async () => {
+      const producto = mockProductoDb({ activo: false, vencimiento_preaviso_dias: 30 });
+      mockPrisma.producto.findUnique.mockResolvedValue(producto);
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+      mockPrisma.producto.update.mockResolvedValue({ ...producto, activo: true });
+      mockPrisma.lote.findMany.mockResolvedValue([]);
+
+      const result = await restoreProducto(PRODUCTO_ID);
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.vencimiento_preaviso_dias).toBe(30);
+      }
+    });
+
+    // RF-03: bloqueado con lote activo (mismo criterio y mensaje que deleteProducto)
+    it('VALIDATION_ERROR si tiene lote activo; update NO llamado', async () => {
+      const producto = mockProductoDb({ activo: false });
+      mockPrisma.producto.findUnique.mockResolvedValue(producto);
+      mockPrisma.lote.findFirst.mockResolvedValue({ id: 'lote-activo', estado: 'activo' });
+
+      const result = await restoreProducto(PRODUCTO_ID);
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe('VALIDATION_ERROR');
+      expect(result._unsafeUnwrapErr().message).toContain('stock activo');
+      expect(mockPrisma.producto.update).not.toHaveBeenCalled();
+    });
+
+    // RF-04: ya activo → 200 no-op idempotente, update NO llamado, stock calculado
+    it('activo ya → no-op idempotente (200), update NO llamado, stock_actual/lotes calculados', async () => {
+      const producto = mockProductoDb({ activo: true });
+      mockPrisma.producto.findUnique.mockResolvedValue(producto);
+      mockPrisma.lote.findMany.mockResolvedValue([
+        mockLoteRaw({
+          id: 'l1',
+          cantidad_disponible: 3,
+          fecha_vencimiento: new Date('2026-12-01T00:00:00.000Z'),
+        }),
+      ]);
+
+      const result = await restoreProducto(PRODUCTO_ID);
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.activo).toBe(true);
+        expect(result.value.stock_actual).toBe(3);
+        expect(result.value.lotes).toHaveLength(1);
+      }
+      expect(mockPrisma.producto.update).not.toHaveBeenCalled();
+      expect(mockPrisma.lote.findFirst).not.toHaveBeenCalled();
+    });
+
+    // RF-04: inexistente → 404
+    it('NOT_FOUND si el producto no existe', async () => {
+      mockPrisma.producto.findUnique.mockResolvedValue(null);
+
+      const result = await restoreProducto(PRODUCTO_ID);
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().code).toBe('NOT_FOUND');
+      expect(mockPrisma.producto.update).not.toHaveBeenCalled();
     });
   });
 });

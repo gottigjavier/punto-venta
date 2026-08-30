@@ -291,47 +291,79 @@ describe('Stock/lote Use Cases (modelo Lote)', () => {
       });
     }
 
-    // ---- Escenario: fila POR LOTE + stock_bajo ----
-    it('retorna fila POR LOTE; stock_bajo usa SUM de lotes activos no vencidos', async () => {
-      // 2 lotes activos (3 y 4) + 1 vencido (10). aviso = 5 → sum vigente 7 ≥ 5 → FALSE
+    // mock de findMany que RESPETA el filtro de estado del where (simula la DB):
+    // el listado devuelve solo los lotes cuyo estado matchea el filtro estado del AND.
+    function mockFindManyByEstado(todos: Record<string, unknown>[]) {
+      mockPrisma.lote.findMany.mockImplementation((opts: { where?: any; select?: unknown }) => {
+        // query de sumas del badge: solo lotes activos
+        if (opts?.select) {
+          return Promise.resolve(
+            todos
+              .filter((l) => (l as { estado: string }).estado === 'activo')
+              .map((l) => ({
+                producto_id: (l as { producto_id: string }).producto_id,
+                cantidad_disponible: (l as { cantidad_disponible: number }).cantidad_disponible,
+              }))
+          );
+        }
+        // query de listado: aplicar el filtro de estado del AND si está presente
+        const and: Array<{ estado?: unknown }> = opts?.where?.AND ?? [];
+        const estadoFilter = and.find((c) => c.estado !== undefined);
+        let filtered = todos;
+        if (estadoFilter?.estado === 'activo') {
+          filtered = todos.filter((l) => (l as { estado: string }).estado === 'activo');
+        } else if (estadoFilter?.estado && (estadoFilter.estado as { in?: unknown }).in) {
+          const inArr = (estadoFilter.estado as { in: string[] }).in;
+          filtered = todos.filter((l) => inArr.includes((l as { estado: string }).estado));
+        }
+        return Promise.resolve(filtered);
+      });
+    }
+
+    // ---- Escenario: fila POR LOTE + stock_bajo (default SOLO activo) ----
+    it('retorna fila POR LOTE; default solo activo; stock_bajo usa SUM de lotes activos no vencidos', async () => {
+      // 2 lotes activos (3 y 4). El lote vencido (10) NO entra en la vista default.
+      // aviso = 5 → sum activos = 7 ≥ 5 → stock_bajo FALSE
       const lote1 = mockLoteRaw({ id: 'l1', numero_lote: 'L1', cantidad_disponible: 3, cantidad_aviso: 5 });
       const lote2 = mockLoteRaw({ id: 'l2', numero_lote: 'L2', cantidad_disponible: 4, cantidad_aviso: 5 });
-      const loteVencido = mockLoteRaw({
-        id: 'l3', numero_lote: 'L3', cantidad_disponible: 10, estado: 'vencido',
-        fecha_vencimiento: new Date('2020-01-01'), cantidad_aviso: 5,
-      });
-      const todos = [lote1, lote2, loteVencido];
-      const vigentes = [lote1, lote2];
+      // Solo lotes ACTIVO en el listado (el filtro de estado corre en la query):
+      const todos = [lote1, lote2];
+      const vigentes = [lote1, lote2]; // badge: sum de lotes activos no vencidos
       mockFindManyVigentes(vigentes, todos);
-      mockPrisma.lote.count.mockResolvedValue(3);
+      mockPrisma.lote.count.mockResolvedValue(2);
       mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
       mockPrisma.lote.findFirst.mockResolvedValue(null);
 
-      const result = await loteList({ ...STOCK_QUERY_BASE, vencimiento_dias: undefined });
+      const result = await loteList({ ...STOCK_QUERY_BASE, archivados: undefined });
 
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
-        expect(result.value.data).toHaveLength(3);
+        expect(result.value.data).toHaveLength(2);
+        expect(result.value.pagination.total).toBe(2);
         // sum vigentes = 3+4 = 7 ≥ aviso 5 → no stock_bajo
         expect(result.value.data[0]?.stock_bajo).toBe(false);
       }
 
+      // El where.AND del listado DEBE incluir el filtro de estado por defecto 'activo' (RF-01)
+      const listCall = mockPrisma.lote.findMany.mock.calls.find((c) => !c[0]?.select);
+      expect(listCall?.[0]?.where?.AND).toContainEqual({ estado: 'activo' });
+
       // ---- Aviso = 8 → sum 7 < 8 → stock_bajo TRUE ----
-      // forzar aviso 8 dentro del producto anidado (el mapLote toma cantidad_aviso de l.producto)
       const rows8 = [
         mockLoteRaw({ id: 'l1', cantidad_disponible: 3, producto: { cantidad_aviso: 8 } }),
         mockLoteRaw({ id: 'l2', cantidad_disponible: 4, producto: { cantidad_aviso: 8 } }),
-        mockLoteRaw({ id: 'l3', cantidad_disponible: 10, estado: 'vencido', fecha_vencimiento: new Date('2020-01-01'), producto: { cantidad_aviso: 8 } }),
       ];
       const vig8 = [rows8[0], rows8[1]];
       mockPrisma.lote.findMany.mockReset();
       mockPrisma.lote.findMany.mockImplementation((opts: { select?: unknown }) => {
-        if (opts?.select) return Promise.resolve(vig8.map((l: any) => ({ producto_id: l.producto_id, cantidad_disponible: l.cantidad_disponible })));
+        if (opts?.select) {
+          return Promise.resolve(vig8.map((l: any) => ({ producto_id: l.producto_id, cantidad_disponible: l.cantidad_disponible })));
+        }
         return Promise.resolve(rows8);
       });
-      mockPrisma.lote.count.mockResolvedValue(3);
+      mockPrisma.lote.count.mockResolvedValue(2);
 
-      const result8 = await loteList({ ...STOCK_QUERY_BASE, vencimiento_dias: undefined });
+      const result8 = await loteList({ ...STOCK_QUERY_BASE, archivados: undefined });
       expect(result8.isOk()).toBe(true);
       if (result8.isOk()) {
         // sum vigentes = 7 < aviso 8 → stock_bajo TRUE
@@ -339,25 +371,22 @@ describe('Stock/lote Use Cases (modelo Lote)', () => {
       }
     });
 
-    // ---- Escenario: badge por_vencer + filtro ventana ----
-    it('badge por_vender default 30; 45 días→ok; vencimiento_dias=30 filtra; venc NULL→ok', async () => {
+    // ---- Escenario: badge por_vencer con default 30 ----
+    it('badge por_vencer default 30; 45 días→ok; venc NULL→ok', async () => {
       const todayStr = toUTC3DateString(new Date());
       const today = new Date(todayStr + 'T00:00:00.000Z');
 
       const lotePorVencer = mockLoteRaw({
         id: 'pv',
         numero_lote: 'PV',
-        fecha_vencimiento: new Date(todayStr + 'T00:00:00.000Z'), // vence hoy+20
+        fecha_vencimiento: new Date(today.getTime() + 20 * 86400000), // vence en 20 días
         cantidad_disponible: 5,
       });
-      // seteamos una fecha dentro de 20 días del mock
-      const futureVenc = new Date(today.getTime() + 20 * 86400000);
-      lotePorVencer.fecha_vencimiento = futureVenc;
 
       const loteOk = mockLoteRaw({
         id: 'ok',
         numero_lote: 'OK',
-        fecha_vencimiento: new Date(today.getTime() + 45 * 86400000),
+        fecha_vencimiento: new Date(today.getTime() + 45 * 86400000), // vence en 45 días
         cantidad_disponible: 5,
       });
 
@@ -373,24 +402,106 @@ describe('Stock/lote Use Cases (modelo Lote)', () => {
       mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
       mockPrisma.lote.findFirst.mockResolvedValue(null);
 
-      // Sin vencimiento_dias: badge usa default 30 → lotePorVencer (20d) = por_vencer, loteOk (45d) = ok, null = ok
-      const r1 = await loteList({ ...STOCK_QUERY_BASE });
+      // D fijo en 30 → lotePorVencer (20d) = por_vencer, loteOk (45d) = ok, null = ok
+      const r1 = await loteList({ ...STOCK_QUERY_BASE, archivados: undefined });
       if (!r1.isOk()) throw new Error('r1');
-      const byId = Object.fromKeys = r1.value.data.reduce((acc, row) => {
+      const byId = r1.value.data.reduce((acc, row) => {
         acc[row.id] = row;
         return acc;
       }, {} as Record<string, typeof r1.value.data[0]>);
       expect(byId['pv'].estado_vencimiento).toBe('por_vencer');
       expect(byId['ok'].estado_vencimiento).toBe('ok');
       expect(byId['null'].estado_vencimiento).toBe('ok');
+    });
 
-      // Con vencimiento_dias=30 EXPLÍCITO: filtra la ventana → solo devuelve lotePorVencer (≤30d), loteOk (45d) fuera
-      mockPrisma.lote.findMany.mockResolvedValue([lotePorVencer]);
+    // --- vencimiento_preaviso_dias tests ---
+    it('badge por_vencer usa preaviso del producto (custom 15 días)', async () => {
+      const todayStr = toUTC3DateString(new Date());
+      const today = new Date(todayStr + 'T00:00:00.000Z');
+
+      // Producto con preaviso 15 días
+      const loteCustom = mockLoteRaw({
+        id: 'custom',
+        numero_lote: 'CUST',
+        fecha_vencimiento: new Date(today.getTime() + 10 * 86400000), // vence en 10 días
+        cantidad_disponible: 5,
+        producto: {
+          ...mockProductoDb().producto,
+          vencimiento_preaviso_dias: 15, // NUEVO: preaviso custom
+        },
+      });
+
+      // Producto con default 30 (para comparar)
+      const loteDefault = mockLoteRaw({
+        id: 'default',
+        numero_lote: 'DEF',
+        fecha_vencimiento: new Date(today.getTime() + 20 * 86400000), // vence en 20 días
+        cantidad_disponible: 5,
+      });
+
+      mockPrisma.lote.findMany.mockResolvedValue([loteCustom, loteDefault]);
+      mockPrisma.lote.count.mockResolvedValue(2);
+      mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await loteList({ ...STOCK_QUERY_BASE, archivados: undefined });
+      expect(result.isOk()).toBe(true);
+      if (!result.isOk()) return;
+      const byId = result.value.data.reduce((acc, row) => { acc[row.id] = row; return acc; }, {} as any);
+      // Custom 15: vence en 10d < 15 → por_vencer
+      expect(byId['custom'].estado_vencimiento).toBe('por_vencer');
+      // Default 30: vence en 20d < 30 → por_vencer
+      expect(byId['default'].estado_vencimiento).toBe('por_vencer');
+    });
+
+    it('badge por_vencer fallback 30 cuando producto tiene null', async () => {
+      const todayStr = toUTC3DateString(new Date());
+      const today = new Date(todayStr + 'T00:00:00.000Z');
+
+      const loteNull = mockLoteRaw({
+        id: 'null-preaviso',
+        fecha_vencimiento: new Date(today.getTime() + 20 * 86400000), // 20 días
+        producto: {
+          ...mockProductoDb().producto,
+          vencimiento_preaviso_dias: null, // Edge case: null en DB
+        },
+      });
+
+      mockPrisma.lote.findMany.mockResolvedValue([loteNull]);
       mockPrisma.lote.count.mockResolvedValue(1);
-      const r2 = await loteList({ ...STOCK_QUERY_BASE, vencimiento_dias: 30 });
-      if (!r2.isOk()) throw new Error('r2');
-      expect(r2.value.data).toHaveLength(1);
-      expect(r2.value.data[0]?.id).toBe('pv');
+      mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await loteList({ ...STOCK_QUERY_BASE, archivados: undefined });
+      expect(result.isOk()).toBe(true);
+      if (!result.isOk()) return;
+      // Fallback 30: 20d < 30 → por_vencer
+      expect(result.value.data[0].estado_vencimiento).toBe('por_vencer');
+    });
+
+    it('preaviso 0 → nunca por_vencer (solo ok/vencido)', async () => {
+      const todayStr = toUTC3DateString(new Date());
+      const today = new Date(todayStr + 'T00:00:00.000Z');
+
+      const loteZero = mockLoteRaw({
+        id: 'zero',
+        fecha_vencimiento: new Date(today.getTime() + 10 * 86400000), // 10 días
+        producto: {
+          ...mockProductoDb().producto,
+          vencimiento_preaviso_dias: 0,
+        },
+      });
+
+      mockPrisma.lote.findMany.mockResolvedValue([loteZero]);
+      mockPrisma.lote.count.mockResolvedValue(1);
+      mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await loteList({ ...STOCK_QUERY_BASE, archivados: undefined });
+      expect(result.isOk()).toBe(true);
+      if (!result.isOk()) return;
+      // 0 = sin preaviso → ok (aún no vencido)
+      expect(result.value.data[0].estado_vencimiento).toBe('ok');
     });
 
     // ---- Escenario: lazy pass ejecuta updateMany ----
@@ -412,21 +523,108 @@ describe('Stock/lote Use Cases (modelo Lote)', () => {
       );
     });
 
-    // ---- Escenario: vencidos ----
-    it('filtro vencidos devuelve lotes vencidos', async () => {
-      const vencido = mockLoteRaw({
-        id: 'v1',
-        estado: 'vencido',
-        fecha_vencimiento: new Date('2020-01-01'),
-      });
-      mockPrisma.lote.findMany.mockResolvedValue([vencido]);
+    // ---- RF-01 / RF-02: filtro de estado en la query (default vs archivados) ----
+    it('default devuelve SOLO lotes activos (RF-01)', async () => {
+      const activo = mockLoteRaw({ id: 'l-act', estado: 'activo' });
+      const agotado = mockLoteRaw({ id: 'l-ago', estado: 'agotado' });
+      const vencido = mockLoteRaw({ id: 'l-ven', estado: 'vencido', fecha_vencimiento: new Date('2020-01-01') });
+      const descartado = mockLoteRaw({ id: 'l-desc', estado: 'descartado' });
+      const todos = [activo, agotado, vencido, descartado];
+      mockFindManyByEstado(todos);
+      mockPrisma.lote.count.mockResolvedValue(1); // solo el activo
+      mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await loteList({ ...STOCK_QUERY_BASE, archivados: undefined });
+
+      expect(result.isOk()).toBe(true);
+      // El where.AND contiene el filtro de estado por defecto 'activo'
+      const listCall = mockPrisma.lote.findMany.mock.calls.find((c) => !c[0]?.select);
+      expect(listCall?.[0]?.where?.AND).toContainEqual({ estado: 'activo' });
+      if (result.isOk()) {
+        expect(result.value.data).toHaveLength(1);
+        expect(result.value.data[0]?.id).toBe('l-act');
+        expect(result.value.pagination.total).toBe(1);
+      }
+    });
+
+    it('archivados=true devuelve SOLO lotes terminales (RF-02)', async () => {
+      const activo = mockLoteRaw({ id: 'l-act', estado: 'activo' });
+      const agotado = mockLoteRaw({ id: 'l-ago', estado: 'agotado' });
+      const vencido = mockLoteRaw({ id: 'l-ven', estado: 'vencido', fecha_vencimiento: new Date('2020-01-01') });
+      const descartado = mockLoteRaw({ id: 'l-desc', estado: 'descartado' });
+      const todos = [activo, agotado, vencido, descartado];
+      mockFindManyByEstado(todos);
+      mockPrisma.lote.count.mockResolvedValue(3); // los tres terminales
+      mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await loteList({ ...STOCK_QUERY_BASE, archivados: 'true' });
+
+      expect(result.isOk()).toBe(true);
+      const listCall = mockPrisma.lote.findMany.mock.calls.find((c) => !c[0]?.select);
+      expect(listCall?.[0]?.where?.AND).toContainEqual({ estado: { in: ['agotado', 'vencido', 'descartado'] } });
+      if (result.isOk()) {
+        const ids = result.value.data.map((r) => r.id).sort();
+        expect(ids).toEqual(['l-ago', 'l-desc', 'l-ven']);
+        expect(result.value.pagination.total).toBe(3);
+        // El lote activo NUNCA aparece en la vista archivados
+        expect(result.value.data.some((r) => r.id === 'l-act')).toBe(false);
+      }
+    });
+
+    it('archivados=false equivale al default (solo activo) (RF-02)', async () => {
+      const activo = mockLoteRaw({ id: 'l-act', estado: 'activo' });
+      const vencido = mockLoteRaw({ id: 'l-ven', estado: 'vencido', fecha_vencimiento: new Date('2020-01-01') });
+      const todos = [activo, vencido];
+      mockFindManyByEstado(todos);
       mockPrisma.lote.count.mockResolvedValue(1);
       mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
 
-      const result = await loteList({ ...STOCK_QUERY_BASE, vencidos: true });
-      if (!result.isOk()) throw new Error('ok');
-      expect(result.value.data).toHaveLength(1);
-      expect(result.value.data[0]?.estado_vencimiento).toBe('vencido');
+      const result = await loteList({ ...STOCK_QUERY_BASE, archivados: 'false' });
+
+      expect(result.isOk()).toBe(true);
+      const listCall = mockPrisma.lote.findMany.mock.calls.find((c) => !c[0]?.select);
+      expect(listCall?.[0]?.where?.AND).toContainEqual({ estado: 'activo' });
+      if (result.isOk()) {
+        expect(result.value.data).toHaveLength(1);
+        expect(result.value.data[0]?.id).toBe('l-act');
+      }
+    });
+
+    // ---- RF-04 / RF-05: composición AND con search y rubro en ambas vistas ----
+    it('search + archivados=true se componen AND (RF-04)', async () => {
+      const lecheVenc = mockLoteRaw({ id: 'l-lv', estado: 'vencido', numero_lote: 'LV', fecha_vencimiento: new Date('2020-01-01') });
+      mockFindManyByEstado([lecheVenc]);
+      mockPrisma.lote.count.mockResolvedValue(1);
+      mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await loteList({ ...STOCK_QUERY_BASE, archivados: 'true', search: 'leche' });
+
+      expect(result.isOk()).toBe(true);
+      const listCall = mockPrisma.lote.findMany.mock.calls.find((c) => !c[0]?.select);
+      const AND = listCall?.[0]?.where?.AND ?? [];
+      // El where.AND contiene AMBOS: filtro de estado (in terminales) + search
+      expect(AND).toContainEqual({ estado: { in: ['agotado', 'vencido', 'descartado'] } });
+      expect(AND.some((c: any) => c.OR !== undefined)).toBe(true);
+    });
+
+    it('rubro_id + archivados=true se componen AND (RF-05)', async () => {
+      const vencLacteos = mockLoteRaw({ id: 'l-vl', estado: 'vencido', fecha_vencimiento: new Date('2020-01-01') });
+      mockFindManyByEstado([vencLacteos]);
+      mockPrisma.lote.count.mockResolvedValue(1);
+      mockPrisma.lote.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.lote.findFirst.mockResolvedValue(null);
+
+      const result = await loteList({ ...STOCK_QUERY_BASE, archivados: 'true', rubro_id: 'rubro-lacteos' });
+
+      expect(result.isOk()).toBe(true);
+      const listCall = mockPrisma.lote.findMany.mock.calls.find((c) => !c[0]?.select);
+      const AND = listCall?.[0]?.where?.AND ?? [];
+      expect(AND).toContainEqual({ estado: { in: ['agotado', 'vencido', 'descartado'] } });
+      expect(AND).toContainEqual({ producto: { rubro_id: 'rubro-lacteos' } });
     });
   });
 

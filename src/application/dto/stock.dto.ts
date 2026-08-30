@@ -71,9 +71,8 @@ export type LoteIdParam = z.infer<typeof LoteIdParamSchema>;
 export const StockQuerySchema = z.object({
   search: z.string().optional(),
   rubro_id: z.string().uuid().optional(),
-  vencimiento_dias: z.coerce.number().int().min(1).optional(),
-  stock_bajo: z.coerce.boolean().optional(),
-  vencidos: z.coerce.boolean().optional(),
+  // archivados: 'true' → terminales | 'false'/ausente → activos
+  archivados: z.enum(['true', 'false']).optional(),
   sort: z
     .enum([
       'numero_lote',

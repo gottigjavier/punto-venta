@@ -257,17 +257,12 @@ export async function loteList(
     // Lazy pass: marcar vencidos antes de calcular
     await retirarLotesVencidos();
 
-    const { search, rubro_id, vencimiento_dias, stock_bajo, vencidos, sort, order, page, limit } = query;
+    const { search, rubro_id, archivados, sort, order, page, limit } = query;
     const skip = (page - 1) * limit;
 
     const ahora = new Date(Date.now());
     const hoyStr = toUTC3DateString(ahora);
     const limiteVencidos = new Date(hoyStr + 'T00:00:00.000Z');
-    // D = vencimiento_dias ?? 30 (default del badge "por_vencer")
-    const D = vencimiento_dias ?? 30;
-    const fechalimitePorVencer = new Date(limiteVencidos.getTime() + D * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10);
 
     // Construir cláusula where (sobre Lote, con producto.activo == true)
     const and: Prisma.LoteWhereInput[] = [];
@@ -293,23 +288,14 @@ export async function loteList(
       and.push({ producto: { rubro_id } });
     }
 
-    // Filtro por vencidos: estado vencido O fecha vencimiento < hoy
-    if (vencidos) {
-      and.push({
-        OR: [
-          { estado: 'vencido' },
-          { fecha_vencimiento: { lt: limiteVencidos } },
-        ],
-      });
-    } else if (vencimiento_dias !== undefined) {
-      // Filtro por ventana SOLO si vencimiento_dias viene explícito
-      const futureDate = new Date(limiteVencidos.getTime() + vencimiento_dias * 24 * 60 * 60 * 1000);
-      and.push({
-        AND: [
-          { fecha_vencimiento: { gte: limiteVencidos } },
-          { fecha_vencimiento: { lte: futureDate } },
-        ],
-      });
+    // Filtro de estado: dos vistas mutuamente excluyentes.
+    //   archivados === 'true' → SOLO terminales (agotado|vencido|descartado)
+    //   ausente o 'false'     → SOLO 'activo'
+    // Se compone (AND) con search/rubro sin cambios extra (RF-04/RF-05).
+    if (archivados === 'true') {
+      and.push({ estado: { in: ['agotado', 'vencido', 'descartado'] } });
+    } else {
+      and.push({ estado: 'activo' });
     }
 
     const where: Prisma.LoteWhereInput = { AND: and };
@@ -372,10 +358,17 @@ export async function loteList(
         unidad_medida: string;
         precio_venta: unknown;
         cantidad_aviso: unknown;
+        vencimiento_preaviso_dias: number | null;
         rubro: { id: string; nombre: string };
         proveedor: { id: string; razon_social: string };
       };
     }>).map((l) => {
+      // D por producto con fallback 30 (null en DB = usa default global)
+      const preavisoDias = l.producto.vencimiento_preaviso_dias ?? 30;
+      const fechalimitePorVencer = new Date(limiteVencidos.getTime() + preavisoDias * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+
       let estado_vencimiento: 'vencido' | 'por_vencer' | 'ok' = 'ok';
       if (l.fecha_vencimiento) {
         const vencStr = new Date(l.fecha_vencimiento).toISOString().slice(0, 10);
@@ -415,13 +408,12 @@ export async function loteList(
       };
     });
 
-    // Aplicar filtro stock_bajo en memoria (no filtró en la query por depender del agregado)
-    const dataFiltrada = stock_bajo ? data.filter((row) => row.stock_bajo) : data;
-
+    // El filtro por estado ya se aplicó a nivel de query (findMany + count), por lo que
+    // `data` y `total` solo contienen la vista correspondiente (activo o terminales).
     const totalPages = Math.ceil(total / limit);
 
     return ok({
-      data: dataFiltrada,
+      data,
       pagination: {
         page,
         limit,

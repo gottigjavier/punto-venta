@@ -16,14 +16,10 @@ export async function stockRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: authorize('admin', 'gerente', 'despachador'),
       schema: {
         description:
-          'Listar stock con UNA FILA POR LOTE (N° de Lote), con alertas de vencimiento y stock bajo.\n\n' +
-          '## Filtros de alertas\n' +
-          '- `vencimiento_dias`: Días para clasificar el badge `por_vencer` (default: 30, documentado)\n' +
-          '  - Sin el parámetro el listado devuelve TODOS los lotes vigentes (el badge usa el default 30)\n' +
-          '  - Con el parámetro explícito el listado se acota a la ventana de vencimiento\n' +
-          '- `stock_bajo`: Filtrar solo lotes de productos cuyo stock (suma de lotes activos no vencidos) < `cantidad_aviso` del producto\n' +
-          '- `vencidos`: Filtrar solo lotes vencidos\n' +
-          '- `search`: Búsqueda por nombre/código del producto o por N° de Lote',
+          'Listar stock con UNA FILA POR LOTE (N° de Lote), con alertas de vencimiento y stock bajo. Dos vistas mutuamente excluyentes.\n\n' +
+          '## Filtros\n' +
+          '- `archivados`: (opcional) `true` → SOLO lotes terminales (`agotado`/`vencido`/`descartado`); ausente o `false` → SOLO lotes `activo`\n' +
+          '- `search`: Búsqueda por nombre/código del producto o por N° de Lote (se compone con `archivados` y `rubro_id`)',
         tags: ['Stock'],
         // NOTE: querystring validation is handled by Zod (StockQuerySchema) in
         // listStockHandler. Do NOT duplicate it here — single source of truth.

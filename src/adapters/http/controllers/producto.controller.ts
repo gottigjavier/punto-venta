@@ -13,6 +13,7 @@ import {
   createProducto,
   updateProducto,
   deleteProducto,
+  restoreProducto,
   searchProductos,
 } from '../../../application/use-cases/producto.use-case.js';
 import type { DomainError } from '../../../shared/types/result.js';
@@ -33,12 +34,20 @@ function handleDomainError(reply: FastifyReply, error: DomainError): void {
 
   const statusCode = statusCodeMap[error.code] ?? 500;
 
+  // RF-05: spread condicional para CONFLICT con payload diferenciado (producto_id, activo, restaurable).
+  // Solo se agregan cuando existen — el 409 no-restaurable queda byte-idéntico al actual.
+  const extra =
+    error.code === 'CONFLICT' && 'producto_id' in error
+      ? { producto_id: error.producto_id, activo: error.activo, restaurable: error.restaurable }
+      : {};
+
   reply.status(statusCode).send({
     success: false,
     error: {
       code: error.code,
       message: error.message,
       details: 'details' in error ? error.details : undefined,
+      ...extra,
     },
   });
 }
@@ -190,6 +199,38 @@ export async function deleteProductoHandler(
   }
 
   const result = await deleteProducto(parsed.data.id);
+
+  if (result.isErr()) {
+    return handleDomainError(reply, result.error);
+  }
+
+  reply.send({
+    success: true,
+    data: result.value,
+  });
+}
+
+// POST /api/v1/productos/:id/restore
+// Restaura un producto inactivo (activo=true). Idempotente: si ya está activo → 200 no-op.
+// Bloqueado con VALIDATION_ERROR (400) si tiene lote activo (mismo criterio que deleteProducto).
+export async function restoreProductoHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const params = request.params as { id: string };
+  const parsed = ProductoIdParamSchema.safeParse(params);
+
+  if (!parsed.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'ID de producto inválido',
+      },
+    });
+  }
+
+  const result = await restoreProducto(parsed.data.id);
 
   if (result.isErr()) {
     return handleDomainError(reply, result.error);

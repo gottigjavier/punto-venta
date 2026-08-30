@@ -71,8 +71,7 @@ export function StockPage() {
   // Filters
   const [search, setSearch] = useState('');
   const [rubroId, setRubroId] = useState<string>('');
-  const [stockBajo, setStockBajo] = useState(false);
-  const [vencidos, setVencidos] = useState(false);
+  const [archivados, setArchivados] = useState(false);
 
   // Sort
   const [sortField, setSortField] = useState<SortField>('created_at');
@@ -136,8 +135,7 @@ export function StockPage() {
       };
       if (search) params.search = search;
       if (rubroId) params.rubro_id = rubroId;
-      if (stockBajo) params.stock_bajo = true;
-      if (vencidos) params.vencidos = true;
+      if (archivados) params.archivados = true;
 
       const { data } = await lotesApi.list(params);
       const response = data as ApiResponse<LoteItem[]>;
@@ -148,7 +146,7 @@ export function StockPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, rubroId, stockBajo, vencidos, sortField, sortOrder, pagination.limit]);
+  }, [search, rubroId, archivados, sortField, sortOrder, pagination.limit]);
 
   useEffect(() => {
     fetchStock(1);
@@ -178,8 +176,7 @@ export function StockPage() {
   const resetFilters = () => {
     setSearch('');
     setRubroId('');
-    setStockBajo(false);
-    setVencidos(false);
+    setArchivados(false);
     setSortField('created_at');
     setSortOrder('desc');
   };
@@ -340,12 +337,8 @@ export function StockPage() {
               </SelectContent>
             </Select>
 
-            <Button variant={stockBajo ? 'default' : 'outline'} size="sm" onClick={() => setStockBajo((p) => !p)}>
-              Stock bajo
-            </Button>
-
-            <Button variant={vencidos ? 'default' : 'outline'} size="sm" onClick={() => setVencidos((p) => !p)}>
-              Vencidos
+            <Button variant={archivados ? 'default' : 'outline'} size="sm" onClick={() => setArchivados((p) => !p)}>
+              Archivados
             </Button>
 
             <Button variant="outline" size="icon" onClick={() => fetchStock(pagination.page)}>
@@ -367,7 +360,7 @@ export function StockPage() {
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Package className="mb-2 h-8 w-8" />
-              <p>No hay lotes en stock</p>
+              <p>{archivados ? 'No hay lotes archivados' : 'No hay lotes en stock'}</p>
             </div>
           ) : (
             <>
@@ -423,9 +416,11 @@ export function StockPage() {
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(l)} title="Editar">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openRetirar(l)} title="Retirar">
-                              <Ban className="h-3.5 w-3.5" />
-                            </Button>
+                            {!archivados && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openRetirar(l)} title="Retirar">
+                                <Ban className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openDelete(l)} title="Eliminar">
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>

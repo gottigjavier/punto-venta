@@ -100,6 +100,7 @@ export const productosApi = {
   create: (data: unknown) => api.post<ApiResponse<unknown>>('/productos', data),
   update: (id: string, data: unknown) => api.put<ApiResponse<unknown>>(`/productos/${id}`, data),
   delete: (id: string) => api.delete<ApiResponse<unknown>>(`/productos/${id}`),
+  restore: (id: string) => api.post<ApiResponse<unknown>>(`/productos/${id}/restore`, {}),
   search: (q: string, tipo?: string) =>
     api.get<ApiResponse<unknown[]>>('/productos/search', { params: { q, tipo } }),
 };
