@@ -78,7 +78,7 @@ interface ProductSearchResult {
   id: string;
   nombre: string;
   codigo: string;
-  cantidad_disponible: number;
+  stock_actual: number;
   precio_venta: number;
   unidad_medida: string;
   rubro_id?: string;
@@ -233,7 +233,7 @@ function ProductCard({
               {product.codigo}
             </p>
             <p className="text-xs text-muted-foreground">
-              Stock: {product.cantidad_disponible} {product.unidad_medida}
+              Stock: {product.stock_actual} {product.unidad_medida}
             </p>
             {ultimaCantidad != null && ultimaCantidad > 0 && (
               <p className="text-[10px] text-blue-600 dark:text-blue-400">
@@ -443,13 +443,13 @@ function POSView() {
     // user. We only block hard when there is zero stock.
     let qty = requestedQty;
     let stockWarning: string | null = null;
-    if (qty > product.cantidad_disponible) {
-      if (product.cantidad_disponible <= 0) {
-        setSearchError(`Stock insuficiente para ${product.nombre}. Disponible: ${product.cantidad_disponible}`);
+    if (qty > product.stock_actual) {
+      if (product.stock_actual <= 0) {
+        setSearchError(`Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}`);
         return;
       }
-      qty = product.cantidad_disponible;
-      stockWarning = `Stock insuficiente para ${product.nombre}: se cargó el disponible (${product.cantidad_disponible} ${product.unidad_medida}) en lugar de la última venta (${requestedQty} ${product.unidad_medida}).`;
+      qty = product.stock_actual;
+      stockWarning = `Stock insuficiente para ${product.nombre}: se cargó el disponible (${product.stock_actual} ${product.unidad_medida}) en lugar de la última venta (${requestedQty} ${product.unidad_medida}).`;
     }
 
     // If cart is frozen after a confirmed sale, discard the previous cart and
@@ -463,7 +463,7 @@ function POSView() {
           codigo: product.codigo,
           precio_venta: product.precio_venta,
           cantidad: qty,
-          stock_disponible: product.cantidad_disponible,
+          stock_disponible: product.stock_actual,
           unidad_medida: product.unidad_medida,
         },
       ]);
@@ -479,8 +479,8 @@ function POSView() {
       const existing = prev.find((item) => item.producto_id === product.id);
       if (existing) {
         const newQty = existing.cantidad + qty;
-        if (newQty > product.cantidad_disponible) {
-          setSearchError(`Stock insuficiente para ${product.nombre}. Disponible: ${product.cantidad_disponible}`);
+        if (newQty > product.stock_actual) {
+          setSearchError(`Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}`);
           return prev;
         }
         return prev.map((item) =>
@@ -497,7 +497,7 @@ function POSView() {
           codigo: product.codigo,
           precio_venta: product.precio_venta,
           cantidad: qty,
-          stock_disponible: product.cantidad_disponible,
+          stock_disponible: product.stock_actual,
           unidad_medida: product.unidad_medida,
         },
       ];
@@ -717,8 +717,8 @@ function POSView() {
                     {allProducts.map((product) => {
                       const inCart = cart.find((item) => item.producto_id === product.id);
                       const atStockLimit = inCart
-                        ? inCart.cantidad >= product.cantidad_disponible
-                        : product.cantidad_disponible <= 0;
+                        ? inCart.cantidad >= product.stock_actual
+                        : product.stock_actual <= 0;
                       const lastQty = lastQuantities.get(product.id) ?? 1;
                       const ultimaCantidad = ultimasVentasMap.get(product.id)?.ultima_cantidad ?? null;
 
@@ -751,8 +751,8 @@ function POSView() {
                           {products.map((product) => {
                             const inCart = cart.find((item) => item.producto_id === product.id);
                             const atStockLimit = inCart
-                              ? inCart.cantidad >= product.cantidad_disponible
-                              : product.cantidad_disponible <= 0;
+                              ? inCart.cantidad >= product.stock_actual
+                              : product.stock_actual <= 0;
                             const lastQty = lastQuantities.get(product.id) ?? 1;
                             const ultimaCantidad = ultimasVentasMap.get(product.id)?.ultima_cantidad ?? null;
 
@@ -791,8 +791,8 @@ function POSView() {
             {searchResults.map((product) => {
               const inCart = cart.find((item) => item.producto_id === product.id);
               const atStockLimit = inCart
-                ? inCart.cantidad >= product.cantidad_disponible
-                : product.cantidad_disponible <= 0;
+                ? inCart.cantidad >= product.stock_actual
+                : product.stock_actual <= 0;
               const lastQty = lastQuantities.get(product.id) ?? 1;
               const ultimaCantidad = ultimasVentasMap.get(product.id)?.ultima_cantidad ?? null;
 

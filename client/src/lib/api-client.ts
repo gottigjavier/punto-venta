@@ -158,16 +158,6 @@ export interface LoteItem {
   stock_bajo: boolean;
 }
 
-// Payload para crear un lote (POST /lotes)
-export interface CrearLotePayload {
-  producto_id: string;
-  numero_lote?: string | null;
-  cantidad: number;
-  fecha_compra?: string | null;
-  fecha_vencimiento?: string | null;
-  precio_compra: number;
-}
-
 // Payload para editar un lote (PUT /lotes/:id) — NUNCA cantidad_disponible
 export interface EditarLotePayload {
   numero_lote?: string | null;
@@ -179,8 +169,6 @@ export interface EditarLotePayload {
 export const lotesApi = {
   list: (params?: Record<string, unknown>) =>
     api.get<ApiResponse<LoteItem[]>>('/stock', { params }),
-  create: (data: CrearLotePayload) =>
-    api.post<ApiResponse<LoteItem>>('/lotes', data),
   update: (id: string, data: EditarLotePayload) =>
     api.put<ApiResponse<LoteItem>>(`/lotes/${id}`, data),
   retirar: (id: string) =>

@@ -36,35 +36,6 @@ export const StockIngresoSchema = z.object({
 
 export type StockIngresoInput = z.infer<typeof StockIngresoSchema>;
 
-// Crear lote — idem al ingreso pero SIN actualizar cantidad_aviso del producto
-export const CrearLoteSchema = z.object({
-  producto_id: z
-    .string()
-    .uuid('ID de producto inválido'),
-  numero_lote: z
-    .string()
-    .max(50, 'Número de lote máximo 50 caracteres')
-    .nullable()
-    .optional()
-    .transform((v) => (v === '' ? null : v)),
-  cantidad: z
-    .number()
-    .positive('Cantidad debe ser mayor a 0'),
-  fecha_compra: z
-    .string()
-    .optional()
-    .nullable(),
-  fecha_vencimiento: z
-    .string()
-    .optional()
-    .nullable(),
-  precio_compra: z
-    .number()
-    .min(0, 'Precio de compra no puede ser negativo'),
-});
-
-export type CrearLoteInput = z.infer<typeof CrearLoteSchema>;
-
 // Editar lote — NUNCA toca cantidad_disponible (el stock solo cambia por ingreso/venta)
 export const EditarLoteSchema = z.object({
   numero_lote: z

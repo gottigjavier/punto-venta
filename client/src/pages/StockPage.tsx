@@ -16,7 +16,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Pencil, RefreshCw, Package, Plus, LogIn, Ban, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Pencil, RefreshCw, Package, LogIn, Ban, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 // --- Types ---
 type LoteEstado = LoteItem['estado'];
@@ -83,7 +83,7 @@ export function StockPage() {
   const [productos, setProductos] = useState<ProductoOption[]>([]);
 
   // Modal states
-  const [loteModal, setLoteModal] = useState<null | 'crear' | 'ingreso'>(null);
+  const [loteModal, setLoteModal] = useState<null | 'ingreso'>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<LoteItem | null>(null);
   const [retirarOpen, setRetirarOpen] = useState(false);
@@ -94,7 +94,7 @@ export function StockPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Form para crear/ingreso
+  // Form para ingreso de stock
   const INITIAL_LOTE_FORM = {
     producto_id: '',
     numero_lote: '',
@@ -102,7 +102,6 @@ export function StockPage() {
     fecha_compra: '',
     fecha_vencimiento: '',
     precio_compra: '',
-    cantidad_aviso: '',
   };
   const [loteForm, setLoteForm] = useState(INITIAL_LOTE_FORM);
 
@@ -186,10 +185,10 @@ export function StockPage() {
   };
 
   // --- Handlers de modales ---
-  const openLoteModal = (mode: 'crear' | 'ingreso') => {
+  const openLoteModal = () => {
     setLoteForm(INITIAL_LOTE_FORM);
     setFormError(null);
-    setLoteModal(mode);
+    setLoteModal('ingreso');
   };
 
   const openEdit = (lote: LoteItem) => {
@@ -232,14 +231,7 @@ export function StockPage() {
         fecha_vencimiento: loteForm.fecha_vencimiento || null,
         precio_compra: Number(loteForm.precio_compra),
       };
-      if (loteModal === 'ingreso') {
-        await stockApi.ingreso({
-          ...base,
-          cantidad_aviso: loteForm.cantidad_aviso ? Number(loteForm.cantidad_aviso) : undefined,
-        });
-      } else {
-        await lotesApi.create(base);
-      }
+      await stockApi.ingreso(base);
       setLoteModal(null);
       fetchStock(pagination.page);
     } catch (err: unknown) {
@@ -316,10 +308,7 @@ export function StockPage() {
           <p className="text-sm text-muted-foreground">Gestioná los lotes (N° de Lote) del inventario</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => openLoteModal('crear')}>
-            <Plus className="mr-1 h-4 w-4" /> Nuevo Lote
-          </Button>
-          <Button variant="outline" onClick={() => openLoteModal('ingreso')}>
+          <Button variant="outline" onClick={() => openLoteModal()}>
             <LogIn className="mr-1 h-4 w-4" /> Ingreso de Stock
           </Button>
         </div>
@@ -492,11 +481,9 @@ export function StockPage() {
       <Dialog open={loteModal !== null} onOpenChange={(o) => !o && setLoteModal(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{loteModal === 'ingreso' ? 'Ingreso de Stock' : 'Nuevo Lote'}</DialogTitle>
+            <DialogTitle>Ingreso de Stock</DialogTitle>
             <DialogDescription>
-              {loteModal === 'ingreso'
-                ? 'Crea o suma unidades a un lote existente (por N° de Lote y vencimiento).'
-                : 'Crea un lote nuevo para un producto existente.'}
+              Crea o suma unidades a un lote existente (por N° de Lote y vencimiento).
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitLote} className="space-y-4">
@@ -538,12 +525,6 @@ export function StockPage() {
                 <Label htmlFor="precio_compra">Precio Compra *</Label>
                 <Input id="precio_compra" type="number" step="0.01" min="0" value={loteForm.precio_compra} onChange={(e) => setLoteForm((f) => ({ ...f, precio_compra: e.target.value }))} placeholder="0.00" />
               </div>
-              {loteModal === 'ingreso' && (
-                <div className="space-y-2">
-                  <Label htmlFor="cantidad_aviso">Cantidad Aviso</Label>
-                  <Input id="cantidad_aviso" type="number" min="0" value={loteForm.cantidad_aviso} onChange={(e) => setLoteForm((f) => ({ ...f, cantidad_aviso: e.target.value }))} placeholder="0" />
-                </div>
-              )}
             </div>
             {formError && <p className="text-sm font-medium text-destructive">{formError}</p>}
             <DialogFooter>

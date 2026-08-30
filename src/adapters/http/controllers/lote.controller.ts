@@ -1,16 +1,15 @@
 // src/adapters/http/controllers/lote.controller.ts
 // Lote (stock) HTTP controllers — CRUD de lotes tras el split Producto/Lote.
-// El stock vive en Lote: POST /lotes crea un lote, PUT /lotes/:id edita
-// metadatos (NUNCA cantidad), POST /lotes/:id/retirar descarta y
+// El alta de lotes vive en POST /stock/ingreso (loteIngreso, ver stock.routes.ts).
+// Acá: PUT /lotes/:id edita metadatos (NUNCA cantidad),
+// POST /lotes/:id/retirar descarta y
 // DELETE /lotes/:id borra físicamente solo si no tiene DetalleVenta.
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import {
-  CrearLoteSchema,
   EditarLoteSchema,
   LoteIdParamSchema,
 } from '../../../application/dto/stock.dto.js';
 import {
-  loteIngreso,
   loteEdit,
   loteRetirar,
   loteDelete,
@@ -43,38 +42,8 @@ function handleDomainError(reply: FastifyReply, error: DomainError): void {
   });
 }
 
-// POST /api/v1/lotes
-// Crea un lote nuevo para un producto existente. Reutiliza loteIngreso
-// (sin cantidad_aviso → no toca el umbral del producto).
-export async function crearLoteHandler(
-  request: FastifyRequest,
-  reply: FastifyReply
-): Promise<void> {
-  const parsed = CrearLoteSchema.safeParse(request.body);
-
-  if (!parsed.success) {
-    return reply.status(400).send({
-      success: false,
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
-        details: parsed.error.flatten().fieldErrors,
-      },
-    });
-  }
-
-  const result = await loteIngreso(parsed.data);
-
-  if (result.isErr()) {
-    return handleDomainError(reply, result.error);
-  }
-
-  const { esNuevo, lote } = result.value;
-  reply.status(esNuevo ? 201 : 200).send({
-    success: true,
-    data: lote,
-  });
-}
+// NOTE: El alta de lotes (POST) vive en POST /stock/ingreso (loteIngreso).
+// Este archivo solo expone editar / retirar / eliminar.
 
 // PUT /api/v1/lotes/:id
 // Edita SOLO numero_lote, fecha_compra, fecha_vencimiento, precio_compra.

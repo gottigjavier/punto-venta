@@ -153,7 +153,7 @@ test.describe('Stock (Lote) - Flujo de gestión de inventario', () => {
   test('Editar lote existente', async () => {
     const { productoId } = await createPrereqData(api);
 
-    const create = await api.request<LoteResponse>('POST', '/api/v1/lotes', {
+    const create = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
       producto_id: productoId,
       numero_lote: `LOTE-${Date.now()}`,
       cantidad: 30,

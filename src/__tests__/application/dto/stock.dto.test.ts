@@ -1,11 +1,10 @@
 // src/__tests__/application/dto/stock.dto.test.ts
 // Stock DTO validation tests
 // Tras el split Producto/Lote, el ingreso opera sobre LOTES (producto_id +
-// numero_lote + cantidad) y el CRUD de lotes usa CrearLoteSchema/EditarLoteSchema.
+// numero_lote + cantidad) y el CRUD de lotes usa EditarLoteSchema.
 import { describe, it, expect } from 'vitest';
 import {
   StockIngresoSchema,
-  CrearLoteSchema,
   EditarLoteSchema,
   LoteIdParamSchema,
   StockQuerySchema,
@@ -139,43 +138,6 @@ describe('Stock DTO Validation', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.numero_lote).toBeNull();
-      }
-    });
-  });
-
-  describe('CrearLoteSchema', () => {
-    const validLote = {
-      producto_id: PRODUCTO_ID,
-      numero_lote: 'L-002',
-      cantidad: 10,
-      precio_compra: 120,
-    };
-
-    it('should validate a valid lote creation', () => {
-      const result = CrearLoteSchema.safeParse(validLote);
-      expect(result.success).toBe(true);
-    });
-
-    it('should require producto_id', () => {
-      const { producto_id, ...sinProducto } = validLote;
-      const result = CrearLoteSchema.safeParse(sinProducto);
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject cantidad <= 0', () => {
-      const result = CrearLoteSchema.safeParse({ ...validLote, cantidad: 0 });
-      expect(result.success).toBe(false);
-    });
-
-    it('should NOT include cantidad_aviso in the parsed output', () => {
-      // Crear lote NO actualiza el umbral del producto (eso es del ingreso)
-      const result = CrearLoteSchema.safeParse({
-        ...validLote,
-        cantidad_aviso: 99,
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect('cantidad_aviso' in result.data).toBe(false);
       }
     });
   });

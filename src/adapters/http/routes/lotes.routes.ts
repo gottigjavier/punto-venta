@@ -3,7 +3,6 @@
 // split Producto/Lote; estos endpoints administran lotes directamente.
 import type { FastifyInstance } from 'fastify';
 import {
-  crearLoteHandler,
   editarLoteHandler,
   retirarLoteHandler,
   eliminarLoteHandler,
@@ -11,35 +10,8 @@ import {
 import { authorize } from '../middleware/auth.middleware.js';
 
 export async function loteRoutes(fastify: FastifyInstance): Promise<void> {
-  // POST /api/v1/lotes
-  fastify.post(
-    '/',
-    {
-      preHandler: authorize('admin', 'gerente'),
-      schema: {
-        description:
-          'Crear un lote nuevo para un producto existente.\n\n' +
-          '## Comportamiento\n' +
-          '- Crea un lote con `cantidad` inicial (estado `activo`)\n' +
-          '- El N° de Lote es opcional; sin él no hay merge (lote siempre nuevo)\n' +
-          '- NO actualiza `cantidad_aviso` del producto (para eso usar POST /stock/ingreso)',
-        tags: ['Lotes'],
-        // NOTE: body validation is handled by Zod (CrearLoteSchema) in
-        // crearLoteHandler. Single source of truth — do not duplicate here.
-        security: [{ bearerAuth: [] }],
-        response: {
-          201: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
-            },
-          },
-        },
-      },
-    },
-    crearLoteHandler
-  );
+  // NOTE: El alta de lotes (POST) vive en POST /stock/ingreso (loteIngreso).
+  // Acá solo editar / retirar / eliminar.
 
   // PUT /api/v1/lotes/:id
   fastify.put(

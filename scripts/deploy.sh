@@ -64,8 +64,14 @@ podman compose -f "$COMPOSE_FILE" exec -T api npx prisma migrate deploy 2>/dev/n
   warn "Migrations may need the API to be running. Attempting restart..."
   podman compose -f "$COMPOSE_FILE" up -d api
   sleep 10
-  podman compose -f "$COMPLOY_FILE" exec -T api npx prisma migrate deploy || err "Migration failed — check logs."
+  podman compose -f "$COMPOSE_FILE" exec -T api npx prisma migrate deploy || err "Migration failed — check logs."
 }
+
+# Seed: crea el usuario admin (upsert idempotente) para el primer ingreso.
+# Sin esto, la DB queda sin usuarios y el primer login falla con 401.
+log "Running database seed (idempotente)..."
+podman compose -f "$COMPOSE_FILE" exec -T api npx prisma db seed 2>/dev/null || \
+  warn "Seed falló — el primer usuario admin podría no existir. Corré 'npx prisma db seed' manualmente."
 
 # ─── Step 5: Deploy with rolling restart ──────
 log "Step 5/5: Deploying services..."
