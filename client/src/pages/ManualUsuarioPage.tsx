@@ -630,6 +630,12 @@ export function ManualUsuarioPage() {
               este valor, el número de stock aparece en azul. Si lo dejás en 0, no hay
               aviso.
             </li>
+            <li>
+              <span className="font-medium">Días Preaviso Vencimiento</span> — cuántos días antes de la fecha de
+              vencimiento el sistema marca el lote como "Por vencer". Default: 30 días.
+              Aceite (larga vida): 60; Pan (vence pronto): 3. Rango: 0–365. Si es 0,
+              nunca marca "Por vencer" (solo "OK" o "Vencido").
+            </li>
             <li><span className="font-medium">Fecha Compra</span> — cuándo compraste ese lote (opcional).</li>
             <li>
               <span className="font-medium">Fecha Vencimiento</span> — cuándo vence (opcional). Si lo cargás,
@@ -916,7 +922,9 @@ export function ManualUsuarioPage() {
             </li>
             <li>
               <Badge variant="outline" className="align-middle">Por vencer</Badge> — se acerca la fecha de
-              vencimiento. Vendelo o fijate qué vas a hacer con él.
+              vencimiento (según los <span className="font-medium">Días Preaviso Vencimiento</span>
+              configurados en cada producto: default 30, aceite 60, pan 3, etc.). Vendelo
+              o fijate qué vas a hacer con él.
             </li>
             <li>
               <Badge variant="destructive" className="align-middle">Vencido</Badge> — ya venció. No debería venderse.
