@@ -78,14 +78,14 @@ export function onClearCart(): {
 /**
  * When the user adds a product while the cart is in 'confirmed' mode:
  * discard the previous sale, switch to editing, clear saleResult,
- * and surface any stock warning as searchError.
+ * and surface any stock warning as an error saleResult (shown in the
+ * cart footer). The searchError channel is reserved for search errors.
  */
 export function onAddWhenConfirmed(
   stockWarning: string | null,
-): { cartMode: CartMode; saleResult: null; searchError: string } {
+): { cartMode: CartMode; saleResult: SaleResult } {
   return {
     cartMode: 'editing',
-    saleResult: null,
-    searchError: stockWarning ?? '',
+    saleResult: stockWarning ? { type: 'error', message: stockWarning } : null,
   };
 }

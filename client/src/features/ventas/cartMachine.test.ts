@@ -69,26 +69,24 @@ describe('cartMachine', () => {
   });
 
   describe('onAddWhenConfirmed', () => {
-    it('returns editing mode, null saleResult, and empty searchError when no warning', () => {
+    it('returns editing mode and null saleResult when no warning', () => {
       const next = onAddWhenConfirmed(null);
 
       expect(next.cartMode).toBe('editing');
       expect(next.saleResult).toBeNull();
-      expect(next.searchError).toBe('');
     });
 
-    it('returns the stock warning as searchError when provided', () => {
+    it('returns the stock warning as an error saleResult when provided', () => {
       const warning = 'Stock insuficiente para Aceite: se cargó el disponible (2 L) en lugar de la última venta (5 L).';
       const next = onAddWhenConfirmed(warning);
 
       expect(next.cartMode).toBe('editing');
-      expect(next.saleResult).toBeNull();
-      expect(next.searchError).toBe(warning);
+      expect(next.saleResult).toEqual({ type: 'error', message: warning });
     });
 
-    it('uses empty string when warning is empty string (not null)', () => {
+    it('returns null saleResult when warning is empty string (not null)', () => {
       const next = onAddWhenConfirmed('');
-      expect(next.searchError).toBe('');
+      expect(next.saleResult).toBeNull();
     });
   });
 
@@ -112,15 +110,14 @@ describe('cartMachine', () => {
       expect(saleResult).not.toBeNull();
       expect(saleResult!.type).toBe('success');
 
-      // 2. User adds a new product while confirmed → resets to editing
+      // 2. User adds a new product while confirmed with a stock warning
+      //    → resets to editing and surfaces the warning in the cart footer
       const addResult = onAddWhenConfirmed('Stock bajo');
       cartMode = addResult.cartMode;
       saleResult = addResult.saleResult;
-      searchError = addResult.searchError;
 
       expect(cartMode).toBe('editing');
-      expect(saleResult).toBeNull();
-      expect(searchError).toBe('Stock bajo');
+      expect(saleResult).toEqual({ type: 'error', message: 'Stock bajo' });
 
       // 3. User clears the cart → everything clean
       const clearResult = onClearCart();

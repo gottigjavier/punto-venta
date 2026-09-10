@@ -16,7 +16,7 @@ import { onConfirmSuccess, onConfirmError, onClearCart, onAddWhenConfirmed, coun
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -453,7 +453,7 @@ function POSView() {
     let stockWarning: string | null = null;
     if (qty > product.stock_actual) {
       if (product.stock_actual <= 0) {
-        setSearchError(`Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}`);
+        setSaleResult({ type: 'error', message: `Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}` });
         return;
       }
       qty = product.stock_actual;
@@ -478,7 +478,7 @@ function POSView() {
       const next = onAddWhenConfirmed(stockWarning);
       setCartMode(next.cartMode);
       setSaleResult(next.saleResult);
-      setSearchError(next.searchError);
+      setSearchError('');
       setLastQuantities((prev) => new Map(prev).set(product.id, qty));
       return;
     }
@@ -488,7 +488,7 @@ function POSView() {
       if (existing) {
         const newQty = existing.cantidad + qty;
         if (newQty > product.stock_actual) {
-          setSearchError(`Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}`);
+          setSaleResult({ type: 'error', message: `Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}` });
           return prev;
         }
         return prev.map((item) =>
@@ -512,7 +512,7 @@ function POSView() {
     });
     setLastQuantities((prev) => new Map(prev).set(product.id, qty));
     if (stockWarning) {
-      setSearchError(stockWarning);
+      setSaleResult({ type: 'error', message: stockWarning });
     } else {
       setSearchError('');
     }
@@ -527,7 +527,7 @@ function POSView() {
           const newQty = item.cantidad + delta;
           if (newQty <= 0) return null;
           if (newQty > item.stock_disponible) {
-            setSearchError(`Stock insuficiente para ${item.nombre}. Disponible: ${item.stock_disponible}`);
+            setSaleResult({ type: 'error', message: `Stock insuficiente para ${item.nombre}. Disponible: ${item.stock_disponible}` });
             return item;
           }
           setSearchError('');
@@ -547,7 +547,7 @@ function POSView() {
       prev.map((item) => {
         if (item.producto_id !== productoId) return item;
         if (qty > item.stock_disponible) {
-          setSearchError(`Stock insuficiente para ${item.nombre}. Disponible: ${item.stock_disponible}`);
+          setSaleResult({ type: 'error', message: `Stock insuficiente para ${item.nombre}. Disponible: ${item.stock_disponible}` });
           return { ...item, cantidad: item.stock_disponible };
         }
         setSearchError('');
@@ -636,9 +636,9 @@ function POSView() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
+    <div className="flex flex-col sm:flex-row gap-6">
       {/* Left: Search + Products */}
-      <div className="flex-1 space-y-4">
+      <div className="flex-1 space-y-4 order-2 sm:order-1">
         {/* Search bar */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -670,37 +670,6 @@ function POSView() {
           </div>
         )}
 
-        {/* Sale result feedback */}
-        {saleResult && (
-          <div
-            className={`flex items-center gap-2 rounded-md p-3 text-sm ${
-              saleResult.type === 'success'
-                ? 'bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200'
-                : 'bg-destructive/10 text-destructive'
-            }`}
-          >
-            {saleResult.type === 'success' ? (
-              <Check className="h-4 w-4 shrink-0" />
-            ) : (
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-            )}
-            <div className="flex-1">
-              <p className="font-medium">{saleResult.message}</p>
-              {saleResult.details && (
-                <p className="text-xs opacity-75">{saleResult.details}</p>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => setSaleResult(null)}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
-
         {/* Rubro tabs (hidden when search is active) */}
         {searchQuery.length < 3 && (
           <Tabs value={activeRubroTab} onValueChange={setActiveRubroTab}>
@@ -721,7 +690,7 @@ function POSView() {
             ) : (
               <>
                 <TabsContent value="todos">
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2 md:grid-cols-2">
                     {allProducts.map((product) => {
                       const inCart = cart.find((item) => item.producto_id === product.id);
                       const atStockLimit = inCart
@@ -755,7 +724,7 @@ function POSView() {
                           <p className="text-sm">No hay productos en este rubro</p>
                         </div>
                       ) : (
-                        <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="grid gap-2 md:grid-cols-2">
                           {products.map((product) => {
                             const inCart = cart.find((item) => item.producto_id === product.id);
                             const atStockLimit = inCart
@@ -795,7 +764,7 @@ function POSView() {
         )}
 
         {searchResults.length > 0 && (
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 md:grid-cols-2">
             {searchResults.map((product) => {
               const inCart = cart.find((item) => item.producto_id === product.id);
               const atStockLimit = inCart
@@ -821,7 +790,7 @@ function POSView() {
       </div>
 
       {/* Right: Cart */}
-      <div className="w-full lg:w-[380px] shrink-0">
+      <div className="w-full sm:w-[320px] lg:w-[380px] shrink-0 order-1 sm:order-2">
         <Card className="sticky top-4">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -955,6 +924,38 @@ function POSView() {
               </>
             )}
           </CardContent>
+          {/* Sale result feedback */}
+          {saleResult && (
+            <CardFooter>
+              <div
+                className={`flex w-full items-center gap-2 rounded-md p-3 text-sm ${
+                  saleResult.type === 'success'
+                    ? 'bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200'
+                    : 'bg-destructive/10 text-destructive'
+                }`}
+              >
+                {saleResult.type === 'success' ? (
+                  <Check className="h-4 w-4 shrink-0" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                )}
+                <div className="flex-1">
+                  <p className="font-medium">{saleResult.message}</p>
+                  {saleResult.details && (
+                    <p className="text-xs opacity-75">{saleResult.details}</p>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setSaleResult(null)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </CardFooter>
+          )}
         </Card>
       </div>
     </div>
@@ -2067,7 +2068,7 @@ export function VentasPage() {
       </div>
 
       <Tabs defaultValue="pos">
-        <TabsList>
+        <TabsList className="w-full justify-start flex-wrap h-auto gap-1">
           <TabsTrigger value="pos">
             <ShoppingCart className="mr-2 h-4 w-4" />
             Terminal POS
