@@ -5,6 +5,8 @@ import {
   onClearCart,
   onAddWhenConfirmed,
   countCartItems,
+  reconcileCartWithStock,
+  shouldBlockConfirm,
   type CartMode,
   type SaleResult,
 } from './cartMachine';
@@ -143,6 +145,99 @@ describe('cartMachine', () => {
       expect(cartMode).toBe('editing');
       expect(errorResult.saleResult!.type).toBe('error');
     });
+  });
+});
+
+describe('reconcileCartWithStock', () => {
+  it('clamps cantidad to the fresh stock and updates stock_disponible', () => {
+    const freshStock = new Map([['p1', 40]]);
+
+    const result = reconcileCartWithStock(
+      [
+        {
+          producto_id: 'p1',
+          cantidad: 50,
+          stock_disponible: 100,
+          nombre: 'Aceite',
+        },
+      ],
+      freshStock,
+    );
+
+    expect(result).toEqual([
+      { producto_id: 'p1', cantidad: 40, stock_disponible: 40, nombre: 'Aceite' },
+    ]);
+  });
+
+  it('keeps lines within stock but still refreshes stock_disponible', () => {
+    const freshStock = new Map([['p1', 40]]);
+
+    const result = reconcileCartWithStock(
+      [{ producto_id: 'p1', cantidad: 25, stock_disponible: 100 }],
+      freshStock,
+    );
+
+    expect(result).toEqual([{ producto_id: 'p1', cantidad: 25, stock_disponible: 40 }]);
+  });
+
+  it('removes lines whose fresh stock dropped to 0', () => {
+    const freshStock = new Map([['p1', 0]]);
+
+    const result = reconcileCartWithStock(
+      [{ producto_id: 'p1', cantidad: 50, stock_disponible: 100 }],
+      freshStock,
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it('preserves lines for products absent from the fresh map', () => {
+    const freshStock = new Map([['p2', 3]]);
+
+    const result = reconcileCartWithStock(
+      [{ producto_id: 'p1', cantidad: 50, stock_disponible: 100 }],
+      freshStock,
+    );
+
+    expect(result).toEqual([{ producto_id: 'p1', cantidad: 50, stock_disponible: 100 }]);
+  });
+
+  it('does not mutate the original lines array', () => {
+    const lines = [{ producto_id: 'p1', cantidad: 50, stock_disponible: 100 }];
+    const freshStock = new Map([['p1', 40]]);
+
+    reconcileCartWithStock(lines, freshStock);
+
+    expect(lines).toEqual([{ producto_id: 'p1', cantidad: 50, stock_disponible: 100 }]);
+  });
+});
+
+describe('shouldBlockConfirm', () => {
+  const base = {
+    cartLength: 2,
+    cartMode: 'editing' as CartMode,
+    submitting: false,
+    pendingError: false,
+  };
+
+  it('allows confirmation on a normal editable non-empty cart', () => {
+    expect(shouldBlockConfirm(base)).toBe(false);
+  });
+
+  it('blocks while an error/warning message is pending', () => {
+    expect(shouldBlockConfirm({ ...base, pendingError: true })).toBe(true);
+  });
+
+  it('blocks while submitting', () => {
+    expect(shouldBlockConfirm({ ...base, submitting: true })).toBe(true);
+  });
+
+  it('blocks on an empty cart', () => {
+    expect(shouldBlockConfirm({ ...base, cartLength: 0 })).toBe(true);
+  });
+
+  it('blocks on a confirmed (frozen) cart', () => {
+    expect(shouldBlockConfirm({ ...base, cartMode: 'confirmed' })).toBe(true);
   });
 });
 

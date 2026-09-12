@@ -40,6 +40,68 @@ export function countCartItems(lines: CountableCartLine[]): number {
   }, 0);
 }
 
+/**
+ * A cart line needs only these three fields to be reconciled against fresh
+ * stock. Kept structural so it works with the local `CartItem` type in
+ * VentasPage without a circular import.
+ */
+export interface ReconcileLine {
+  producto_id: string;
+  cantidad: number;
+  stock_disponible: number;
+}
+
+/**
+ * Reconcile cart lines against a server-fresh stock map.
+ *
+ * Used after a sale confirmation fails with STOCK_INSUFFICIENT: another user
+ * closed a sale first, so the stock the cart was built against is stale and
+ * some `cantidad` values may exceed what actually remains. For every line
+ * whose product exists in the fresh map:
+ *  - `stock_disponible` is updated to the fresh value;
+ *  - `cantidad` is clamped to `min(cantidad, stock)` (never negative);
+ *  - lines whose quantity drops to 0 are removed (that stock is gone).
+ * Lines for products absent from the map are preserved untouched.
+ */
+export function reconcileCartWithStock<L extends ReconcileLine>(
+  lines: L[],
+  freshStock: Map<string, number>,
+): L[] {
+  return lines
+    .map((line) => {
+      const stock = freshStock.get(line.producto_id);
+      if (stock === undefined) return line;
+      const clamped = Math.min(line.cantidad, Math.max(0, stock));
+      return clamped <= 0
+        ? null
+        : { ...line, cantidad: clamped, stock_disponible: stock };
+    })
+    .filter((line): line is L => line !== null);
+}
+
+/**
+ * Whether the "Confirmar Venta" action must be blocked.
+ *
+ * The POS blocks confirmation while the operator still has an unacknowledged
+ * warning visible (a stock-insufficiency message shown in the cart footer): a
+ * distracted user could confirm a sale without noticing that the quantities
+ * changed (e.g. after another user consumed stock first). Closing the warning
+ * message re-enables the action.
+ */
+export function shouldBlockConfirm(args: {
+  cartLength: number;
+  cartMode: CartMode;
+  submitting: boolean;
+  pendingError: boolean;
+}): boolean {
+  return (
+    args.submitting ||
+    args.cartLength === 0 ||
+    args.cartMode === 'confirmed' ||
+    args.pendingError
+  );
+}
+
 export type SaleResult =
   | { type: 'success' | 'error'; message: string; details?: string }
   | null;

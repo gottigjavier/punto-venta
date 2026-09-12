@@ -12,7 +12,7 @@ import {
   type HistorialQueryParams,
 } from '@/lib/api-client';
 import { formatDate } from '@/lib/format';
-import { onConfirmSuccess, onConfirmError, onClearCart, onAddWhenConfirmed, countCartItems } from '@/features/ventas/cartMachine';
+import { onConfirmSuccess, onConfirmError, onClearCart, onAddWhenConfirmed, countCartItems, reconcileCartWithStock, shouldBlockConfirm } from '@/features/ventas/cartMachine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -100,16 +100,6 @@ interface CartItem {
   cantidad: number;
   stock_disponible: number;
   unidad_medida: string;
-}
-
-interface VentaListItem {
-  id: string;
-  usuario_id: string;
-  usuario_nombre: string;
-  total: number;
-  estado: 'pendiente' | 'completada' | 'cancelada';
-  cantidad_items: number;
-  created_at: string;
 }
 
 interface VentaDetalle {
@@ -308,9 +298,6 @@ function POSView() {
   // Last sale info per product (for addToCart quantity suggestion)
   const [ultimasVentasMap, setUltimasVentasMap] = useState<Map<string, UltimaVenta>>(new Map());
 
-  // Total quantity sold per product (for grid ordering by most sold)
-  const [masVendidosMap, setMasVendidosMap] = useState<Map<string, { veces_vendido: number; monto_total: number }>>(new Map());
-
   // Track last used quantity per product
   const [lastQuantities, setLastQuantities] = useState<Map<string, number>>(new Map());
 
@@ -332,7 +319,9 @@ function POSView() {
 
   // Load rubros + products + last-sold info. Extracted as useCallback so it can
   // be reused both on mount AND after a sale is confirmed (to refresh stock).
-  const loadRubrosAndProducts = useCallback(async () => {
+  // When `reconcileCart` is true it ALSO reconciles the cart lines against the
+  // fresh stock (used after a failed sale due to STOCK_INSUFFICIENT).
+  const loadRubrosAndProducts = useCallback(async (reconcileCart = false) => {
     setLoadingProducts(true);
     try {
       // Fetch rubros for tabs
@@ -372,7 +361,6 @@ function POSView() {
       }
 
       if (!mountedRef.current) return;
-      setMasVendidosMap(vendidosMap);
 
       // Sort: 3 groups — (1) sold + stock → most sold first,
       // (2) never-sold + stock → alphabetical, (3) no stock → last
@@ -404,6 +392,15 @@ function POSView() {
 
       setProductsByRubro(byRubro);
       setAllProducts(sorted);
+
+      // After a stock-conflict error (another user closed a sale first, so the
+      // stock this cart was built against moved), bring the cart back in line
+      // with the current DB stock: update each line's stock_disponible and
+      // clamp its cantidad.
+      if (reconcileCart) {
+        const freshStock = new Map(sorted.map((p) => [p.id, p.stock_actual]));
+        setCart((prev) => reconcileCartWithStock(prev, freshStock));
+      }
     } catch (err) {
       console.error('Error cargando productos del POS:', err);
     } finally {
@@ -622,6 +619,15 @@ function POSView() {
           message: errorData.message ?? 'Stock insuficiente',
           details: `Disponible: ${errorData.disponible} | Solicitado: ${errorData.solicitado}`,
         };
+        // Otro usuario cerró una venta primero: el stock cambió de base.
+        // Refrescá la grilla de productos (tarjetas con stock actual) y
+        // reconciliá el carrito contra ese stock, para que el operador vea
+        // cantidades reales antes de reintentar. Los resultados de búsqueda
+        // activa también se refrescan.
+        loadRubrosAndProducts(true);
+        if (searchQuery.length >= 3) {
+          handleSearch(searchQuery);
+        }
       } else {
         saleResultValue = {
           type: 'error',
@@ -906,7 +912,12 @@ function POSView() {
                   <Button
                     className="flex-1"
                     onClick={confirmSale}
-                    disabled={submitting || cart.length === 0 || cartMode === 'confirmed'}
+                    disabled={shouldBlockConfirm({
+                      cartLength: cart.length,
+                      cartMode,
+                      submitting,
+                      pendingError: saleResult?.type === 'error',
+                    })}
                   >
                     {submitting ? (
                       <>
