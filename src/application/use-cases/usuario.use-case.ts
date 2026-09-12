@@ -196,7 +196,7 @@ export async function updateUsuario(
     }
 
     // Hash password if provided
-    let updateData: Record<string, unknown> = { ...data };
+    const updateData: Record<string, unknown> = { ...data };
     if (data.password) {
       updateData.password_hash = await hashPassword(data.password);
       // Revocar todas las sesiones existentes al cambiar la contraseña (S5).

@@ -6,16 +6,10 @@ import type { AppResult } from '../../shared/types/result.js';
 import { databaseError } from '../../shared/types/result.js';
 import type { HistorialQueryInput, FilaHistorial } from '../dto/historial.dto.js';
 import { logger } from '../../infrastructure/logging/logger.js';
+import { toNumber } from '../../shared/utils/number.js';
+
 
 // Helper to convert Prisma Decimal to number
-function toNumber(val: unknown): number {
-  if (typeof val === 'number') return val;
-  if (typeof val === 'string') return parseFloat(val);
-  if (val && typeof val === 'object' && 'toNumber' in val) {
-    return (val as { toNumber: () => number }).toNumber();
-  }
-  return 0;
-}
 
 function startOfDay(d: string): Date {
   return new Date(`${d}T00:00:00.000Z`);

@@ -17,39 +17,18 @@ import {
   searchProductos,
 } from '../../../application/use-cases/producto.use-case.js';
 import type { DomainError } from '../../../shared/types/result.js';
+import { sendDomainError } from '../utils/domain-error.js';
 
 // Helper to handle domain errors
 function handleDomainError(reply: FastifyReply, error: DomainError): void {
-  const statusCodeMap: Record<DomainError['code'], number> = {
-    VALIDATION_ERROR: 400,
-    NOT_FOUND: 404,
-    UNAUTHORIZED: 401,
-    FORBIDDEN: 403,
-    CONFLICT: 409,
-    ACCOUNT_LOCKED: 423,
-    INVALID_CREDENTIALS: 401,
-    STOCK_INSUFFICIENT: 409,
-    DATABASE_ERROR: 500,
-  };
-
-  const statusCode = statusCodeMap[error.code] ?? 500;
-
-  // RF-05: spread condicional para CONFLICT con payload diferenciado (producto_id, activo, restaurable).
-  // Solo se agregan cuando existen — el 409 no-restaurable queda byte-idéntico al actual.
-  const extra =
+  // CONFLICT de producto lleva payload extra (producto_id, activo, restaurable).
+  sendDomainError(
+    reply,
+    error,
     error.code === 'CONFLICT' && 'producto_id' in error
       ? { producto_id: error.producto_id, activo: error.activo, restaurable: error.restaurable }
-      : {};
-
-  reply.status(statusCode).send({
-    success: false,
-    error: {
-      code: error.code,
-      message: error.message,
-      details: 'details' in error ? error.details : undefined,
-      ...extra,
-    },
-  });
+      : undefined,
+  );
 }
 
 // GET /api/v1/productos

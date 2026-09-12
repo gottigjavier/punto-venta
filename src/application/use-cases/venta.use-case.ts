@@ -24,21 +24,7 @@ import { logger } from "../../infrastructure/logging/logger.js";
 import { verifyPassword } from "../../infrastructure/auth/password.js";
 import { retirarLotesVencidos, toUTC3DateString } from "./stock.use-case.js";
 import { ADVISORY_LOCK_CIERRE_CAJA } from "../../infrastructure/database/transactions.js";
-
-// Helper to convert Prisma Decimal to number
-function toNumber(val: unknown): number {
-  if (typeof val === "number") return val;
-  if (typeof val === "string") return parseFloat(val);
-  if (val && typeof val === "object" && "toNumber" in val) {
-    return (val as { toNumber: () => number }).toNumber();
-  }
-  return 0;
-}
-
-// Helper: round to 2 decimals (money)
-function round2(val: number): number {
-  return Math.round(val * 100) / 100;
-}
+import { toNumber, round2 } from "../../shared/utils/number.js";
 
 // Helper to build start/end of day
 function startOfDay(date: Date): Date {

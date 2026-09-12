@@ -20,21 +20,7 @@ import type {
   EditarLoteInput,
 } from "../dto/stock.dto.js";
 import { logger } from "../../infrastructure/logging/logger.js";
-
-// Helper to convert Prisma Decimal to number
-function toNumber(val: unknown): number {
-  if (typeof val === "number") return val;
-  if (typeof val === "string") return parseFloat(val);
-  if (val && typeof val === "object" && "toNumber" in val) {
-    return (val as { toNumber: () => number }).toNumber();
-  }
-  return 0;
-}
-
-// Helper: round a number to 2 decimals (money)
-function round2(val: number): number {
-  return Math.round(val * 100) / 100;
-}
+import { toNumber, round2 } from "../../shared/utils/number.js";
 
 // Helper: get YYYY-MM-DD string of a Date in UTC-3 (America/Argentina/Buenos_Aires)
 // Shifts -3h from UTC to get the UTC-3 local date, using pure ms arithmetic.

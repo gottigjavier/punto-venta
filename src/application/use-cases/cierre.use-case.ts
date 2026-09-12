@@ -8,16 +8,7 @@ import type { ListCierresQueryInput } from '../dto/cierre.dto.js';
 import type { VentaCierreQueryInput } from '../dto/venta.dto.js';
 import type { VentaCierreRespuesta } from '../../domain/entities/venta.js';
 import { logger } from '../../infrastructure/logging/logger.js';
-
-// Helper to convert Prisma Decimal to number
-function toNumber(val: unknown): number {
-  if (typeof val === 'number') return val;
-  if (typeof val === 'string') return parseFloat(val);
-  if (val && typeof val === 'object' && 'toNumber' in val) {
-    return (val as { toNumber: () => number }).toNumber();
-  }
-  return 0;
-}
+import { toNumber } from '../../shared/utils/number.js';
 
 // Escape CSV field (wrap in quotes if contains comma or quote)
 function escapeCsv(value: string): string {

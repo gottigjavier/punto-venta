@@ -61,35 +61,40 @@ export async function loginUseCase(input: LoginInput): Promise<Result<LoginResul
   const isPasswordValid = await verifyPassword(password, user.password_hash);
 
   if (!isPasswordValid) {
-    // Increment failed attempts
-    const newAttempts = user.intentos_fallidos + 1;
-    const updateData: {
-      intentos_fallidos: number;
-      bloqueado_hasta?: Date;
-    } = {
-      intentos_fallidos: newAttempts,
-    };
+    // Incremento atómico (anti-TOCTOU, Q6): el contador se incrementa en BD con
+    // `{ increment: 1 }` en lugar de leer user.intentos_fallidos y volver a
+    // escribir (dos logins concurrentes con password mal podrían pisarse y
+    // evadir el lockout).
+    await prisma.usuario.update({
+      where: { id: user.id },
+      data: { intentos_fallidos: { increment: 1 } },
+    });
 
-    // Lock account after max attempts
-    if (newAttempts >= env.MAX_LOGIN_ATTEMPTS) {
-      const lockUntil = new Date(Date.now() + env.LOCKOUT_DURATION_MINUTES * 60 * 1000);
-      updateData.bloqueado_hasta = lockUntil;
-
+    // Evaluar el bloqueo con el valor recién incrementado para no decidir sobre
+    // un snapshot viejo.
+    const after = await prisma.usuario.findUnique({ where: { id: user.id } });
+    if (
+      after &&
+      after.intentos_fallidos >= env.MAX_LOGIN_ATTEMPTS &&
+      !after.bloqueado_hasta
+    ) {
+      const lockUntil = new Date(
+        Date.now() + env.LOCKOUT_DURATION_MINUTES * 60 * 1000,
+      );
+      await prisma.usuario.update({
+        where: { id: user.id },
+        data: { bloqueado_hasta: lockUntil },
+      });
       logger.warn(
         {
           userId: user.id,
           nik_usuario: user.nik_usuario,
-          attempts: newAttempts,
+          attempts: after.intentos_fallidos,
           lockedUntil: lockUntil,
         },
         'Cuenta bloqueada por intentos fallidos'
       );
     }
-
-    await prisma.usuario.update({
-      where: { id: user.id },
-      data: updateData,
-    });
 
     return credencialesInvalidas();
   }

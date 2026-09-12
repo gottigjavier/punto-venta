@@ -9,45 +9,10 @@ import {
   exportCierreCsv,
   listVentasByCierreConDetalles,
 } from '../../../application/use-cases/cierre.use-case.js';
-import type { DomainError } from '../../../shared/types/result.js';
+import { sendDomainError } from '../utils/domain-error.js';
 
 // Helper to handle domain errors (same pattern as venta.controller.ts)
-function handleDomainError(reply: FastifyReply, error: DomainError): void {
-  const statusCodeMap: Record<DomainError['code'], number> = {
-    VALIDATION_ERROR: 400,
-    NOT_FOUND: 404,
-    UNAUTHORIZED: 401,
-    FORBIDDEN: 403,
-    CONFLICT: 409,
-    ACCOUNT_LOCKED: 423,
-    INVALID_CREDENTIALS: 401,
-    STOCK_INSUFFICIENT: 409,
-    DATABASE_ERROR: 500,
-  };
 
-  const statusCode = statusCodeMap[error.code] ?? 500;
-
-  const body: {
-    success: false;
-    error: {
-      code: string;
-      message: string;
-      details?: Record<string, unknown>;
-    };
-  } = {
-    success: false,
-    error: {
-      code: error.code,
-      message: error.message,
-    },
-  };
-
-  if ('details' in error) {
-    body.error.details = error.details as Record<string, unknown>;
-  }
-
-  reply.status(statusCode).send(body);
-}
 
 // GET /api/v1/ventas/cierres - List cash closures with filters and pagination
 export async function listCierresHandler(
@@ -70,7 +35,7 @@ export async function listCierresHandler(
   const result = await listCierres(parsed.data);
 
   if (result.isErr()) {
-    return handleDomainError(reply, result.error);
+    return sendDomainError(reply, result.error);
   }
 
   const { data, pagination } = result.value;
@@ -102,7 +67,7 @@ export async function getCierreByIdHandler(
   const result = await getCierreById(id);
 
   if (result.isErr()) {
-    return handleDomainError(reply, result.error);
+    return sendDomainError(reply, result.error);
   }
 
   reply.send({
@@ -131,7 +96,7 @@ export async function exportCierreCsvHandler(
   const result = await exportCierreCsv(id);
 
   if (result.isErr()) {
-    return handleDomainError(reply, result.error);
+    return sendDomainError(reply, result.error);
   }
 
   reply
@@ -176,7 +141,7 @@ export async function cierreVentasHandler(
   const result = await listVentasByCierreConDetalles(id, parsed.data);
 
   if (result.isErr()) {
-    return handleDomainError(reply, result.error);
+    return sendDomainError(reply, result.error);
   }
 
   reply.send({

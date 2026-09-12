@@ -30,48 +30,18 @@ import {
 } from '../../../application/use-cases/movimiento-caja.use-case.js';
 import { historialUnificado } from '../../../application/use-cases/historial.use-case.js';
 import type { DomainError } from '../../../shared/types/result.js';
+import { sendDomainError } from '../utils/domain-error.js';
 
 // Helper to handle domain errors
 function handleDomainError(reply: FastifyReply, error: DomainError): void {
-  const statusCodeMap: Record<DomainError['code'], number> = {
-    VALIDATION_ERROR: 400,
-    NOT_FOUND: 404,
-    UNAUTHORIZED: 401,
-    FORBIDDEN: 403,
-    CONFLICT: 409,
-    ACCOUNT_LOCKED: 423,
-    INVALID_CREDENTIALS: 401,
-    STOCK_INSUFFICIENT: 409,
-    DATABASE_ERROR: 500,
-  };
-
-  const statusCode = statusCodeMap[error.code] ?? 500;
-
-  const body: {
-    success: false;
-    error: {
-      code: string;
-      message: string;
-      details?: Record<string, unknown>;
-      disponible?: number;
-      solicitado?: number;
-    };
-  } = {
-    success: false,
-    error: {
-      code: error.code,
-      message: error.message,
-    },
-  };
-
-  if (error.code === 'STOCK_INSUFFICIENT') {
-    body.error.disponible = error.disponible;
-    body.error.solicitado = error.solicitado;
-  } else if ('details' in error) {
-    body.error.details = error.details as Record<string, unknown>;
-  }
-
-  reply.status(statusCode).send(body);
+  // STOCK_INSUFFICIENT lleva disponible/solicitado (antes duplicado local).
+  sendDomainError(
+    reply,
+    error,
+    error.code === 'STOCK_INSUFFICIENT'
+      ? { disponible: error.disponible, solicitado: error.solicitado }
+      : undefined,
+  );
 }
 
 // POST /api/v1/ventas/cierre-caja - Close cash period (admin/gerente)

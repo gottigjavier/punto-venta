@@ -7,16 +7,10 @@ import { databaseError, validationError } from '../../shared/types/result.js';
 import type { MovimientoCaja } from '../../domain/entities/venta.js';
 import type { CrearMovimientoInput, MovimientoQueryInput } from '../dto/movimiento.dto.js';
 import { logger } from '../../infrastructure/logging/logger.js';
+import { toNumber } from '../../shared/utils/number.js';
+
 
 // Helper to convert Prisma Decimal to number
-function toNumber(val: unknown): number {
-  if (typeof val === 'number') return val;
-  if (typeof val === 'string') return parseFloat(val);
-  if (val && typeof val === 'object' && 'toNumber' in val) {
-    return (val as { toNumber: () => number }).toNumber();
-  }
-  return 0;
-}
 
 // Create a cash movement (ingreso/egreso) in the active period
 export async function crearMovimiento(

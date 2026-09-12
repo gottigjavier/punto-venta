@@ -13,33 +13,10 @@ import {
   updateRubro,
   deleteRubro,
 } from '../../../application/use-cases/rubro.use-case.js';
-import type { DomainError } from '../../../shared/types/result.js';
+import { sendDomainError } from '../utils/domain-error.js';
 
 // Helper to handle domain errors
-function handleDomainError(reply: FastifyReply, error: DomainError): void {
-  const statusCodeMap: Record<DomainError['code'], number> = {
-    VALIDATION_ERROR: 400,
-    NOT_FOUND: 404,
-    UNAUTHORIZED: 401,
-    FORBIDDEN: 403,
-    CONFLICT: 409,
-    ACCOUNT_LOCKED: 423,
-    INVALID_CREDENTIALS: 401,
-    STOCK_INSUFFICIENT: 409,
-    DATABASE_ERROR: 500,
-  };
 
-  const statusCode = statusCodeMap[error.code] ?? 500;
-
-  reply.status(statusCode).send({
-    success: false,
-    error: {
-      code: error.code,
-      message: error.message,
-      details: 'details' in error ? error.details : undefined,
-    },
-  });
-}
 
 // GET /api/v1/rubros
 export async function listRubrosHandler(
@@ -49,7 +26,7 @@ export async function listRubrosHandler(
   const result = await listRubros();
 
   if (result.isErr()) {
-    return handleDomainError(reply, result.error);
+    return sendDomainError(reply, result.error);
   }
 
   reply.send({
@@ -79,7 +56,7 @@ export async function getRubroByIdHandler(
   const result = await getRubroById(parsed.data.id);
 
   if (result.isErr()) {
-    return handleDomainError(reply, result.error);
+    return sendDomainError(reply, result.error);
   }
 
   reply.send({
@@ -109,7 +86,7 @@ export async function createRubroHandler(
   const result = await createRubro(parsed.data);
 
   if (result.isErr()) {
-    return handleDomainError(reply, result.error);
+    return sendDomainError(reply, result.error);
   }
 
   reply.status(201).send({
@@ -142,7 +119,7 @@ export async function updateRubroHandler(
   const result = await updateRubro(parsed.data);
 
   if (result.isErr()) {
-    return handleDomainError(reply, result.error);
+    return sendDomainError(reply, result.error);
   }
 
   reply.send({
@@ -172,7 +149,7 @@ export async function deleteRubroHandler(
   const result = await deleteRubro(parsed.data.id);
 
   if (result.isErr()) {
-    return handleDomainError(reply, result.error);
+    return sendDomainError(reply, result.error);
   }
 
   reply.send({

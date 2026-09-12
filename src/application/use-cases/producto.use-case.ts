@@ -27,16 +27,7 @@ import type {
 } from "../dto/producto.dto.js";
 import { logger } from "../../infrastructure/logging/logger.js";
 import { retirarLotesVencidos, toUTC3DateString } from "./stock.use-case.js";
-
-// Helper to convert Prisma Decimal to number
-function toNumber(val: unknown): number {
-  if (typeof val === "number") return val;
-  if (typeof val === "string") return parseFloat(val);
-  if (val && typeof val === "object" && "toNumber" in val) {
-    return (val as { toNumber: () => number }).toNumber();
-  }
-  return 0;
-}
+import { toNumber } from "../../shared/utils/number.js";
 
 // Midnoches UTC del día (UTC-3) para filtrar lotes NO vencidos
 function limiteVencidos(): Date {
