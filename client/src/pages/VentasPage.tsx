@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   stockApi,
   ventasApi,
@@ -10,15 +10,29 @@ import {
   type ResumenMovimientos,
   type FilaHistorial,
   type HistorialQueryParams,
-} from '@/lib/api-client';
-import { formatDate } from '@/lib/format';
-import { onConfirmSuccess, onConfirmError, onClearCart, onAddWhenConfirmed, countCartItems, reconcileCartWithStock, shouldBlockConfirm } from '@/features/ventas/cartMachine';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from "@/lib/api-client";
+import { formatDate } from "@/lib/format";
+import {
+  onConfirmSuccess,
+  onConfirmError,
+  onClearCart,
+  onAddWhenConfirmed,
+  countCartItems,
+  reconcileCartWithStock,
+  shouldBlockConfirm,
+} from "@/features/ventas/cartMachine";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -26,7 +40,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -34,14 +48,14 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   ShoppingCart,
   Search,
@@ -61,8 +75,8 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Wallet,
-} from 'lucide-react';
-import { useAuth } from '@/features/auth/AuthContext';
+} from "lucide-react";
+import { useAuth } from "@/features/auth/AuthContext";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -116,7 +130,7 @@ interface VentaWithDetails {
   id: string;
   usuario_id: string;
   total: number;
-  estado: 'pendiente' | 'completada' | 'cancelada';
+  estado: "pendiente" | "completada" | "cancelada";
   created_at: string;
   usuario: { id: string; nombre_usuario: string; nik_usuario: string };
   detalles_venta: VentaDetalle[];
@@ -159,16 +173,16 @@ interface Usuario {
 // ---------------------------------------------------------------------------
 
 function formatCurrency(value: number): string {
-  return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${value.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function estadoBadge(estado: string) {
   switch (estado) {
-    case 'completada':
+    case "completada":
       return <Badge variant="success">Completada</Badge>;
-    case 'pendiente':
+    case "pendiente":
       return <Badge variant="outline">Pendiente</Badge>;
-    case 'cancelada':
+    case "cancelada":
       return <Badge variant="destructive">Cancelada</Badge>;
     default:
       return <Badge variant="secondary">{estado}</Badge>;
@@ -176,13 +190,13 @@ function estadoBadge(estado: string) {
 }
 
 // Badge for the unified history row type (Venta / Ingreso / Egreso)
-function estadoBadgeHistorial(estado: 'Venta' | 'Ingreso' | 'Egreso') {
+function estadoBadgeHistorial(estado: "Venta" | "Ingreso" | "Egreso") {
   switch (estado) {
-    case 'Venta':
+    case "Venta":
       return <Badge variant="default">Venta</Badge>;
-    case 'Ingreso':
+    case "Ingreso":
       return <Badge variant="success">Ingreso</Badge>;
-    case 'Egreso':
+    case "Egreso":
       return <Badge variant="destructive">Egreso</Badge>;
     default:
       return <Badge variant="secondary">{estado}</Badge>;
@@ -211,7 +225,7 @@ function ProductCard({
   return (
     <Card
       className={`cursor-pointer transition-colors hover:border-primary ${
-        disabled ? 'opacity-60' : ''
+        disabled ? "opacity-60" : ""
       }`}
       onClick={() => !disabled && onAdd()}
     >
@@ -237,7 +251,9 @@ function ProductCard({
             )}
           </div>
           <div className="text-right shrink-0">
-            <p className="font-bold text-sm">{formatCurrency(product.precio_venta)}</p>
+            <p className="font-bold text-sm">
+              {formatCurrency(product.precio_venta)}
+            </p>
             {inCart ? (
               <Badge variant="default" className="mt-1 text-xs">
                 En carrito: {inCart.cantidad}
@@ -274,32 +290,38 @@ function ProductCard({
 function POSView() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState('');
+  const [searchError, setSearchError] = useState("");
 
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [cartMode, setCartMode] = useState<'editing' | 'confirmed'>('editing');
+  const [cartMode, setCartMode] = useState<"editing" | "confirmed">("editing");
   const [submitting, setSubmitting] = useState(false);
   const [saleResult, setSaleResult] = useState<{
-    type: 'success' | 'error';
+    type: "success" | "error";
     message: string;
     details?: string;
   } | null>(null);
 
   // Rubro tabs state
   const [rubros, setRubros] = useState<Rubro[]>([]);
-  const [productsByRubro, setProductsByRubro] = useState<Map<string, ProductSearchResult[]>>(new Map());
+  const [productsByRubro, setProductsByRubro] = useState<
+    Map<string, ProductSearchResult[]>
+  >(new Map());
   const [allProducts, setAllProducts] = useState<ProductSearchResult[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
-  const [activeRubroTab, setActiveRubroTab] = useState('todos');
+  const [activeRubroTab, setActiveRubroTab] = useState("todos");
 
   // Last sale info per product (for addToCart quantity suggestion)
-  const [ultimasVentasMap, setUltimasVentasMap] = useState<Map<string, UltimaVenta>>(new Map());
+  const [ultimasVentasMap, setUltimasVentasMap] = useState<
+    Map<string, UltimaVenta>
+  >(new Map());
 
   // Track last used quantity per product
-  const [lastQuantities, setLastQuantities] = useState<Map<string, number>>(new Map());
+  const [lastQuantities, setLastQuantities] = useState<Map<string, number>>(
+    new Map(),
+  );
 
   // Focus search on mount
   useEffect(() => {
@@ -351,11 +373,24 @@ function POSView() {
       setUltimasVentasMap(ultimasMap);
 
       // Fetch total quantity sold per product (for grid ordering by most sold)
-      let vendidosMap = new Map<string, { veces_vendido: number; monto_total: number }>();
+      let vendidosMap = new Map<
+        string,
+        { veces_vendido: number; monto_total: number }
+      >();
       try {
         const { data: vendidosData } = await ventasApi.masVendidos();
-        const vendidosList = (vendidosData.data as Array<{ producto_id: string; veces_vendido: number; monto_total: number }>) ?? [];
-        vendidosMap = new Map(vendidosList.map((v) => [v.producto_id, { veces_vendido: v.veces_vendido, monto_total: v.monto_total }]));
+        const vendidosList =
+          (vendidosData.data as Array<{
+            producto_id: string;
+            veces_vendido: number;
+            monto_total: number;
+          }>) ?? [];
+        vendidosMap = new Map(
+          vendidosList.map((v) => [
+            v.producto_id,
+            { veces_vendido: v.veces_vendido, monto_total: v.monto_total },
+          ]),
+        );
       } catch {
         // non-fatal: sorting falls back to alphabetical
       }
@@ -375,10 +410,10 @@ function POSView() {
         if (hasStockA && !hasStockB) return -1;
 
         // Both have stock (groups 1 & 2)
-        if (ca > 0 && cb > 0) return cb - ca;       // both sold: most sold first
-        if (ca > 0 && cb === 0) return -1;          // a sold, b not → a first
-        if (ca === 0 && cb > 0) return 1;           // b sold, a not → b first
-        return a.nombre.localeCompare(b.nombre);     // both unsold → alphabetical
+        if (ca > 0 && cb > 0) return cb - ca; // both sold: most sold first
+        if (ca > 0 && cb === 0) return -1; // a sold, b not → a first
+        if (ca === 0 && cb > 0) return 1; // b sold, a not → b first
+        return a.nombre.localeCompare(b.nombre); // both unsold → alphabetical
       });
 
       // Build per-rubro map from the full sorted list
@@ -402,7 +437,7 @@ function POSView() {
         setCart((prev) => reconcileCartWithStock(prev, freshStock));
       }
     } catch (err) {
-      console.error('Error cargando productos del POS:', err);
+      console.error("Error cargando productos del POS:", err);
     } finally {
       if (mountedRef.current) setLoadingProducts(false);
     }
@@ -416,7 +451,7 @@ function POSView() {
   // Search products (min 3 chars)
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
-    setSearchError('');
+    setSearchError("");
 
     if (query.length < 3) {
       setSearchResults([]);
@@ -425,10 +460,10 @@ function POSView() {
 
     setSearching(true);
     try {
-      const { data } = await stockApi.autocomplete(query, 'nombre');
+      const { data } = await stockApi.autocomplete(query, "nombre");
       setSearchResults((data.data as ProductSearchResult[]) ?? []);
     } catch {
-      setSearchError('Error al buscar productos');
+      setSearchError("Error al buscar productos");
     } finally {
       setSearching(false);
     }
@@ -441,7 +476,9 @@ function POSView() {
     const ultimaCantidad = ultimasVentasMap.get(product.id)?.ultima_cantidad;
     const requestedQty =
       qtyOverride ??
-      (ultimaCantidad != null && ultimaCantidad > 0 ? ultimaCantidad : lastQuantities.get(product.id) ?? 1);
+      (ultimaCantidad != null && ultimaCantidad > 0
+        ? ultimaCantidad
+        : (lastQuantities.get(product.id) ?? 1));
 
     // If the requested (last-sold) quantity exceeds available stock, fall back
     // to the available stock so the product can still be loaded — but warn the
@@ -450,7 +487,10 @@ function POSView() {
     let stockWarning: string | null = null;
     if (qty > product.stock_actual) {
       if (product.stock_actual <= 0) {
-        setSaleResult({ type: 'error', message: `Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}` });
+        setSaleResult({
+          type: "error",
+          message: `Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}`,
+        });
         return;
       }
       qty = product.stock_actual;
@@ -460,7 +500,7 @@ function POSView() {
     // If cart is frozen after a confirmed sale, discard the previous cart and
     // start fresh with just this product. We use a direct setCart([...item])
     // instead of an updater function to avoid React batching pitfalls.
-    if (cartMode === 'confirmed') {
+    if (cartMode === "confirmed") {
       setCart([
         {
           producto_id: product.id,
@@ -475,7 +515,7 @@ function POSView() {
       const next = onAddWhenConfirmed(stockWarning);
       setCartMode(next.cartMode);
       setSaleResult(next.saleResult);
-      setSearchError('');
+      setSearchError("");
       setLastQuantities((prev) => new Map(prev).set(product.id, qty));
       return;
     }
@@ -485,7 +525,10 @@ function POSView() {
       if (existing) {
         const newQty = existing.cantidad + qty;
         if (newQty > product.stock_actual) {
-          setSaleResult({ type: 'error', message: `Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}` });
+          setSaleResult({
+            type: "error",
+            message: `Stock insuficiente para ${product.nombre}. Disponible: ${product.stock_actual}`,
+          });
           return prev;
         }
         return prev.map((item) =>
@@ -509,28 +552,32 @@ function POSView() {
     });
     setLastQuantities((prev) => new Map(prev).set(product.id, qty));
     if (stockWarning) {
-      setSaleResult({ type: 'error', message: stockWarning });
+      setSaleResult({ type: "error", message: stockWarning });
     } else {
-      setSearchError('');
+      setSearchError("");
     }
   };
 
   // Update quantity
   const updateQuantity = (productoId: string, delta: number) => {
-    setCart((prev) =>
-      prev
-        .map((item) => {
-          if (item.producto_id !== productoId) return item;
-          const newQty = item.cantidad + delta;
-          if (newQty <= 0) return null;
-          if (newQty > item.stock_disponible) {
-            setSaleResult({ type: 'error', message: `Stock insuficiente para ${item.nombre}. Disponible: ${item.stock_disponible}` });
-            return item;
-          }
-          setSearchError('');
-          return { ...item, cantidad: newQty };
-        })
-        .filter(Boolean) as CartItem[],
+    setCart(
+      (prev) =>
+        prev
+          .map((item) => {
+            if (item.producto_id !== productoId) return item;
+            const newQty = item.cantidad + delta;
+            if (newQty <= 0) return null;
+            if (newQty > item.stock_disponible) {
+              setSaleResult({
+                type: "error",
+                message: `Stock insuficiente para ${item.nombre}. Disponible: ${item.stock_disponible}`,
+              });
+              return item;
+            }
+            setSearchError("");
+            return { ...item, cantidad: newQty };
+          })
+          .filter(Boolean) as CartItem[],
     );
   };
 
@@ -544,10 +591,13 @@ function POSView() {
       prev.map((item) => {
         if (item.producto_id !== productoId) return item;
         if (qty > item.stock_disponible) {
-          setSaleResult({ type: 'error', message: `Stock insuficiente para ${item.nombre}. Disponible: ${item.stock_disponible}` });
+          setSaleResult({
+            type: "error",
+            message: `Stock insuficiente para ${item.nombre}. Disponible: ${item.stock_disponible}`,
+          });
           return { ...item, cantidad: item.stock_disponible };
         }
-        setSearchError('');
+        setSearchError("");
         return { ...item, cantidad: qty };
       }),
     );
@@ -595,13 +645,13 @@ function POSView() {
 
       const venta = data.data as VentaWithDetails;
       const saleResultValue = {
-        type: 'success' as const,
+        type: "success" as const,
         message: `Venta #${venta.id.slice(0, 8)} registrada correctamente`,
         details: `Total: ${formatCurrency(venta.total)} | ${cartItemCount} items`,
       };
       setSaleResult(saleResultValue);
       setCartMode(onConfirmSuccess(saleResultValue).cartMode);
-      setSearchQuery('');
+      setSearchQuery("");
       setSearchResults([]);
       // Refresh product grid + stock so the UI reflects the deducted stock
       // without requiring a full page reload.
@@ -609,14 +659,23 @@ function POSView() {
       searchInputRef.current?.focus();
     } catch (err: unknown) {
       const axiosErr = err as {
-        response?: { data?: { error?: { code?: string; message?: string; disponible?: number; solicitado?: number } } };
+        response?: {
+          data?: {
+            error?: {
+              code?: string;
+              message?: string;
+              disponible?: number;
+              solicitado?: number;
+            };
+          };
+        };
       };
       const errorData = axiosErr.response?.data?.error;
-      let saleResultValue: { type: 'error'; message: string; details?: string };
-      if (errorData?.code === 'STOCK_INSUFFICIENT') {
+      let saleResultValue: { type: "error"; message: string; details?: string };
+      if (errorData?.code === "STOCK_INSUFFICIENT") {
         saleResultValue = {
-          type: 'error',
-          message: errorData.message ?? 'Stock insuficiente',
+          type: "error",
+          message: errorData.message ?? "Stock insuficiente",
           details: `Disponible: ${errorData.disponible} | Solicitado: ${errorData.solicitado}`,
         };
         // Otro usuario cerró una venta primero: el stock cambió de base.
@@ -630,8 +689,8 @@ function POSView() {
         }
       } else {
         saleResultValue = {
-          type: 'error',
-          message: errorData?.message ?? 'Error al procesar la venta',
+          type: "error",
+          message: errorData?.message ?? "Error al procesar la venta",
         };
       }
       setSaleResult(saleResultValue);
@@ -669,7 +728,7 @@ function POSView() {
               variant="ghost"
               size="icon"
               className="ml-auto h-6 w-6"
-              onClick={() => setSearchError('')}
+              onClick={() => setSearchError("")}
             >
               <X className="h-3 w-3" />
             </Button>
@@ -698,12 +757,16 @@ function POSView() {
                 <TabsContent value="todos">
                   <div className="grid gap-2 md:grid-cols-2">
                     {allProducts.map((product) => {
-                      const inCart = cart.find((item) => item.producto_id === product.id);
+                      const inCart = cart.find(
+                        (item) => item.producto_id === product.id,
+                      );
                       const atStockLimit = inCart
                         ? inCart.cantidad >= product.stock_actual
                         : product.stock_actual <= 0;
                       const lastQty = lastQuantities.get(product.id) ?? 1;
-                      const ultimaCantidad = ultimasVentasMap.get(product.id)?.ultima_cantidad ?? null;
+                      const ultimaCantidad =
+                        ultimasVentasMap.get(product.id)?.ultima_cantidad ??
+                        null;
 
                       return (
                         <ProductCard
@@ -727,17 +790,23 @@ function POSView() {
                       {products.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                           <Package className="mb-2 h-8 w-8" />
-                          <p className="text-sm">No hay productos en este rubro</p>
+                          <p className="text-sm">
+                            No hay productos en este rubro
+                          </p>
                         </div>
                       ) : (
                         <div className="grid gap-2 md:grid-cols-2">
                           {products.map((product) => {
-                            const inCart = cart.find((item) => item.producto_id === product.id);
+                            const inCart = cart.find(
+                              (item) => item.producto_id === product.id,
+                            );
                             const atStockLimit = inCart
                               ? inCart.cantidad >= product.stock_actual
                               : product.stock_actual <= 0;
                             const lastQty = lastQuantities.get(product.id) ?? 1;
-                            const ultimaCantidad = ultimasVentasMap.get(product.id)?.ultima_cantidad ?? null;
+                            const ultimaCantidad =
+                              ultimasVentasMap.get(product.id)
+                                ?.ultima_cantidad ?? null;
 
                             return (
                               <ProductCard
@@ -762,22 +831,28 @@ function POSView() {
         )}
 
         {/* Product results */}
-        {searchQuery.length >= 3 && !searching && searchResults.length === 0 && !searchError && (
-          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-            <Package className="mb-2 h-8 w-8" />
-            <p>No se encontraron productos</p>
-          </div>
-        )}
+        {searchQuery.length >= 3 &&
+          !searching &&
+          searchResults.length === 0 &&
+          !searchError && (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <Package className="mb-2 h-8 w-8" />
+              <p>No se encontraron productos</p>
+            </div>
+          )}
 
         {searchResults.length > 0 && (
           <div className="grid gap-2 md:grid-cols-2">
             {searchResults.map((product) => {
-              const inCart = cart.find((item) => item.producto_id === product.id);
+              const inCart = cart.find(
+                (item) => item.producto_id === product.id,
+              );
               const atStockLimit = inCart
                 ? inCart.cantidad >= product.stock_actual
                 : product.stock_actual <= 0;
               const lastQty = lastQuantities.get(product.id) ?? 1;
-              const ultimaCantidad = ultimasVentasMap.get(product.id)?.ultima_cantidad ?? null;
+              const ultimaCantidad =
+                ultimasVentasMap.get(product.id)?.ultima_cantidad ?? null;
 
               return (
                 <ProductCard
@@ -807,7 +882,7 @@ function POSView() {
                   {cartItemCount} items
                 </Badge>
               )}
-              {cartMode === 'confirmed' && (
+              {cartMode === "confirmed" && (
                 <Badge variant="outline" className="ml-1 text-xs">
                   Venta confirmada
                 </Badge>
@@ -815,7 +890,7 @@ function POSView() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {cart.length === 0 && cartMode === 'editing' ? (
+            {cart.length === 0 && cartMode === "editing" ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                 <ShoppingCart className="mb-2 h-8 w-8" />
                 <p className="text-sm">Carrito vacio</p>
@@ -831,7 +906,9 @@ function POSView() {
                       className="flex items-center gap-2 rounded-md border p-2"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{item.nombre}</p>
+                        <p className="text-sm font-medium truncate">
+                          {item.nombre}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {formatCurrency(item.precio_venta)} x {item.cantidad}
                         </p>
@@ -844,7 +921,7 @@ function POSView() {
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => updateQuantity(item.producto_id, -1)}
-                          disabled={cartMode === 'confirmed'}
+                          disabled={cartMode === "confirmed"}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -859,14 +936,17 @@ function POSView() {
                           className="h-7 w-14 text-center text-xs px-1"
                           min={0.01}
                           max={item.stock_disponible}
-                          disabled={cartMode === 'confirmed'}
+                          disabled={cartMode === "confirmed"}
                         />
                         <Button
                           variant="outline"
                           size="icon"
                           className="h-7 w-7"
                           onClick={() => updateQuantity(item.producto_id, 1)}
-                          disabled={cartMode === 'confirmed' || item.cantidad >= item.stock_disponible}
+                          disabled={
+                            cartMode === "confirmed" ||
+                            item.cantidad >= item.stock_disponible
+                          }
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -882,7 +962,7 @@ function POSView() {
                           size="icon"
                           className="h-7 w-7 text-destructive"
                           onClick={() => removeFromCart(item.producto_id)}
-                          disabled={cartMode === 'confirmed'}
+                          disabled={cartMode === "confirmed"}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -895,7 +975,9 @@ function POSView() {
                 <div className="mt-4 border-t pt-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Total</span>
-                    <span className="text-xl font-bold">{formatCurrency(cartTotal)}</span>
+                    <span className="text-xl font-bold">
+                      {formatCurrency(cartTotal)}
+                    </span>
                   </div>
                 </div>
 
@@ -916,7 +998,7 @@ function POSView() {
                       cartLength: cart.length,
                       cartMode,
                       submitting,
-                      pendingError: saleResult?.type === 'error',
+                      pendingError: saleResult?.type === "error",
                     })}
                   >
                     {submitting ? (
@@ -940,12 +1022,12 @@ function POSView() {
             <CardFooter>
               <div
                 className={`flex w-full items-center gap-2 rounded-md p-3 text-sm ${
-                  saleResult.type === 'success'
-                    ? 'bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200'
-                    : 'bg-destructive/10 text-destructive'
+                  saleResult.type === "success"
+                    ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"
+                    : "bg-destructive/10 text-destructive"
                 }`}
               >
-                {saleResult.type === 'success' ? (
+                {saleResult.type === "success" ? (
                   <Check className="h-4 w-4 shrink-0" />
                 ) : (
                   <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -977,8 +1059,14 @@ function POSView() {
 // Historial View
 // ---------------------------------------------------------------------------
 
-function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: string; refreshKey?: number }) {
-  const canDeleteVentas = ['admin', 'gerente'].includes(currentUserRole ?? '');
+function HistorialView({
+  currentUserRole,
+  refreshKey,
+}: {
+  currentUserRole?: string;
+  refreshKey?: number;
+}) {
+  const canDeleteVentas = ["admin", "gerente"].includes(currentUserRole ?? "");
   const [filas, setFilas] = useState<FilaHistorial[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState<Pagination>({
@@ -989,10 +1077,10 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
   });
 
   // Filters
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
-  const [tipoFilaFilter, setTipoFilaFilter] = useState<string>('');
-  const [usuarioFilter, setUsuarioFilter] = useState('');
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  const [tipoFilaFilter, setTipoFilaFilter] = useState<string>("");
+  const [usuarioFilter, setUsuarioFilter] = useState("");
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
 
   // Detail dialog
@@ -1017,12 +1105,13 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
         const params: HistorialQueryParams = {
           page,
           limit: pagination.limit,
-          sort: 'created_at',
-          order: 'desc',
+          sort: "created_at",
+          order: "desc",
         };
         if (fechaDesde) params.fecha_desde = fechaDesde;
         if (fechaHasta) params.fecha_hasta = fechaHasta;
-        if (tipoFilaFilter) params.tipo_fila = tipoFilaFilter as 'venta' | 'movimiento';
+        if (tipoFilaFilter)
+          params.tipo_fila = tipoFilaFilter as "venta" | "movimiento";
         if (usuarioFilter) params.usuario_id = usuarioFilter;
 
         const { data } = await ventasApi.historial(params);
@@ -1067,26 +1156,34 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
 
   // Reset filters
   const resetFilters = () => {
-    setFechaDesde('');
-    setFechaHasta('');
-    setTipoFilaFilter('');
-    setUsuarioFilter('');
+    setFechaDesde("");
+    setFechaHasta("");
+    setTipoFilaFilter("");
+    setUsuarioFilter("");
   };
 
   // Delete a completed sale (admin/gerente only)
   const handleDelete = async (ventaId: string) => {
-    if (!window.confirm('¿Eliminar esta venta? El stock se restituirá automáticamente.')) {
+    if (
+      !window.confirm(
+        "¿Eliminar esta venta? El stock se restituirá automáticamente.",
+      )
+    ) {
       return;
     }
     try {
       await ventasApi.delete(ventaId);
       setDetailOpen(false);
       fetchHistorial(1);
-      alert('Venta eliminada. El stock fue restituido.');
+      alert("Venta eliminada. El stock fue restituido.");
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { status?: number; data?: { error?: { message?: string } } } };
+      const axiosErr = err as {
+        response?: { status?: number; data?: { error?: { message?: string } } };
+      };
       const status = axiosErr?.response?.status;
-      const msg = axiosErr?.response?.data?.error?.message ?? 'Error al eliminar la venta';
+      const msg =
+        axiosErr?.response?.data?.error?.message ??
+        "Error al eliminar la venta";
       if (status === 409) {
         window.alert(`No se puede eliminar: ${msg}`);
       } else {
@@ -1101,7 +1198,9 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-end gap-3">
-            <Badge variant="secondary" className="mb-1">Período activo</Badge>
+            <Badge variant="secondary" className="mb-1">
+              Período activo
+            </Badge>
             <div className="space-y-1">
               <Label className="text-xs">Fecha Desde</Label>
               <Input
@@ -1124,7 +1223,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
               <Label className="text-xs">Tipo</Label>
               <Select
                 value={tipoFilaFilter}
-                onValueChange={(v) => setTipoFilaFilter(v === 'all' ? '' : v)}
+                onValueChange={(v) => setTipoFilaFilter(v === "all" ? "" : v)}
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Todos" />
@@ -1140,7 +1239,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
               <Label className="text-xs">Vendedor</Label>
               <Select
                 value={usuarioFilter}
-                onValueChange={(v) => setUsuarioFilter(v === 'all' ? '' : v)}
+                onValueChange={(v) => setUsuarioFilter(v === "all" ? "" : v)}
               >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Todos" />
@@ -1199,16 +1298,16 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
                           {f.usuario_nombre}
                         </TableCell>
                         <TableCell className="text-center">
-                          {f.tipo_fila === 'venta' ? f.cantidad_items : '—'}
+                          {f.tipo_fila === "venta" ? f.cantidad_items : "—"}
                         </TableCell>
                         <TableCell
                           className={
-                            f.estado === 'Egreso'
-                              ? 'text-right font-semibold text-red-600'
-                              : 'text-right font-semibold'
+                            f.estado === "Egreso"
+                              ? "text-right font-semibold text-red-600"
+                              : "text-right font-semibold"
                           }
                         >
-                          {f.estado === 'Egreso'
+                          {f.estado === "Egreso"
                             ? `-${formatCurrency(f.monto)}`
                             : formatCurrency(f.monto)}
                         </TableCell>
@@ -1216,7 +1315,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
                           {estadoBadgeHistorial(f.estado)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {f.tipo_fila === 'venta' ? (
+                          {f.tipo_fila === "venta" ? (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -1239,10 +1338,12 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
               {pagination.totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
-                    Mostrando {(pagination.page - 1) * pagination.limit + 1}
-                    {' '}-{' '}
-                    {Math.min(pagination.page * pagination.limit, pagination.total)}
-                    {' '}de {pagination.total}
+                    Mostrando {(pagination.page - 1) * pagination.limit + 1} -{" "}
+                    {Math.min(
+                      pagination.page * pagination.limit,
+                      pagination.total,
+                    )}{" "}
+                    de {pagination.total}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
@@ -1282,7 +1383,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
             <DialogDescription>
               {detailVenta
                 ? `Venta #${detailVenta.id.slice(0, 8)} - ${formatDate(detailVenta.created_at)}`
-                : 'Cargando...'}
+                : "Cargando..."}
             </DialogDescription>
           </DialogHeader>
           {detailLoading ? (
@@ -1296,7 +1397,9 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-muted-foreground">Vendedor</p>
-                  <p className="font-medium">{detailVenta.usuario?.nombre_usuario ?? '---'}</p>
+                  <p className="font-medium">
+                    {detailVenta.usuario?.nombre_usuario ?? "---"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Estado</p>
@@ -1304,11 +1407,15 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
                 </div>
                 <div>
                   <p className="text-muted-foreground">Fecha</p>
-                  <p className="font-medium">{formatDate(detailVenta.created_at)}</p>
+                  <p className="font-medium">
+                    {formatDate(detailVenta.created_at)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Total</p>
-                  <p className="font-bold text-lg">{formatCurrency(detailVenta.total)}</p>
+                  <p className="font-bold text-lg">
+                    {formatCurrency(detailVenta.total)}
+                  </p>
                 </div>
               </div>
 
@@ -1329,15 +1436,19 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
                       {detailVenta.detalles_venta.map((d) => (
                         <TableRow key={d.id}>
                           <TableCell className="text-sm">
-                            <span className="font-medium">{d.producto?.nombre ?? '---'}</span>
+                            <span className="font-medium">
+                              {d.producto?.nombre ?? "---"}
+                            </span>
                             <span className="ml-1 text-xs text-muted-foreground font-mono">
-                              {d.producto?.codigo ?? ''}
+                              {d.producto?.codigo ?? ""}
                             </span>
                           </TableCell>
                           <TableCell className="text-right text-sm">
                             {formatCurrency(d.precio_unitario)}
                           </TableCell>
-                          <TableCell className="text-right text-sm">{d.cantidad}</TableCell>
+                          <TableCell className="text-right text-sm">
+                            {d.cantidad}
+                          </TableCell>
                           <TableCell className="text-right text-sm font-semibold">
                             {formatCurrency(d.subtotal)}
                           </TableCell>
@@ -1349,7 +1460,7 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
               </div>
 
               {/* Delete action (admin/gerente only, completed sales) */}
-              {canDeleteVentas && detailVenta?.estado === 'completada' && (
+              {canDeleteVentas && detailVenta?.estado === "completada" && (
                 <div className="pt-2 border-t">
                   <Button
                     variant="destructive"
@@ -1377,25 +1488,31 @@ function HistorialView({ currentUserRole, refreshKey }: { currentUserRole?: stri
 // Resumen del Dia View
 // ---------------------------------------------------------------------------
 
-function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: string; onCajaCerrada?: () => void }) {
+function ResumenDiaView({
+  currentUserRole,
+  onCajaCerrada,
+}: {
+  currentUserRole?: string;
+  onCajaCerrada?: () => void;
+}) {
   const [resumen, setResumen] = useState<ResumenDia | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [cerrando, setCerrando] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
-  const canCerrarCaja = ['admin', 'gerente'].includes(currentUserRole ?? '');
+  const canCerrarCaja = ["admin", "gerente"].includes(currentUserRole ?? "");
 
   const fetchResumen = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setError("");
     try {
       const { data } = await ventasApi.resumenDia();
       setResumen(data.data as ResumenDia);
     } catch {
-      setError('Error al cargar el resumen del dia');
+      setError("Error al cargar el resumen del dia");
     } finally {
       setLoading(false);
     }
@@ -1404,18 +1521,18 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
   const handleCerrarCaja = async () => {
     if (!password.trim()) return;
     setCerrando(true);
-    setPasswordError('');
+    setPasswordError("");
     try {
       await ventasApi.cerrarCaja({ password });
       setShowPasswordModal(false);
-      setPassword('');
-      setPasswordError('');
+      setPassword("");
+      setPasswordError("");
       await fetchResumen();
       onCajaCerrada?.();
     } catch (err) {
       const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
-          ?.message ?? 'Error al cerrar la caja';
+        (err as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ?? "Error al cerrar la caja";
       setPasswordError(msg);
     } finally {
       setCerrando(false);
@@ -1423,15 +1540,15 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
   };
 
   const openPasswordModal = () => {
-    setPassword('');
-    setPasswordError('');
+    setPassword("");
+    setPasswordError("");
     setShowPasswordModal(true);
   };
 
   const closePasswordModal = () => {
     setShowPasswordModal(false);
-    setPassword('');
-    setPasswordError('');
+    setPassword("");
+    setPasswordError("");
   };
 
   useEffect(() => {
@@ -1452,7 +1569,12 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <AlertTriangle className="mb-2 h-8 w-8 text-destructive" />
         <p className="text-destructive">{error}</p>
-        <Button variant="outline" size="sm" className="mt-3" onClick={fetchResumen}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          onClick={fetchResumen}
+        >
           Reintentar
         </Button>
       </div>
@@ -1464,7 +1586,9 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold tracking-tight">Resumen del Periodo</h2>
+        <h2 className="text-xl font-bold tracking-tight">
+          Resumen del Periodo
+        </h2>
         {canCerrarCaja && (
           <Button
             variant="default"
@@ -1479,7 +1603,9 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Inicio del Periodo Actual</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Inicio del Periodo Actual
+            </CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -1501,7 +1627,9 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(resumen.monto_total)}</div>
+            <div className="text-2xl font-bold">
+              {formatCurrency(resumen.monto_total)}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -1559,7 +1687,9 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
                   {resumen.ventas_por_usuario.map((v) => (
                     <TableRow key={v.usuario_id}>
                       <TableCell className="font-medium">{v.nombre}</TableCell>
-                      <TableCell className="text-center">{v.cantidad_ventas}</TableCell>
+                      <TableCell className="text-center">
+                        {v.cantidad_ventas}
+                      </TableCell>
                       <TableCell className="text-right font-semibold">
                         {formatCurrency(v.monto_total)}
                       </TableCell>
@@ -1592,7 +1722,9 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
                   {resumen.productos_vendidos.map((p) => (
                     <TableRow key={p.producto_id}>
                       <TableCell className="font-medium">{p.nombre}</TableCell>
-                      <TableCell className="text-right">{p.cantidad_total}</TableCell>
+                      <TableCell className="text-right">
+                        {p.cantidad_total}
+                      </TableCell>
                       <TableCell className="text-right font-semibold">
                         {formatCurrency(p.monto_total)}
                       </TableCell>
@@ -1606,12 +1738,16 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
       )}
 
       {/* Password modal para cierre de caja */}
-      <Dialog open={showPasswordModal} onOpenChange={(open) => !open && closePasswordModal()}>
+      <Dialog
+        open={showPasswordModal}
+        onOpenChange={(open) => !open && closePasswordModal()}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar cierre de caja</DialogTitle>
             <DialogDescription>
-              Ingresá tu contraseña para confirmar el cierre. Se archivarán las ventas del período actual.
+              Ingresá tu contraseña para confirmar el cierre. Se archivarán las
+              ventas del período actual.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1626,7 +1762,7 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
                 disabled={cerrando}
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && password.trim() && !cerrando) {
+                  if (e.key === "Enter" && password.trim() && !cerrando) {
                     handleCerrarCaja();
                   }
                 }}
@@ -1648,7 +1784,7 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
               onClick={handleCerrarCaja}
               disabled={!password.trim() || cerrando}
             >
-              {cerrando ? 'Cerrando...' : 'Confirmar'}
+              {cerrando ? "Cerrando..." : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1663,45 +1799,50 @@ function ResumenDiaView({ currentUserRole, onCajaCerrada }: { currentUserRole?: 
 
 function formatDateTime(value: string): string {
   const d = new Date(value);
-  if (isNaN(d.getTime())) return '—';
-  return d.toLocaleString('es-AR', {
-    timeZone: 'UTC',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("es-AR", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
 function MovimientosView() {
   const [movimientos, setMovimientos] = useState<MovimientoCajaItem[]>([]);
-  const [resumen, setResumen] = useState<ResumenMovimientos>({ ingresos: 0, egresos: 0, total: 0 });
+  const [resumen, setResumen] = useState<ResumenMovimientos>({
+    ingresos: 0,
+    egresos: 0,
+    total: 0,
+  });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [showCrearModal, setShowCrearModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [detalleMovimiento, setDetalleMovimiento] = useState<MovimientoCajaItem | null>(null);
+  const [detalleMovimiento, setDetalleMovimiento] =
+    useState<MovimientoCajaItem | null>(null);
 
   // Form state
-  const [tipo, setTipo] = useState<'ingreso' | 'egreso'>('ingreso');
-  const [monto, setMonto] = useState('');
-  const [descripcion, setDescripcion] = useState('');
+  const [tipo, setTipo] = useState<"ingreso" | "egreso">("ingreso");
+  const [monto, setMonto] = useState("");
+  const [descripcion, setDescripcion] = useState("");
 
   // Password state
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   const fetchMovimientos = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setError("");
     try {
       const { data } = await movimientosApi.list();
       setMovimientos(data.data);
       setResumen(data.resumen ?? { ingresos: 0, egresos: 0, total: 0 });
     } catch {
-      setError('Error al cargar los movimientos de caja');
+      setError("Error al cargar los movimientos de caja");
     } finally {
       setLoading(false);
     }
@@ -1714,25 +1855,25 @@ function MovimientosView() {
   const abrirConfirmacion = () => {
     const montoNum = parseFloat(monto);
     if (!monto.trim() || isNaN(montoNum) || montoNum <= 0) {
-      setPasswordError('Ingresá un monto válido mayor a 0');
+      setPasswordError("Ingresá un monto válido mayor a 0");
       return;
     }
-    setPassword('');
-    setPasswordError('');
+    setPassword("");
+    setPasswordError("");
     setShowCrearModal(false);
     setShowPasswordModal(true);
   };
 
   const cerrarPasswordModal = () => {
     setShowPasswordModal(false);
-    setPassword('');
-    setPasswordError('');
+    setPassword("");
+    setPasswordError("");
   };
 
   const confirmarMovimiento = async () => {
     if (!password.trim()) return;
     setEnviando(true);
-    setPasswordError('');
+    setPasswordError("");
     try {
       await movimientosApi.create({
         tipo,
@@ -1741,14 +1882,15 @@ function MovimientosView() {
         password,
       });
       cerrarPasswordModal();
-      setMonto('');
-      setDescripcion('');
-      setTipo('ingreso');
+      setMonto("");
+      setDescripcion("");
+      setTipo("ingreso");
       await fetchMovimientos();
     } catch (err) {
       const msg =
-        (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
-          ?.message ?? 'Error al registrar el movimiento';
+        (err as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ??
+        "Error al registrar el movimiento";
       setPasswordError(msg);
     } finally {
       setEnviando(false);
@@ -1769,7 +1911,12 @@ function MovimientosView() {
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <AlertTriangle className="mb-2 h-8 w-8 text-destructive" />
         <p className="text-destructive">{error}</p>
-        <Button variant="outline" size="sm" className="mt-3" onClick={fetchMovimientos}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          onClick={fetchMovimientos}
+        >
           Reintentar
         </Button>
       </div>
@@ -1783,9 +1930,9 @@ function MovimientosView() {
         <Button
           variant="default"
           onClick={() => {
-            setMonto('');
-            setDescripcion('');
-            setTipo('ingreso');
+            setMonto("");
+            setDescripcion("");
+            setTipo("ingreso");
             setShowCrearModal(true);
           }}
         >
@@ -1824,7 +1971,9 @@ function MovimientosView() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${resumen.total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div
+              className={`text-2xl font-bold ${resumen.total >= 0 ? "text-green-600" : "text-red-600"}`}
+            >
               {formatCurrency(resumen.total)}
             </div>
           </CardContent>
@@ -1834,7 +1983,9 @@ function MovimientosView() {
       {/* Listado de movimientos */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Movimientos del periodo actual</CardTitle>
+          <CardTitle className="text-base">
+            Movimientos del periodo actual
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {movimientos.length === 0 ? (
@@ -1857,12 +2008,12 @@ function MovimientosView() {
                   {movimientos.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell>{formatDateTime(m.created_at)}</TableCell>
-                      <TableCell>{m.usuario?.nombre_usuario ?? '—'}</TableCell>
+                      <TableCell>{m.usuario?.nombre_usuario ?? "—"}</TableCell>
                       <TableCell className="text-right text-red-600">
-                        {m.tipo === 'egreso' ? formatCurrency(m.monto) : ''}
+                        {m.tipo === "egreso" ? formatCurrency(m.monto) : ""}
                       </TableCell>
                       <TableCell className="text-right text-green-600">
-                        {m.tipo === 'ingreso' ? formatCurrency(m.monto) : ''}
+                        {m.tipo === "ingreso" ? formatCurrency(m.monto) : ""}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -1901,18 +2052,22 @@ function MovimientosView() {
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
-                  variant={tipo === 'ingreso' ? 'default' : 'outline'}
-                  onClick={() => setTipo('ingreso')}
-                  className={tipo === 'ingreso' ? 'bg-green-600 hover:bg-green-700' : ''}
+                  variant={tipo === "ingreso" ? "default" : "outline"}
+                  onClick={() => setTipo("ingreso")}
+                  className={
+                    tipo === "ingreso" ? "bg-green-600 hover:bg-green-700" : ""
+                  }
                 >
                   <ArrowDownCircle className="mr-2 h-4 w-4" />
                   Ingreso
                 </Button>
                 <Button
                   type="button"
-                  variant={tipo === 'egreso' ? 'default' : 'outline'}
-                  onClick={() => setTipo('egreso')}
-                  className={tipo === 'egreso' ? 'bg-red-600 hover:bg-red-700' : ''}
+                  variant={tipo === "egreso" ? "default" : "outline"}
+                  onClick={() => setTipo("egreso")}
+                  className={
+                    tipo === "egreso" ? "bg-red-600 hover:bg-red-700" : ""
+                  }
                 >
                   <ArrowUpCircle className="mr-2 h-4 w-4" />
                   Egreso
@@ -1952,14 +2107,18 @@ function MovimientosView() {
       </Dialog>
 
       {/* Modal confirmar password */}
-      <Dialog open={showPasswordModal} onOpenChange={(open) => !open && cerrarPasswordModal()}>
+      <Dialog
+        open={showPasswordModal}
+        onOpenChange={(open) => !open && cerrarPasswordModal()}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar movimiento</DialogTitle>
             <DialogDescription>
-              Vas a registrar un <strong>{tipo}</strong> de{' '}
+              Vas a registrar un <strong>{tipo}</strong> de{" "}
               <strong>{formatCurrency(parseFloat(monto) || 0)}</strong>
-              {descripcion.trim() ? ` — ${descripcion.trim()}` : ''}. Ingresá tu contraseña para confirmar.
+              {descripcion.trim() ? ` — ${descripcion.trim()}` : ""}. Ingresá tu
+              contraseña para confirmar.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1974,7 +2133,7 @@ function MovimientosView() {
                 disabled={enviando}
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && password.trim() && !enviando) {
+                  if (e.key === "Enter" && password.trim() && !enviando) {
                     confirmarMovimiento();
                   }
                 }}
@@ -1985,11 +2144,18 @@ function MovimientosView() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={cerrarPasswordModal} disabled={enviando}>
+            <Button
+              variant="outline"
+              onClick={cerrarPasswordModal}
+              disabled={enviando}
+            >
               Cancelar
             </Button>
-            <Button onClick={confirmarMovimiento} disabled={!password.trim() || enviando}>
-              {enviando ? 'Registrando...' : 'Confirmar'}
+            <Button
+              onClick={confirmarMovimiento}
+              disabled={!password.trim() || enviando}
+            >
+              {enviando ? "Registrando..." : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2003,7 +2169,9 @@ function MovimientosView() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {detalleMovimiento?.tipo === 'ingreso' ? 'Detalle de Ingreso' : 'Detalle de Egreso'}
+              {detalleMovimiento?.tipo === "ingreso"
+                ? "Detalle de Ingreso"
+                : "Detalle de Egreso"}
             </DialogTitle>
           </DialogHeader>
           {detalleMovimiento && (
@@ -2012,17 +2180,21 @@ function MovimientosView() {
                 <span className="text-sm text-muted-foreground">Tipo</span>
                 <span
                   className={`font-semibold ${
-                    detalleMovimiento.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'
+                    detalleMovimiento.tipo === "ingreso"
+                      ? "text-green-600"
+                      : "text-red-600"
                   }`}
                 >
-                  {detalleMovimiento.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}
+                  {detalleMovimiento.tipo === "ingreso" ? "Ingreso" : "Egreso"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Monto</span>
                 <span
                   className={`text-lg font-bold ${
-                    detalleMovimiento.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'
+                    detalleMovimiento.tipo === "ingreso"
+                      ? "text-green-600"
+                      : "text-red-600"
                   }`}
                 >
                   {formatCurrency(detalleMovimiento.monto)}
@@ -2030,21 +2202,33 @@ function MovimientosView() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Usuario</span>
-                <span className="font-medium">{detalleMovimiento.usuario?.nombre_usuario ?? '—'}</span>
+                <span className="font-medium">
+                  {detalleMovimiento.usuario?.nombre_usuario ?? "—"}
+                </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Fecha y hora</span>
-                <span className="font-medium">{formatDateTime(detalleMovimiento.created_at)}</span>
+                <span className="text-sm text-muted-foreground">
+                  Fecha y hora
+                </span>
+                <span className="font-medium">
+                  {formatDateTime(detalleMovimiento.created_at)}
+                </span>
               </div>
               {detalleMovimiento.descripcion && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Descripción</span>
-                  <span className="font-medium text-right">{detalleMovimiento.descripcion}</span>
+                  <span className="text-sm text-muted-foreground">
+                    Descripción
+                  </span>
+                  <span className="font-medium text-right">
+                    {detalleMovimiento.descripcion}
+                  </span>
                 </div>
               )}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">ID</span>
-                <span className="font-mono text-xs">{detalleMovimiento.id}</span>
+                <span className="font-mono text-xs">
+                  {detalleMovimiento.id}
+                </span>
               </div>
             </div>
           )}
@@ -2074,7 +2258,9 @@ export function VentasPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Ventas</h1>
-          <p className="text-sm text-muted-foreground">Terminal de venta y historial</p>
+          <p className="text-sm text-muted-foreground">
+            Terminal de venta y historial
+          </p>
         </div>
       </div>
 
@@ -2088,13 +2274,13 @@ export function VentasPage() {
             <Wallet className="mr-2 h-4 w-4" />
             Ingresos/Egresos
           </TabsTrigger>
-          {user?.rol !== 'despachador' && (
+          {user?.rol !== "despachador" && (
             <TabsTrigger value="historial">
               <Calendar className="mr-2 h-4 w-4" />
               Historial
             </TabsTrigger>
           )}
-          {user?.rol !== 'despachador' && (
+          {user?.rol !== "despachador" && (
             <TabsTrigger value="resumen">
               <DollarSign className="mr-2 h-4 w-4" />
               Resumen del Periodo
@@ -2111,11 +2297,17 @@ export function VentasPage() {
         </TabsContent>
 
         <TabsContent value="historial">
-          <HistorialView currentUserRole={user?.rol} refreshKey={historialRefreshKey} />
+          <HistorialView
+            currentUserRole={user?.rol}
+            refreshKey={historialRefreshKey}
+          />
         </TabsContent>
 
         <TabsContent value="resumen">
-          <ResumenDiaView currentUserRole={user?.rol} onCajaCerrada={handleCajaCerrada} />
+          <ResumenDiaView
+            currentUserRole={user?.rol}
+            onCajaCerrada={handleCajaCerrada}
+          />
         </TabsContent>
       </Tabs>
     </div>

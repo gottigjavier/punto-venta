@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Punto de Venta — Runtime Architecture",
+    "output": "punto-venta.architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [1200, 580],
+    "views": [
+      { "id": "primary-path", "label": "Primary request path", "focus": ["client", "api", "usecases", "repos", "db"], "note": "Follow a request from the React client to durable state in PostgreSQL." },
+      { "id": "auth-flow", "label": "Authentication & security", "focus": ["client", "auth", "api"], "note": "Isolate the JWT middleware and password flow beside the request path." }
+    ]
+  },
+  "components": [
+    { "id": "client", "type": "frontend", "label": "POS Client", "sublabel": "React + Vite + Tailwind", "pos": [40, 220], "size": [140, 74] },
+    { "id": "api", "type": "backend", "label": "Fastify API", "sublabel": "HTTP :3000", "pos": [275, 220], "size": [150, 80] },
+    { "id": "auth", "type": "security", "label": "Auth Middleware", "sublabel": "JWT verify", "pos": [275, 80], "size": [150, 66], "tag": "bearer" },
+    { "id": "usecases", "type": "backend", "label": "Application Layer", "sublabel": "Use Cases + DTOs", "pos": [520, 220], "size": [170, 80] },
+    { "id": "domain", "type": "backend", "label": "Domain Core", "sublabel": "Entities / Errors / VO", "pos": [770, 60], "size": [160, 74], "tag": "hexagonal" },
+    { "id": "repos", "type": "database", "label": "Prisma Repositories", "sublabel": "ORM adapter", "pos": [770, 220], "size": [160, 80] },
+    { "id": "db", "type": "database", "label": "PostgreSQL", "sublabel": "main :5432", "pos": [1000, 215], "size": [140, 90] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "API Backend", "wraps": ["auth", "api", "usecases", "domain", "repos"] },
+    { "kind": "security-group", "label": "auth-scope", "wraps": ["auth"] }
+  ],
+  "connections": [
+    { "id": "client-api", "from": "client", "to": "api", "label": "JSON / HTTPS", "variant": "emphasis" },
+    { "id": "jwt-lookup", "from": "auth", "to": "api", "label": "verify token", "variant": "security", "fromSide": "bottom", "toSide": "top", "labelAt": [350, 160] },
+    { "id": "api-usecases", "from": "api", "to": "usecases", "label": "dispatch" },
+    { "id": "usecases-domain", "from": "usecases", "to": "domain", "label": "domain rules", "fromSide": "top", "toSide": "bottom", "labelDy": -34 },
+    { "id": "usecases-repos", "from": "usecases", "to": "repos", "label": "persistence" },
+    { "id": "repos-db", "from": "repos", "to": "db", "label": "SQL" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Frontend", "items": ["React + Vite + Tailwind SPA", "Feature modules: ventas, stock, productos, usuarios, caja"] },
+    { "dot": "cyan", "title": "Backend (hexagonal)", "items": ["Fastify HTTP adapter with controllers & routes", "Application use cases orchestrate DTOs", "Domain core holds entities and invariants"] },
+    { "dot": "rose", "title": "Security & Data", "items": ["JWT bearer auth with bcrypt password hashing", "Prisma ORM over PostgreSQL", "Models: Venta, DetalleVenta, CierreCaja, MovimientoCaja"] }
+  ]
+}
