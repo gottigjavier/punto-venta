@@ -13,8 +13,8 @@ export type CartMode = "editing" | "confirmed";
  * type in VentasPage without a circular import.
  */
 export interface CountableCartLine {
- cantidad: number;
- unidad_medida: string;
+  cantidad: number;
+  unidad_medida: string;
 }
 
 /**
@@ -34,10 +34,10 @@ const WEIGHT_VOLUME_UNITS = new Set(["kg", "g", "l", "ml"]);
  *  - WEIGHT/VOLUME product   → contributes 1 per cart line (1.25 kg → 1 item)
  */
 export function countCartItems(lines: CountableCartLine[]): number {
- return lines.reduce((sum, line) => {
-  const isUnit = line.unidad_medida === "unidad";
-  return sum + (isUnit ? line.cantidad : 1);
- }, 0);
+  return lines.reduce((sum, line) => {
+    const isUnit = line.unidad_medida === "unidad";
+    return sum + (isUnit ? line.cantidad : 1);
+  }, 0);
 }
 
 /**
@@ -46,9 +46,9 @@ export function countCartItems(lines: CountableCartLine[]): number {
  * VentasPage without a circular import.
  */
 export interface ReconcileLine {
- producto_id: string;
- cantidad: number;
- stock_disponible: number;
+  producto_id: string;
+  cantidad: number;
+  stock_disponible: number;
 }
 
 /**
@@ -64,19 +64,19 @@ export interface ReconcileLine {
  * Lines for products absent from the map are preserved untouched.
  */
 export function reconcileCartWithStock<L extends ReconcileLine>(
- lines: L[],
- freshStock: Map<string, number>,
+  lines: L[],
+  freshStock: Map<string, number>,
 ): L[] {
- return lines
-  .map((line) => {
-   const stock = freshStock.get(line.producto_id);
-   if (stock === undefined) return line;
-   const clamped = Math.min(line.cantidad, Math.max(0, stock));
-   return clamped <= 0
-    ? null
-    : { ...line, cantidad: clamped, stock_disponible: stock };
-  })
-  .filter((line): line is L => line !== null);
+  return lines
+    .map((line) => {
+      const stock = freshStock.get(line.producto_id);
+      if (stock === undefined) return line;
+      const clamped = Math.min(line.cantidad, Math.max(0, stock));
+      return clamped <= 0
+        ? null
+        : { ...line, cantidad: clamped, stock_disponible: stock };
+    })
+    .filter((line): line is L => line !== null);
 }
 
 /**
@@ -89,23 +89,23 @@ export function reconcileCartWithStock<L extends ReconcileLine>(
  * message re-enables the action.
  */
 export function shouldBlockConfirm(args: {
- cartLength: number;
- cartMode: CartMode;
- submitting: boolean;
- pendingError: boolean;
+  cartLength: number;
+  cartMode: CartMode;
+  submitting: boolean;
+  pendingError: boolean;
 }): boolean {
- return (
-  args.submitting ||
-  args.cartLength === 0 ||
-  args.cartMode === "confirmed" ||
-  args.pendingError
- );
+  return (
+    args.submitting ||
+    args.cartLength === 0 ||
+    args.cartMode === "confirmed" ||
+    args.pendingError
+  );
 }
 
 export type SaleResult = {
- type: "success" | "error";
- message: string;
- details?: string;
+  type: "success" | "error";
+  message: string;
+  details?: string;
 } | null;
 
 /**
@@ -113,10 +113,10 @@ export type SaleResult = {
  * The cart items are NOT cleared — they stay visible and disabled.
  */
 export function onConfirmSuccess(saleResult: SaleResult): {
- cartMode: CartMode;
- saleResult: SaleResult;
+  cartMode: CartMode;
+  saleResult: SaleResult;
 } {
- return { cartMode: "confirmed", saleResult };
+  return { cartMode: "confirmed", saleResult };
 }
 
 /**
@@ -124,21 +124,21 @@ export function onConfirmSuccess(saleResult: SaleResult): {
  * Cart items are preserved.
  */
 export function onConfirmError(saleResult: SaleResult): {
- cartMode: CartMode;
- saleResult: SaleResult;
+  cartMode: CartMode;
+  saleResult: SaleResult;
 } {
- return { cartMode: "editing", saleResult };
+  return { cartMode: "editing", saleResult };
 }
 
 /**
  * Clear the cart and reset to a clean editing state.
  */
 export function onClearCart(): {
- cartMode: CartMode;
- saleResult: null;
- searchError: string;
+  cartMode: CartMode;
+  saleResult: null;
+  searchError: string;
 } {
- return { cartMode: "editing", saleResult: null, searchError: "" };
+  return { cartMode: "editing", saleResult: null, searchError: "" };
 }
 
 /**
@@ -148,11 +148,11 @@ export function onClearCart(): {
  * cart footer). The searchError channel is reserved for search errors.
  */
 export function onAddWhenConfirmed(stockWarning: string | null): {
- cartMode: CartMode;
- saleResult: SaleResult;
+  cartMode: CartMode;
+  saleResult: SaleResult;
 } {
- return {
-  cartMode: "editing",
-  saleResult: stockWarning ? { type: "error", message: stockWarning } : null,
- };
+  return {
+    cartMode: "editing",
+    saleResult: stockWarning ? { type: "error", message: stockWarning } : null,
+  };
 }

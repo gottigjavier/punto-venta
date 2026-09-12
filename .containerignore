@@ -1,0 +1,33 @@
+# .containerignore (raíz)
+# Excluye del build context de DEV (podman-compose.yml, context: .)
+# Si esto no está, el `COPY . .` de Containerfile.dev mete los
+# node_modules/dist de la raíz dentro de la imagen (imagen de 1.4 GB).
+
+# Version control
+.git/
+.jj/
+.jjignore
+
+# Dependencias (se reinstalan con npm ci dentro del contenedor)
+node_modules/
+
+# Artefactos de build (se generan dentro)
+dist/
+
+# Entorno / secretos (nunca en imágenes)
+.env
+.env.*
+!.env.example
+
+# Tests y reportes
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+api/tests/
+api/__tests__/
+
+# Logs y archivos temporales
+*.log
+*.tsbuildinfo

@@ -224,9 +224,8 @@ function ProductCard({
 }) {
   return (
     <Card
-      className={`cursor-pointer transition-colors hover:border-primary ${
-        disabled ? "opacity-60" : ""
-      }`}
+      className={`cursor-pointer transition-colors hover:border-primary ${disabled ? "opacity-60" : ""
+        }`}
       onClick={() => !disabled && onAdd()}
     >
       <CardContent className="p-3">
@@ -1021,11 +1020,10 @@ function POSView() {
           {saleResult && (
             <CardFooter>
               <div
-                className={`flex w-full items-center gap-2 rounded-md p-3 text-sm ${
-                  saleResult.type === "success"
+                className={`flex w-full items-center gap-2 rounded-md p-3 text-sm ${saleResult.type === "success"
                     ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"
                     : "bg-destructive/10 text-destructive"
-                }`}
+                  }`}
               >
                 {saleResult.type === "success" ? (
                   <Check className="h-4 w-4 shrink-0" />
@@ -1095,7 +1093,7 @@ function HistorialView({
       .then(({ data }) => {
         setUsuarios((data.data as Usuario[]) ?? []);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const fetchHistorial = useCallback(
@@ -2179,11 +2177,10 @@ function MovimientosView() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Tipo</span>
                 <span
-                  className={`font-semibold ${
-                    detalleMovimiento.tipo === "ingreso"
+                  className={`font-semibold ${detalleMovimiento.tipo === "ingreso"
                       ? "text-green-600"
                       : "text-red-600"
-                  }`}
+                    }`}
                 >
                   {detalleMovimiento.tipo === "ingreso" ? "Ingreso" : "Egreso"}
                 </span>
@@ -2191,11 +2188,10 @@ function MovimientosView() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Monto</span>
                 <span
-                  className={`text-lg font-bold ${
-                    detalleMovimiento.tipo === "ingreso"
+                  className={`text-lg font-bold ${detalleMovimiento.tipo === "ingreso"
                       ? "text-green-600"
                       : "text-red-600"
-                  }`}
+                    }`}
                 >
                   {formatCurrency(detalleMovimiento.monto)}
                 </span>

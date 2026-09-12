@@ -1,25 +1,60 @@
 # api/Containerfile.dev
 # Development image for the Fastify API.
-# Runs with tsx watch so the container picks up source changes from the
-# mounted ./src volume (hot reload) — no image rebuild needed on backend edits.
-# This mirrors how the client runs in dev. NOT for production.
+# Multi-stage (same healthy pattern as the prod `api/Containerfile`):
+#   builder  → npm ci + prisma generate + tsc build (produces ./dist)
+#   runtime  → lean final image with ONLY the built dist + prod deps + tsx
+#
+# Dev behavior is preserved exactly:
+#   * ./src is mounted live by podman-compose.yml (./src:/app/src:ro) and served
+#     with `tsx watch` → source edits hot-reload WITHOUT an image rebuild.
+#   * The builder stage is just the SAFE fallback so the image is also
+#     runnable standalone for prod-like smoke tests.
+# NOT for production — use api/Containerfile for that.
 
-FROM node:20-alpine
+# ─── Stage 1: Builder ─────────────────────────
+FROM node:20-alpine AS builder
 
-# tsx is needed for watch mode; install all deps (dev + prod).
 WORKDIR /app
 
+# Install ALL dependencies (dev + prod) so tsc can compile.
 COPY package*.json ./
-RUN npm ci
+RUN npm ci && npm cache clean --force
 
+# Prisma client (needs the schema + engines before building TS).
 COPY prisma ./prisma/
 RUN npx prisma generate
 
-COPY . .
+# Build TypeScript → ./dist
+COPY tsconfig.json ./
+COPY src ./src/
+RUN npm run build
 
-# Source is mounted as a volume in podman-compose.yml (./src:/app/src:ro),
-# so this COPY is only a fallback for the image to be runnable standalone.
-# The running process uses tsx watch on the live mounted source.
+# Trim to production deps only → smaller node_modules in the runtime stage
+# (tsx stays because the runtime CMD uses it).
+RUN npm prune --omit=dev
+
+# ─── Stage 2: Runtime (dev) ───────────────────
+FROM node:20-alpine
+
+# Non-root user (mirrors prod security posture)
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -S appuser -u 1001 -G appgroup
+
+WORKDIR /app
+
+# Only the compiled output + prod deps (no source, no dev deps → small image)
+COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
+COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /app/package.json ./
+COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
+
+USER appuser
+
 EXPOSE 3001
 
-CMD ["npx", "tsx", "watch", "src/main.ts"]
+# ─── Runtime ──────────────────────────────────
+# Dev runs the COMPILED dist. For watch mode on the LIVE mounted ./src,
+# podman-compose.yml overrides the command via the container entrypoint
+# (see compose `command: ["npx","tsx","watch","src/main.ts"]`) — this CMD
+# is only the standalone fallback.
+CMD ["node", "dist/main.js"]
