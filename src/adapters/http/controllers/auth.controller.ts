@@ -6,6 +6,7 @@ import {
   loginUseCase,
   refreshTokenUseCase,
   unlockUserUseCase,
+  logoutUseCase,
 } from '../../../application/use-cases/auth.use-case.js';
 import { env } from '../../../infrastructure/config/env.js';
 import type { DomainError } from '../../../shared/types/result.js';
@@ -62,12 +63,15 @@ export async function loginHandler(
 
   const { tokens, user } = result.value;
 
-  // Set refresh token as httpOnly cookie
+  // Set refresh token as httpOnly cookie. Path acotado al prefijo auth para que
+  // el navegador lo adjunte tanto en /auth/refresh como en /auth/logout (si el
+  // path fuera /auth/refresh, logout no recibiría la cookie y la revocación
+  // server-side de S5 no podría ejecutarse).
   reply.setCookie('refreshToken', tokens.refreshToken, {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
     sameSite: 'lax',
-    path: '/api/v1/auth/refresh',
+    path: '/api/v1/auth',
     maxAge: 7 * 24 * 60 * 60, // 7 days
   });
 
@@ -93,6 +97,7 @@ export async function refreshHandler(
 ): Promise<void> {
   const refreshToken = request.cookies['refreshToken'] as string | undefined;
 
+  // Refrescar: devuelve además un refresh token ROTADO para renovar la cookie
   if (!refreshToken) {
     return reply.status(401).send({
       success: false,
@@ -109,6 +114,16 @@ export async function refreshHandler(
     return handleDomainError(reply, result.error);
   }
 
+  // Rotación (S5): re-setear la cookie con el nuevo refresh token. Path
+  // /api/v1/auth (mismo que en login) para que logout la reciba.
+  reply.setCookie('refreshToken', result.value.refreshToken, {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/api/v1/auth',
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  });
+
   reply.send({
     success: true,
     data: {
@@ -119,12 +134,17 @@ export async function refreshHandler(
 
 // POST /api/v1/auth/logout
 export async function logoutHandler(
-  _request: FastifyRequest,
+  request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  // Clear refresh token cookie
+  const refreshToken = request.cookies['refreshToken'] as string | undefined;
+
+  // Revoca la sesión del lado servidor (S5): invalida todos los refresh tokens
+  // del usuario impactando la versión, no solo borrar la cookie local.
+  await logoutUseCase(refreshToken);
+
   reply.clearCookie('refreshToken', {
-    path: '/api/v1/auth/refresh',
+    path: '/api/v1/auth',
   });
 
   reply.send({

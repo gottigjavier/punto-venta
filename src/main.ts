@@ -3,6 +3,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
+import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { env, APP_VERSION } from './infrastructure/config/env.js';
 import { logger } from './infrastructure/logging/logger.js';
@@ -30,7 +31,13 @@ async function bootstrap(): Promise<void> {
     logger: {
       level: env.LOG_LEVEL,
     },
-    trustProxy: true,
+    // trustProxy ACOTADO (S3): solo confiamos en el nº exacto de proxies de
+    // confianza (env TRUST_PROXY_HOPS, default 0 = deshabilitado). El anterior
+    // trustProxy: true confiaba en CUALQUIER hop y permitía falsificar
+    // X-Forwarded-For para evadir el rate-limit por IP y el lockout. Configurar
+    // el valor real por despliegue: directo = 0, detrás de proxy (Render/Nginx)
+    // = 1 (el nº exacto de hops).
+    trustProxy: env.TRUST_PROXY_HOPS > 0 ? env.TRUST_PROXY_HOPS : false,
   });
 
   // ===== Performance: Request timing hook =====
@@ -107,11 +114,31 @@ async function bootstrap(): Promise<void> {
   // Cookies
   await fastify.register(cookie);
 
-  // Swagger/OpenAPI documentation
-  await registerSwagger(fastify);
+  // Cabeceras de seguridad (S6): nosniff, frameguard, referrer-policy, HSTS.
+  // La CSP la define la SPA en su propio host; acá se deja off para no chocar
+  // con la CSP estática que ya aplica swagger-ui en /docs.
+  await fastify.register(helmet, {
+    contentSecurityPolicy: false,
+  });
+
+  // Swagger/OpenAPI documentation — NO se expone en producción (S7): la doc
+  // interactiva en prod filtra el contrato y habilita pruebas no deseadas.
+  if (env.NODE_ENV !== 'production') {
+    await registerSwagger(fastify);
+  }
 
   // ===== Plugin de métricas =====
-  fastify.get('/metrics', async () => {
+  fastify.get('/metrics', async (request, reply) => {
+    // S7: /metrics protegido — requiere Bearer token si METRICS_TOKEN está
+    // configurado; sin token y en producción, no se expone (403).
+    if (env.METRICS_TOKEN) {
+      if (request.headers.authorization !== `Bearer ${env.METRICS_TOKEN}`) {
+        return reply.status(401).send({ error: 'Unauthorized' });
+      }
+    } else if (env.NODE_ENV === 'production') {
+      return reply.status(403).send({ error: 'Metrics not enabled in production' });
+    }
+
     const uptime = Math.floor((Date.now() - metrics.startTime) / 1000);
     const avgResponseTime =
       metrics.requestCount > 0

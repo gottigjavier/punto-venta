@@ -2,16 +2,38 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 const API_BASE = '/api/v1';
 
+// Ruta interna de login. Valor fijo, nunca derivado de entrada de usuario, para
+// evitar open-redirect al reenviar tras un 401 / refresh fallido.
+export const LOGIN_PATH = '/login';
+
+export function redirectToLogin(): void {
+  // Solo se navega a un path interno fijo; jamás se construye el destino desde
+  // datos del cliente.
+  window.location.assign(LOGIN_PATH);
+}
+
+// Access token en memoria (NO persistente). Vive solo mientras la SPA esté
+// cargada — mitigación S1: un token robado por XSS ya no queda persistido en
+// localStorage. La sesión se restaura al cargar llamando a /auth/refresh con la
+// cookie httpOnly del refresh token.
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
 export const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
+  // R4-3: timeout global para que ninguna llamada (incl. la restauración de
+  // sesión en el mount) pueda quedar colgada sin límite si el backend no responde.
+  timeout: 10000,
 });
 
-// Request interceptor: attach JWT
+// Request interceptor: attach JWT desde memoria
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
 });
@@ -38,8 +60,17 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const url = originalRequest?.url ?? '';
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // No reintentar refresh en los propios endpoints de auth: login 401 por
+    // credenciales inválidas, refresh 401 por sesión expirada y logout 401 por
+    // sesión ya no válida. Evita bucles y redirecciones espurias.
+    const authEndpoint =
+      url.includes('/auth/login') ||
+      url.includes('/auth/refresh') ||
+      url.includes('/auth/logout');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !authEndpoint) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -53,16 +84,20 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post(`${API_BASE}/auth/refresh`, {}, { withCredentials: true });
+        const { data } = await axios.post(
+          `${API_BASE}/auth/refresh`,
+          {},
+          { withCredentials: true, timeout: 10000 },
+        );
         const newToken: string = data.data.accessToken;
-        localStorage.setItem('accessToken', newToken);
+        setAccessToken(newToken);
         processQueue(null, newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch {
         processQueue(error, null);
-        localStorage.removeItem('accessToken');
-        window.location.href = '/login';
+        setAccessToken(null);
+        redirectToLogin();
         return Promise.reject(error);
       } finally {
         isRefreshing = false;
@@ -90,6 +125,7 @@ export const authApi = {
   login: (nik_usuario: string, password: string) =>
     api.post<ApiResponse<{ accessToken: string; user: unknown }>>('/auth/login', { nik_usuario, password }),
   refresh: () => api.post<ApiResponse<{ accessToken: string }>>('/auth/refresh', {}, { withCredentials: true }),
+  logout: () => api.post<ApiResponse<{ message: string }>>('/auth/logout'),
 };
 
 // Productos

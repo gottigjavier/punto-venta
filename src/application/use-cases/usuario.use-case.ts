@@ -142,7 +142,11 @@ export async function createUsuario(
     logger.info({ userId: usuario.id, nik_usuario: usuario.nik_usuario }, 'Usuario creado');
     return ok(safeUser as UsuarioSafe);
   } catch (error) {
-    logger.error({ error, input }, 'Error al crear usuario');
+    // No loguear el input crudo: incluye `password` en texto plano.
+    logger.error(
+      { error, nik_usuario: input.nik_usuario, email: input.email },
+      'Error al crear usuario'
+    );
     return err(databaseError('Error al crear usuario', error as Error));
   }
 }
@@ -195,6 +199,8 @@ export async function updateUsuario(
     let updateData: Record<string, unknown> = { ...data };
     if (data.password) {
       updateData.password_hash = await hashPassword(data.password);
+      // Revocar todas las sesiones existentes al cambiar la contraseña (S5).
+      updateData.refresh_token_version = { increment: 1 };
       delete updateData.password;
     }
 
@@ -231,7 +237,11 @@ export async function deactivateUsuario(
 
     await prisma.usuario.update({
       where: { id },
-      data: { activo: false },
+      data: {
+        activo: false,
+        // Revocar sesiones al desactivar el usuario (S5).
+        refresh_token_version: { increment: 1 },
+      },
     });
 
     logger.info({ userId: id, nik_usuario: existing.nik_usuario }, 'Usuario desactivado');

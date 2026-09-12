@@ -5,6 +5,26 @@ import { env } from '../config/env.js';
 
 // Create logger based on environment
 function createLogger(): pino.Logger {
+  // Redactor global: enmascara secretos en cualquier objeto logueado (defensa en
+  // profundidad por si un input crudo se filtra a un log). Aplica de forma
+  // recursiva a claves conocidas en cualquier nivel del objeto.
+  const SENSITIVE_PATHS = [
+    'password',
+    '*.password',
+    'password_hash',
+    'passwordHash',
+    'token',
+    '*.token',
+    'accessToken',
+    'access_token',
+    'refreshToken',
+    'refresh_token',
+    'authorization',
+    'JWT_SECRET',
+    'JWT_REFRESH_SECRET',
+    'DATABASE_URL',
+  ];
+
   const baseOptions: pino.LoggerOptions = {
     level: env.LOG_LEVEL,
     base: {
@@ -15,6 +35,10 @@ function createLogger(): pino.Logger {
       err: pino.stdSerializers.err,
       req: pino.stdSerializers.req,
       res: pino.stdSerializers.res,
+    },
+    redact: {
+      paths: SENSITIVE_PATHS,
+      censor: '[REDACTED]',
     },
     timestamp: pino.stdTimeFunctions.isoTime,
   };

@@ -20,4 +20,12 @@ services:
         sync: false
       - key: JWT_REFRESH_SECRET
         sync: false
-      # PORT es inyectado automáticamente por Render
+      - key: PORT
+        # PORT es inyectado automáticamente por Render
+      # Detrás del proxy de Render: confiar en 1 hop para la IP del cliente (S3)
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      # Token bearer que protege GET /metrics (S7). Se setea desde el dashboard
+      # de Render (sync:false). Si queda vacío, /metrics devuelve 403 en prod.
+      - key: METRICS_TOKEN
+        sync: false

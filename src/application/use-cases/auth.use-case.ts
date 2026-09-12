@@ -4,8 +4,13 @@ import type { Result } from 'neverthrow';
 import { ok, err } from 'neverthrow';
 import { prisma } from '../../infrastructure/database/prisma/client.js';
 import { verifyPassword } from '../../infrastructure/auth/password.js';
-import { generateTokenPair } from '../../infrastructure/auth/jwt.js';
-import type { TokenPair } from '../../infrastructure/auth/jwt.js';
+import {
+  generateTokenPair,
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} from '../../infrastructure/auth/jwt.js';
+import type { TokenPayload, TokenPair } from '../../infrastructure/auth/jwt.js';
 import { env } from '../../infrastructure/config/env.js';
 import type { DomainError } from '../../shared/types/result.js';
 import type { UsuarioSafe } from '../../domain/entities/usuario.js';
@@ -30,28 +35,26 @@ export async function loginUseCase(input: LoginInput): Promise<Result<LoginResul
     where: { nik_usuario },
   });
 
+  // Respuesta de login UNIFORME (S4): frente a cualquier fallo — usuario no
+  // existe, cuenta bloqueada, cuenta inactiva o contraseña inválida — se retorna
+  // el mismo error genérico, para no enumerar cuentas ni revelar su estado.
+  // El lockout y el conteo de intentos siguen operando internamente; el ataque
+  // de bloqueo (DoS) se mitiga con el rate-limit por IP específico de /login.
+  const credencialesInvalidas = (): Result<LoginResult, DomainError> =>
+    err({ code: 'INVALID_CREDENTIALS', message: 'Credenciales inválidas' });
+
   if (!user) {
-    return err({
-      code: 'INVALID_CREDENTIALS',
-      message: 'Credenciales inválidas',
-    });
+    return credencialesInvalidas();
   }
 
-  // Check if account is locked
+  // Cuenta bloqueada: se evalúa pero NO se revela el estado ni el lockedUntil.
   if (user.bloqueado_hasta && user.bloqueado_hasta > new Date()) {
-    return err({
-      code: 'ACCOUNT_LOCKED',
-      message: `Cuenta bloqueada hasta ${user.bloqueado_hasta.toISOString()}`,
-      lockedUntil: user.bloqueado_hasta,
-    });
+    return credencialesInvalidas();
   }
 
-  // Check if account is active
+  // Cuenta inactiva: mismo error genérico.
   if (!user.activo) {
-    return err({
-      code: 'UNAUTHORIZED',
-      message: 'Cuenta desactivada',
-    });
+    return credencialesInvalidas();
   }
 
   // Verify password
@@ -88,10 +91,7 @@ export async function loginUseCase(input: LoginInput): Promise<Result<LoginResul
       data: updateData,
     });
 
-    return err({
-      code: 'INVALID_CREDENTIALS',
-      message: 'Credenciales inválidas',
-    });
+    return credencialesInvalidas();
   }
 
   // Reset failed attempts on successful login
@@ -105,12 +105,13 @@ export async function loginUseCase(input: LoginInput): Promise<Result<LoginResul
     });
   }
 
-  // Generate tokens
-  const tokens = generateTokenPair({
+  // Generate tokens firmados con la versión de revocación actual (S5)
+  const userPayload: TokenPayload = {
     userId: user.id,
     nik_usuario: user.nik_usuario,
     rol: user.rol,
-  });
+  };
+  const tokens = generateTokenPair(userPayload, user.refresh_token_version);
 
   // Return safe user (without password)
   const { password_hash: _, ...safeUser } = user;
@@ -123,12 +124,10 @@ export async function loginUseCase(input: LoginInput): Promise<Result<LoginResul
   });
 }
 
-// Refresh token use case
+// Refresh token use case (rotación + revocación por versión, S5)
 export async function refreshTokenUseCase(
   refreshToken: string
-): Promise<Result<{ accessToken: string }, DomainError>> {
-  const { verifyRefreshToken } = await import('../../infrastructure/auth/jwt.js');
-
+): Promise<Result<{ accessToken: string; refreshToken: string }, DomainError>> {
   const payload = verifyRefreshToken(refreshToken);
 
   if (payload.isErr()) {
@@ -138,9 +137,11 @@ export async function refreshTokenUseCase(
     });
   }
 
+  const claim = payload.value;
+
   // Verify user still exists and is active
   const user = await prisma.usuario.findUnique({
-    where: { id: payload.value.userId },
+    where: { id: claim.userId },
   });
 
   if (!user || !user.activo) {
@@ -150,15 +151,63 @@ export async function refreshTokenUseCase(
     });
   }
 
-  // Generate new access token
-  const { generateAccessToken } = await import('../../infrastructure/auth/jwt.js');
-  const accessToken = generateAccessToken({
+  // Revocación por versión: si el token trae una versión distinta a la actual,
+  // la sesión fue revocada (logout, cambio de password, desactivación).
+  if (claim.version !== user.refresh_token_version) {
+    return err({
+      code: 'UNAUTHORIZED',
+      message: 'Sesión revocada',
+    });
+  }
+
+  const basePayload: TokenPayload = {
     userId: user.id,
     nik_usuario: user.nik_usuario,
     rol: user.rol,
-  });
+  };
 
-  return ok({ accessToken });
+  // Rotación: se emiten access y refresh NUEVOS con la versión actual. El refresh
+  // se renueva en cookie; se mantiene la misma versión (multi-tab compatible,
+  // no single-use sobre la cookie compartida).
+  return ok({
+    accessToken: generateAccessToken(basePayload),
+    refreshToken: generateRefreshToken(basePayload, user.refresh_token_version),
+  });
+}
+
+// Logout: revoca todos los refresh tokens del usuario incrementando la versión.
+// Así un refresh token robado/emitido antes queda invalidado aunque la cookie
+// no se borrara del lado del atacante.
+export async function logoutUseCase(
+  refreshToken?: string
+): Promise<Result<{ success: boolean }, DomainError>> {
+  if (!refreshToken) {
+    return ok({ success: true });
+  }
+
+  const payload = verifyRefreshToken(refreshToken);
+
+  if (payload.isOk()) {
+    try {
+      await prisma.usuario.update({
+        where: { id: payload.value.userId },
+        data: {
+          refresh_token_version: { increment: 1 },
+        },
+      });
+      logger.info({ userId: payload.value.userId }, 'Logout: refresh tokens revocados');
+    } catch (error) {
+      // R4-2: nunca lanzar unhandled rejection por un fallo transitorio de BD.
+      // El logout local (borrar la cookie) se completa igual; la revocación
+      // server-side es best-effort y el token vence en JWT_REFRESH_EXPIRES_IN.
+      logger.error(
+        { userId: payload.value.userId, err: error },
+        'Logout: fallo al revocar refresh tokens en BD'
+      );
+    }
+  }
+
+  return ok({ success: true });
 }
 
 // Unlock user use case (admin only)

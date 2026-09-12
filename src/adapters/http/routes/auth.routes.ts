@@ -8,12 +8,22 @@ import {
   unlockHandler,
 } from '../controllers/auth.controller.js';
 import { authorize } from '../middleware/auth.middleware.js';
+import { env } from '../../../infrastructure/config/env.js';
 
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   // POST /api/v1/auth/login - Public
   fastify.post(
     '/login',
     {
+      // Rate-limit por IP más estricto para /login (mitiga fuerza bruta y el
+      // ataque de bloqueo por lockout). Solo aplica cuando el plugin global
+      // está registrado (producción); se solapa config.rateLimit a este route.
+      config: {
+        rateLimit: {
+          max: env.LOGIN_RATE_LIMIT_MAX,
+          timeWindow: env.LOGIN_RATE_LIMIT_WINDOW_MS,
+        },
+      },
       schema: {
         description: 'Iniciar sesión. Retorna access token y refresh token.',
         tags: ['Auth'],

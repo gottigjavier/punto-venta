@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { authApi } from '@/lib/api-client';
+import { authApi, setAccessToken, redirectToLogin } from '@/lib/api-client';
 
 interface User {
   id: string;
@@ -12,7 +12,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (nik_usuario: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -46,28 +46,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      const decoded = parseJwt(token);
-      if (decoded) {
-        setUser(decoded);
+    // Restaurar la sesión al cargar la SPA: el access token vive en memoria y no
+    // persiste, así que pedimos uno nuevo a /auth/refresh usando la cookie
+    // httpOnly del refresh token. Si expiró, quedamos deslogueados (login).
+    let active = true;
+
+    (async () => {
+      try {
+        const { data } = await authApi.refresh();
+        const token = data.data.accessToken;
+        setAccessToken(token);
+        if (active) setUser(parseJwt(token));
+      } catch {
+        if (active) setUser(null);
+      } finally {
+        if (active) setLoading(false);
       }
-    }
-    setLoading(false);
+    })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = useCallback(async (nik_usuario: string, password: string) => {
     const { data } = await authApi.login(nik_usuario, password);
     const token = data.data.accessToken;
-    localStorage.setItem('accessToken', token);
-    const decoded = parseJwt(token);
-    setUser(decoded);
+    setAccessToken(token);
+    setUser(parseJwt(token));
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('accessToken');
+  const logout = useCallback(async () => {
+    // Llamar al servidor para invalidar/borrar la cookie httpOnly del refresh
+    // token; si no, un reload restauraría la sesión vía /auth/refresh.
+    try {
+      await authApi.logout();
+    } catch {
+      // Si la sesión ya expiró el logout puede fallar; aun así limpiamos estado.
+    }
+    setAccessToken(null);
     setUser(null);
-    window.location.href = '/login';
+    redirectToLogin();
   }, []);
 
   return (
