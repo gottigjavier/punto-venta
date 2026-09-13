@@ -30,23 +30,11 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         // NOTE: body validation is handled by Zod (LoginRequestSchema) in
         // loginHandler. Single source of truth.
         response: {
-          200: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean' },
-              data: {
-                type: 'object',
-                properties: {
-                  accessToken: { type: 'string' },
-                  user: { type: 'object', additionalProperties: true },
-                },
-              },
-            },
-          },
+          200: { $ref: 'LoginResponse' },
         },
       },
     },
-    loginHandler
+    loginHandler,
   );
 
   // POST /api/v1/auth/refresh - Public (cookie)
@@ -57,22 +45,11 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         description: 'Refrescar access token.',
         tags: ['Auth'],
         response: {
-          200: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean' },
-              data: {
-                type: 'object',
-                properties: {
-                  accessToken: { type: 'string' },
-                },
-              },
-            },
-          },
+          200: { $ref: 'RefreshResponse' },
         },
       },
     },
-    refreshHandler
+    refreshHandler,
   );
 
   // POST /api/v1/auth/logout
@@ -90,7 +67,10 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
               data: {
                 type: 'object',
                 properties: {
-                  message: { type: 'string', example: 'Sesión cerrada exitosamente' },
+                  message: {
+                    type: 'string',
+                    example: 'Sesión cerrada exitosamente',
+                  },
                 },
               },
             },
@@ -98,7 +78,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    logoutHandler
+    logoutHandler,
   );
 
   // POST /api/v1/auth/unlock/:userId - Admin only
@@ -115,7 +95,11 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           required: ['userId'],
           properties: {
-            userId: { type: 'string', format: 'uuid', description: 'ID del usuario a desbloquear' },
+            userId: {
+              type: 'string',
+              format: 'uuid',
+              description: 'ID del usuario a desbloquear',
+            },
           },
         },
         response: {
@@ -126,7 +110,10 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
               data: {
                 type: 'object',
                 properties: {
-                  message: { type: 'string', example: 'Usuario desbloqueado exitosamente' },
+                  message: {
+                    type: 'string',
+                    example: 'Usuario desbloqueado exitosamente',
+                  },
                 },
               },
             },
@@ -147,6 +134,6 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    unlockHandler
+    unlockHandler,
   );
 }

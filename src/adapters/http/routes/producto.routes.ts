@@ -40,22 +40,14 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: { type: 'array', items: { type: 'object', additionalProperties: true } },
-              pagination: {
-                type: 'object',
-                properties: {
-                  page: { type: 'integer' },
-                  limit: { type: 'integer' },
-                  total: { type: 'integer' },
-                  totalPages: { type: 'integer' },
-                },
-              },
+              data: { type: 'array', items: { $ref: 'Producto' } },
+              pagination: { $ref: 'Pagination' },
             },
           },
         },
       },
     },
-    listProductosHandler
+    listProductosHandler,
   );
 
   // GET /api/v1/productos/search
@@ -64,15 +56,24 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
     {
       preHandler: authorize('admin', 'gerente', 'despachador'),
       schema: {
-        description: 'Buscar productos para autocompletado. Mínimo 3 caracteres.',
+        description:
+          'Buscar productos para autocompletado. Mínimo 3 caracteres.',
         tags: ['Productos'],
         security: [{ bearerAuth: [] }],
         querystring: {
           type: 'object',
           required: ['q'],
           properties: {
-            q: { type: 'string', minLength: 3, description: 'Texto de búsqueda (mínimo 3 caracteres)' },
-            tipo: { type: 'string', enum: ['nombre', 'codigo'], default: 'nombre' },
+            q: {
+              type: 'string',
+              minLength: 3,
+              description: 'Texto de búsqueda (mínimo 3 caracteres)',
+            },
+            tipo: {
+              type: 'string',
+              enum: ['nombre', 'codigo'],
+              default: 'nombre',
+            },
           },
         },
         response: {
@@ -80,13 +81,13 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              data: { type: 'array', items: { $ref: 'Producto' } },
             },
           },
         },
       },
     },
-    searchProductosHandler
+    searchProductosHandler,
   );
 
   // GET /api/v1/productos/:id
@@ -105,14 +106,13 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Producto' },
             },
           },
-
         },
       },
     },
-    getProductoByIdHandler
+    getProductoByIdHandler,
   );
 
   // POST /api/v1/productos
@@ -129,14 +129,13 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Producto' },
             },
           },
-
         },
       },
     },
-    createProductoHandler
+    createProductoHandler,
   );
 
   // PUT /api/v1/productos/:id
@@ -145,7 +144,8 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
     {
       preHandler: authorize('admin', 'gerente'),
       schema: {
-        description: 'Actualizar producto existente. Solo campos enviados serán actualizados.',
+        description:
+          'Actualizar producto existente. Solo campos enviados serán actualizados.',
         tags: ['Productos'],
         // NOTE: params validation is handled by Zod (*IdParamSchema) in the
         // handler. Single source of truth — do not duplicate here.
@@ -155,15 +155,13 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Producto' },
             },
           },
-
-
         },
       },
     },
-    updateProductoHandler
+    updateProductoHandler,
   );
 
   // DELETE /api/v1/productos/:id
@@ -195,12 +193,10 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
               },
             },
           },
-
-
         },
       },
     },
-    deleteProductoHandler
+    deleteProductoHandler,
   );
 
   // POST /api/v1/productos/:id/restore
@@ -234,12 +230,12 @@ export async function productoRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Producto' },
             },
           },
         },
       },
     },
-    restoreProductoHandler
+    restoreProductoHandler,
   );
 }

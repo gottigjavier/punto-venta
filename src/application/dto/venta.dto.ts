@@ -3,13 +3,10 @@
 import { z } from 'zod';
 
 // Individual product in a sale
-const DetalleVentaInputSchema = z.object({
-  producto_id: z
-    .string()
-    .uuid('ID de producto inválido'),
-  cantidad: z
-    .number()
-    .positive('La cantidad debe ser mayor a 0'),
+// (exported for swagger component registration; validated on createVenta)
+export const DetalleVentaInputSchema = z.object({
+  producto_id: z.string().uuid('ID de producto inválido'),
+  cantidad: z.number().positive('La cantidad debe ser mayor a 0'),
   precio_unitario: z
     .number()
     .min(0, 'El precio unitario no puede ser negativo'),
@@ -41,9 +38,7 @@ export const VentaQuerySchema = z.object({
     .string()
     .transform((val) => (val ? new Date(val) : undefined))
     .optional(),
-  sort: z
-    .enum(['created_at', 'total', 'estado'])
-    .default('created_at'),
+  sort: z.enum(['created_at', 'total', 'estado']).default('created_at'),
   order: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

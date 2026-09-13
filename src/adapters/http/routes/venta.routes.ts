@@ -36,21 +36,14 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
               success: { type: 'boolean', example: true },
               data: {
                 type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    producto_id: { type: 'string' },
-                    ultima_venta_at: { type: 'string', nullable: true },
-                    ultima_cantidad: { type: 'number', nullable: true },
-                  },
-                },
+                items: { $ref: 'UltimaVenta' },
               },
             },
           },
         },
       },
     },
-    getUltimasVentasHandler
+    getUltimasVentasHandler,
   );
 
   // GET /api/v1/ventas/mas-vendidos - Total quantity sold per product (must be before /:id)
@@ -71,21 +64,14 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
               success: { type: 'boolean', example: true },
               data: {
                 type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    producto_id: { type: 'string' },
-                    veces_vendido: { type: 'number' },
-                    monto_total: { type: 'number' },
-                  },
-                },
+                items: { $ref: 'ProductoMasVendido' },
               },
             },
           },
         },
       },
     },
-    getMasVendidosHandler
+    getMasVendidosHandler,
   );
 
   // GET /api/v1/ventas/resumen/dia - Daily summary (must be before /:id)
@@ -104,13 +90,13 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'ResumenDia' },
             },
           },
         },
       },
     },
-    getResumenDiaHandler
+    getResumenDiaHandler,
   );
 
   // GET /api/v1/ventas/movimientos - List movements of active period (all roles)
@@ -132,31 +118,16 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
               success: { type: 'boolean', example: true },
               data: {
                 type: 'array',
-                items: { type: 'object', additionalProperties: true },
+                items: { $ref: 'MovimientoCaja' },
               },
-              resumen: {
-                type: 'object',
-                properties: {
-                  ingresos: { type: 'number' },
-                  egresos: { type: 'number' },
-                  total: { type: 'number' },
-                },
-              },
-              pagination: {
-                type: 'object',
-                properties: {
-                  page: { type: 'integer' },
-                  limit: { type: 'integer' },
-                  total: { type: 'integer' },
-                  totalPages: { type: 'integer' },
-                },
-              },
+              resumen: { $ref: 'ResumenMovimientos' },
+              pagination: { $ref: 'Pagination' },
             },
           },
         },
       },
     },
-    listarMovimientosHandler
+    listarMovimientosHandler,
   );
 
   // POST /api/v1/ventas/movimientos - Create movement (all roles, password confirmed)
@@ -178,12 +149,13 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'MovimientoCaja' },
             },
           },
           401: {
             type: 'object',
-            description: 'UNAUTHORIZED - Contraseña incorrecta o usuario no autenticado',
+            description:
+              'UNAUTHORIZED - Contraseña incorrecta o usuario no autenticado',
             properties: {
               success: { type: 'boolean', example: false },
               error: {
@@ -198,7 +170,7 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    crearMovimientoHandler
+    crearMovimientoHandler,
   );
 
   // GET /api/v1/ventas/historial - Unified history (sales + cash movements)
@@ -220,8 +192,14 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
             limit: { type: 'integer' },
             sort: { type: 'string', enum: ['created_at', 'monto'] },
             order: { type: 'string', enum: ['asc', 'desc'] },
-            fecha_desde: { type: 'string', description: 'ISO date (inclusive)' },
-            fecha_hasta: { type: 'string', description: 'ISO date (inclusive)' },
+            fecha_desde: {
+              type: 'string',
+              description: 'ISO date (inclusive)',
+            },
+            fecha_hasta: {
+              type: 'string',
+              description: 'ISO date (inclusive)',
+            },
             usuario_id: { type: 'string', description: 'UUID de usuario' },
             tipo_fila: { type: 'string', enum: ['venta', 'movimiento'] },
           },
@@ -233,35 +211,15 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
               success: { type: 'boolean' },
               data: {
                 type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    id: { type: 'string' },
-                    tipo_fila: { type: 'string', enum: ['venta', 'movimiento'] },
-                    created_at: { type: 'string' },
-                    usuario_nombre: { type: 'string' },
-                    monto: { type: 'number' },
-                    estado: { type: 'string', enum: ['Venta', 'Ingreso', 'Egreso'] },
-                    cantidad_items: { type: 'integer', nullable: true },
-                    referencia_id: { type: 'string', nullable: true },
-                  },
-                },
+                items: { $ref: 'FilaHistorial' },
               },
-              pagination: {
-                type: 'object',
-                properties: {
-                  page: { type: 'integer' },
-                  limit: { type: 'integer' },
-                  total: { type: 'integer' },
-                  totalPages: { type: 'integer' },
-                },
-              },
+              pagination: { $ref: 'Pagination' },
             },
           },
         },
       },
     },
-    historialHandler
+    historialHandler,
   );
 
   // GET /api/v1/ventas
@@ -280,22 +238,14 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: { type: 'array', items: { type: 'object', additionalProperties: true } },
-              pagination: {
-                type: 'object',
-                properties: {
-                  page: { type: 'integer' },
-                  limit: { type: 'integer' },
-                  total: { type: 'integer' },
-                  totalPages: { type: 'integer' },
-                },
-              },
+              data: { type: 'array', items: { $ref: 'VentaListItem' } },
+              pagination: { $ref: 'Pagination' },
             },
           },
         },
       },
     },
-    listVentasHandler
+    listVentasHandler,
   );
 
   // GET /api/v1/ventas/:id
@@ -313,14 +263,13 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Venta' },
             },
           },
-
         },
       },
     },
-    getVentaByIdHandler
+    getVentaByIdHandler,
   );
 
   // Register cierre routes (cierres, cierres/:id, cierres/:id/csv)
@@ -364,7 +313,10 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
                 type: 'object',
                 properties: {
                   code: { type: 'string', example: 'CONFLICT' },
-                  message: { type: 'string', example: 'No hay ventas completadas para cerrar' },
+                  message: {
+                    type: 'string',
+                    example: 'No hay ventas completadas para cerrar',
+                  },
                 },
               },
             },
@@ -372,7 +324,7 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    cerrarCajaHandler
+    cerrarCajaHandler,
   );
 
   // POST /api/v1/ventas
@@ -395,20 +347,24 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Venta' },
             },
           },
 
           409: {
             type: 'object',
-            description: 'STOCK_INSUFFICIENT - Stock insuficiente para algún producto',
+            description:
+              'STOCK_INSUFFICIENT - Stock insuficiente para algún producto',
             properties: {
               success: { type: 'boolean', example: false },
               error: {
                 type: 'object',
                 properties: {
                   code: { type: 'string', example: 'STOCK_INSUFFICIENT' },
-                  message: { type: 'string', example: 'Stock insuficiente para producto PAN-001' },
+                  message: {
+                    type: 'string',
+                    example: 'Stock insuficiente para producto PAN-001',
+                  },
                   disponible: { type: 'number', example: 5 },
                   solicitado: { type: 'number', example: 10 },
                 },
@@ -418,7 +374,7 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    createVentaHandler
+    createVentaHandler,
   );
 
   // DELETE /api/v1/ventas/:id - Delete completed sale (admin/gerente only)
@@ -444,6 +400,6 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    deleteVentaHandler
+    deleteVentaHandler,
   );
 }

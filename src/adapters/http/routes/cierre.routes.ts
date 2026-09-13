@@ -15,7 +15,9 @@ import { authorize } from '../middleware/auth.middleware.js';
  * Must be called from ventaRoutes (which is mounted at /api/v1/ventas)
  * so routes become /api/v1/ventas/cierres, /api/v1/ventas/cierres/:id, etc.
  */
-export async function registerCierreRoutes(fastify: FastifyInstance): Promise<void> {
+export async function registerCierreRoutes(
+  fastify: FastifyInstance,
+): Promise<void> {
   // GET /cierres - List cash closures with filters and pagination
   fastify.get(
     '/cierres',
@@ -36,23 +38,15 @@ export async function registerCierreRoutes(fastify: FastifyInstance): Promise<vo
               success: { type: 'boolean' },
               data: {
                 type: 'array',
-                items: { type: 'object', additionalProperties: true },
+                items: { $ref: 'CierreCaja' },
               },
-              pagination: {
-                type: 'object',
-                properties: {
-                  page: { type: 'integer' },
-                  limit: { type: 'integer' },
-                  total: { type: 'integer' },
-                  totalPages: { type: 'integer' },
-                },
-              },
+              pagination: { $ref: 'Pagination' },
             },
           },
         },
       },
     },
-    listCierresHandler
+    listCierresHandler,
   );
 
   // GET /cierres/:id/csv - Export cash closure as CSV (must be before /:id)
@@ -74,7 +68,7 @@ export async function registerCierreRoutes(fastify: FastifyInstance): Promise<vo
         },
       },
     },
-    exportCierreCsvHandler
+    exportCierreCsvHandler,
   );
 
   // GET /cierres/:id/ventas - Detailed sales rows for a cash closure (must be before /:id)
@@ -95,20 +89,13 @@ export async function registerCierreRoutes(fastify: FastifyInstance): Promise<vo
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: {
-                type: 'object',
-                properties: {
-                  rows: { type: 'array', items: { type: 'object', additionalProperties: true } },
-                  total_monto: { type: 'number' },
-                  total_filas: { type: 'integer' },
-                },
-              },
+              data: { $ref: 'VentaCierreRespuesta' },
             },
           },
         },
       },
     },
-    cierreVentasHandler
+    cierreVentasHandler,
   );
 
   // GET /cierres/:id - Get cash closure by ID with details
@@ -128,12 +115,12 @@ export async function registerCierreRoutes(fastify: FastifyInstance): Promise<vo
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'CierreDetail' },
             },
           },
         },
       },
     },
-    getCierreByIdHandler
+    getCierreByIdHandler,
   );
 }

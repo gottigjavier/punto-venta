@@ -1,13 +1,134 @@
 // src/infrastructure/swagger/swagger.ts
 // Swagger/OpenAPI documentation configuration
+//
+// Los componentes de schema ya NO se escriben a mano: se generan desde los DTOs
+// Zod (src/application/dto/*.ts) via `fastify.addSchema` con `z.toJSONSchema`.
+// Cada route referencie los componentes por `$ref` (envelope inline + data $ref).
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { env } from '../config/env.js';
+// Response/entity shapes (single source of truth del wire)
+import {
+  PaginationSchema,
+  LoteSchema,
+  ProductoSchema,
+  ProveedorSchema,
+  RubroSchema,
+  UsuarioSchema,
+  VentaDetailSchema,
+  VentaListItemSchema,
+  MovimientoCajaSchema,
+  ResumenDiaSchema,
+  ResumenMovimientosSchema,
+  ProductoMasVendidoSchema,
+  StockItemSchema,
+  CierreListItemSchema,
+  CierreDetailSchema,
+  VentaCierreRespuestaSchema,
+  LoginResponseSchema,
+  RefreshResponseSchema,
+  FilaHistorialSchema,
+  UltimaVentaSchema,
+} from '../../application/dto/response.dto.js';
+// Request DTOs (cuerpo/query — validados por Zod en el handler)
+import { LoginRequestSchema } from '../../application/dto/auth.dto.js';
+import { CreateUsuarioSchema } from '../../application/dto/usuario.dto.js';
+import { CreateProductoSchema } from '../../application/dto/producto.dto.js';
+import { CreateProveedorSchema } from '../../application/dto/proveedor.dto.js';
+import { CreateRubroSchema } from '../../application/dto/rubro.dto.js';
+import {
+  CreateVentaSchema,
+  DetalleVentaInputSchema,
+} from '../../application/dto/venta.dto.js';
+import { CrearMovimientoSchema } from '../../application/dto/movimiento.dto.js';
+import {
+  StockIngresoRequestSchema,
+  StockEditRequestSchema,
+} from '../../application/dto/stock.dto.js';
+
+// Registra cada schema Zod como componente con `$id` <ComponentName>. El nombre
+// del componente coincide con el histórico de swagger (backward compatibility).
+const COMPONENT_SCHEMAS: ReadonlyArray<readonly [string, z.ZodType]> = [
+  // Entities / responses
+  ['Pagination', PaginationSchema],
+  ['Lote', LoteSchema],
+  ['Producto', ProductoSchema],
+  ['Proveedor', ProveedorSchema],
+  ['Rubro', RubroSchema],
+  ['Usuario', UsuarioSchema],
+  ['Venta', VentaDetailSchema],
+  ['VentaListItem', VentaListItemSchema],
+  ['MovimientoCaja', MovimientoCajaSchema],
+  ['ResumenDia', ResumenDiaSchema],
+  ['ResumenMovimientos', ResumenMovimientosSchema],
+  ['ProductoMasVendido', ProductoMasVendidoSchema],
+  ['StockItem', StockItemSchema],
+  ['CierreCaja', CierreListItemSchema],
+  ['CierreDetail', CierreDetailSchema],
+  ['VentaCierreRespuesta', VentaCierreRespuestaSchema],
+  ['LoginResponse', LoginResponseSchema],
+  ['RefreshResponse', RefreshResponseSchema],
+  ['FilaHistorial', FilaHistorialSchema],
+  ['UltimaVenta', UltimaVentaSchema],
+  // Requests
+  ['LoginRequest', LoginRequestSchema],
+  ['CreateUsuarioRequest', CreateUsuarioSchema],
+  ['CreateProductoRequest', CreateProductoSchema],
+  ['CreateProveedorRequest', CreateProveedorSchema],
+  ['CreateRubroRequest', CreateRubroSchema],
+  ['CreateVentaRequest', CreateVentaSchema],
+  ['DetalleVentaInput', DetalleVentaInputSchema],
+  ['CrearMovimientoRequest', CrearMovimientoSchema],
+  ['StockIngresoRequest', StockIngresoRequestSchema],
+  ['StockEditRequest', StockEditRequestSchema],
+];
+
+// Repara los matices que diferencian JSON Schema (salida de Zod) de lo que el
+// serializador/validador de Fastify acepta en modo OpenAPI 3.0:
+// - `exclusiveMinimum: true` + `minimum: n` (estilo draft-04, emitido por
+//   `z.number().positive()` / `.min()`) -> `exclusiveMinimum: n` (draft-06).
+// Mutación in-place, recursiva, de nodos JSON Schema.
+function normalizeOpenApi(node: unknown): void {
+  if (node === null || typeof node !== 'object') return;
+  const obj = node as Record<string, unknown>;
+  for (const [minKey, exclKey] of [
+    ['minimum', 'exclusiveMinimum'],
+    ['maximum', 'exclusiveMaximum'],
+  ] as const) {
+    if (obj[exclKey] === true && typeof obj[minKey] === 'number') {
+      obj[exclKey] = obj[minKey];
+      delete obj[minKey];
+    }
+  }
+  for (const value of Object.values(obj)) {
+    if (Array.isArray(value)) value.forEach(normalizeOpenApi);
+    else if (value && typeof value === 'object') normalizeOpenApi(value);
+  }
+}
 
 export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
+  // Registrar los componentes como shared schemas de Fastify (`$id` = nombre).
+  // Deben registrarse ANTES de que el plugin swagger serialice la doc.
+  for (const [$id, schema] of COMPONENT_SCHEMAS) {
+    const converted = z.toJSONSchema(schema, {
+      target: 'openapi-3.0',
+    });
+    normalizeOpenApi(converted);
+    fastify.addSchema({
+      $id,
+      ...converted,
+    });
+  }
+
   // Register Swagger generator
   await fastify.register(swagger, {
+    // Nombra los `$ref` por el `$id` del componente (no `def-N`), para que las
+    // rutas emitan `#/components/schemas/<ComponentName>`.
+    refResolver: {
+      buildLocalReference: (json: { $id?: string }) => json.$id || 'def',
+    },
     openapi: {
       openapi: '3.0.0',
       info: {
@@ -46,417 +167,11 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
             type: 'http',
             scheme: 'bearer',
             bearerFormat: 'JWT',
-            description: 'Token JWT de acceso. Obtenerlo con POST /api/v1/auth/login',
+            description:
+              'Token JWT de acceso. Obtenerlo con POST /api/v1/auth/login',
           },
         },
-        schemas: {
-          // ===== Generic response schemas =====
-          SuccessResponse: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean', example: true },
-              data: { description: 'Datos de respuesta' },
-            },
-          },
-          ErrorResponse: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean', example: false },
-              error: {
-                type: 'object',
-                properties: {
-                  code: { type: 'string', example: 'NOT_FOUND' },
-                  message: { type: 'string', example: 'Recurso no encontrado' },
-                  details: { description: 'Detalles adicionales del error' },
-                },
-              },
-            },
-          },
-          Pagination: {
-            type: 'object',
-            properties: {
-              page: { type: 'integer', example: 1 },
-              limit: { type: 'integer', example: 20 },
-              total: { type: 'integer', example: 150 },
-              totalPages: { type: 'integer', example: 8 },
-            },
-          },
-
-          // ===== Auth schemas =====
-          LoginRequest: {
-            type: 'object',
-            required: ['nik_usuario', 'password'],
-            properties: {
-              nik_usuario: {
-                type: 'string',
-                example: 'admin',
-                description: 'Nick de usuario (max 50 caracteres)',
-              },
-              password: {
-                type: 'string',
-                example: 'Admin123!',
-                description: 'Contraseña del usuario',
-              },
-            },
-          },
-          LoginResponse: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean', example: true },
-              data: {
-                type: 'object',
-                properties: {
-                  accessToken: { type: 'string', description: 'JWT access token (15min exp)' },
-                  user: {
-                    type: 'object',
-                    properties: {
-                      id: { type: 'string', format: 'uuid' },
-                      nombre_usuario: { type: 'string', example: 'Administrador' },
-                      nik_usuario: { type: 'string', example: 'admin' },
-                      email: { type: 'string', format: 'email' },
-                      rol: { type: 'string', enum: ['admin', 'gerente', 'despachador'] },
-                    },
-                  },
-                },
-              },
-            },
-          },
-          RefreshResponse: {
-            type: 'object',
-            properties: {
-              success: { type: 'boolean', example: true },
-              data: {
-                type: 'object',
-                properties: {
-                  accessToken: { type: 'string', description: 'Nuevo JWT access token' },
-                },
-              },
-            },
-          },
-
-          // ===== Usuario schemas =====
-          Usuario: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', format: 'uuid' },
-              nombre_usuario: { type: 'string', example: 'Juan Pérez' },
-              nik_usuario: { type: 'string', example: 'jperez' },
-              email: { type: 'string', format: 'email' },
-              telefono: { type: 'string', nullable: true },
-              rol: { type: 'string', enum: ['admin', 'gerente', 'despachador'] },
-              activo: { type: 'boolean' },
-              intentos_fallidos: { type: 'integer' },
-              bloqueado_hasta: { type: 'string', format: 'date-time', nullable: true },
-              created_at: { type: 'string', format: 'date-time' },
-              updated_at: { type: 'string', format: 'date-time', nullable: true },
-            },
-          },
-          CreateUsuarioRequest: {
-            type: 'object',
-            required: ['nombre_usuario', 'nik_usuario', 'password', 'email', 'rol'],
-            properties: {
-              nombre_usuario: { type: 'string', example: 'Juan Pérez' },
-              nik_usuario: { type: 'string', example: 'jperez' },
-              password: {
-                type: 'string',
-                example: 'Admin123!',
-                description: 'Mínimo 8 caracteres, 1 mayúscula, 1 número, 1 carácter especial',
-              },
-              email: { type: 'string', format: 'email' },
-              telefono: { type: 'string' },
-              rol: { type: 'string', enum: ['admin', 'gerente', 'despachador'] },
-              activo: { type: 'boolean', default: true },
-            },
-          },
-
-          // ===== Producto schemas =====
-          Producto: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', format: 'uuid' },
-              nombre: { type: 'string', example: 'Pan integral' },
-              codigo: { type: 'string', example: 'PAN-001' },
-              precio_venta: { type: 'number', example: 250.0 },
-              rubro_id: { type: 'string', format: 'uuid' },
-              proveedor_id: { type: 'string', format: 'uuid' },
-              unidad_medida: { type: 'string', enum: ['unidad', 'kg', 'g', 'l', 'ml'] },
-              // Post-split: el stock (cantidad_disponible, fecha_*, numero_lote,
-              // precio_compra) vive en Lote, no en Producto.
-              cantidad_aviso: { type: 'number', example: 0 },
-              activo: { type: 'boolean', example: true },
-              vencimiento_preaviso_dias: { type: 'integer', example: 30, nullable: true },
-              created_at: { type: 'string', format: 'date-time' },
-              updated_at: { type: 'string', format: 'date-time', nullable: true },
-            },
-          },
-          CreateProductoRequest: {
-            type: 'object',
-            required: ['nombre', 'codigo', 'cantidad_disponible', 'precio_compra', 'precio_venta', 'rubro_id', 'proveedor_id'],
-            properties: {
-              nombre: { type: 'string', example: 'Pan integral' },
-              codigo: { type: 'string', example: 'PAN-001' },
-              cantidad_disponible: { type: 'number', example: 45, minimum: 0 },
-              precio_compra: { type: 'number', example: 180.0, minimum: 0 },
-              precio_venta: { type: 'number', example: 250.0, minimum: 0 },
-              rubro_id: { type: 'string', format: 'uuid' },
-              proveedor_id: { type: 'string', format: 'uuid' },
-              fecha_compra: { type: 'string', format: 'date' },
-              fecha_vencimiento: { type: 'string', format: 'date' },
-              numero_lote: { type: 'string' },
-              unidad_medida: { type: 'string', enum: ['unidad', 'kg', 'g', 'l', 'ml'], default: 'unidad' },
-            },
-          },
-
-          // ===== Proveedor schemas =====
-          Proveedor: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', format: 'uuid' },
-              razon_social: { type: 'string', example: 'Distribuidora Central S.A.' },
-              representante: { type: 'string', nullable: true },
-              cuit: { type: 'string', example: '20-12345678-9', nullable: true },
-              direccion_postal: { type: 'string', nullable: true },
-              email: { type: 'string', format: 'email', nullable: true },
-              telefonos: { type: 'array', items: { type: 'string' }, nullable: true },
-              created_at: { type: 'string', format: 'date-time' },
-              updated_at: { type: 'string', format: 'date-time', nullable: true },
-            },
-          },
-          CreateProveedorRequest: {
-            type: 'object',
-            required: ['razon_social'],
-            properties: {
-              razon_social: { type: 'string', example: 'Distribuidora Central S.A.' },
-              representante: { type: 'string' },
-              cuit: { type: 'string', description: 'Formato: XX-XXXXXXXX-X' },
-              direccion_postal: { type: 'string' },
-              email: { type: 'string', format: 'email' },
-              telefonos: { type: 'array', items: { type: 'string' } },
-            },
-          },
-
-          // ===== Rubro schemas =====
-          Rubro: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', format: 'uuid' },
-              nombre: { type: 'string', example: 'Panadería' },
-              descripcion: { type: 'string', nullable: true },
-              activo: { type: 'boolean' },
-            },
-          },
-          CreateRubroRequest: {
-            type: 'object',
-            required: ['nombre'],
-            properties: {
-              nombre: { type: 'string', example: 'Panadería' },
-              descripcion: { type: 'string' },
-              activo: { type: 'boolean', default: true },
-            },
-          },
-
-          // ===== Venta schemas =====
-          Venta: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', format: 'uuid' },
-              usuario_id: { type: 'string', format: 'uuid' },
-              total: { type: 'number', example: 750.0 },
-              estado: { type: 'string', enum: ['pendiente', 'completada', 'cancelada'] },
-              created_at: { type: 'string', format: 'date-time' },
-              usuario: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string', format: 'uuid' },
-                  nombre_usuario: { type: 'string' },
-                  nik_usuario: { type: 'string' },
-                },
-              },
-              detalles_venta: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    id: { type: 'string', format: 'uuid' },
-                    venta_id: { type: 'string', format: 'uuid' },
-                    producto_id: { type: 'string', format: 'uuid' },
-                    cantidad: { type: 'number' },
-                    precio_unitario: { type: 'number' },
-                    subtotal: { type: 'number' },
-                    producto: {
-                      type: 'object',
-                      properties: {
-                        id: { type: 'string', format: 'uuid' },
-                        nombre: { type: 'string' },
-                        codigo: { type: 'string' },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-          DetalleVentaInput: {
-            type: 'object',
-            required: ['producto_id', 'cantidad', 'precio_unitario'],
-            properties: {
-              producto_id: { type: 'string', format: 'uuid' },
-              cantidad: { type: 'number', minimum: 0.001, example: 3 },
-              precio_unitario: { type: 'number', minimum: 0, example: 250.0 },
-            },
-          },
-          CreateVentaRequest: {
-            type: 'object',
-            required: ['productos'],
-            properties: {
-              productos: {
-                type: 'array',
-                minItems: 1,
-                items: { $ref: '#/components/schemas/DetalleVentaInput' },
-              },
-            },
-          },
-          ResumenDia: {
-            type: 'object',
-            properties: {
-              fecha: { type: 'string', example: '2024-01-15' },
-              total_ventas: { type: 'integer', example: 12 },
-              monto_total: { type: 'number', example: 15600.0 },
-              ingresos_total: { type: 'number', example: 2000.0 },
-              egresos_total: { type: 'number', example: 1500.0 },
-              productos_vendidos: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    producto_id: { type: 'string', format: 'uuid' },
-                    nombre: { type: 'string' },
-                    cantidad_total: { type: 'number' },
-                    monto_total: { type: 'number' },
-                  },
-                },
-              },
-              ventas_por_usuario: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    usuario_id: { type: 'string', format: 'uuid' },
-                    nombre: { type: 'string' },
-                    cantidad_ventas: { type: 'integer' },
-                    monto_total: { type: 'number' },
-                  },
-                },
-              },
-            },
-          },
-          MovimientoCaja: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', format: 'uuid' },
-              tipo: { type: 'string', enum: ['ingreso', 'egreso'] },
-              monto: { type: 'number', example: 2000.0 },
-              descripcion: { type: 'string', nullable: true, example: 'Pago a proveedor' },
-              usuario_id: { type: 'string', format: 'uuid' },
-              cierre_caja_id: { type: 'string', format: 'uuid', nullable: true },
-              created_at: { type: 'string', format: 'date-time' },
-              usuario: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string', format: 'uuid' },
-                  nombre_usuario: { type: 'string' },
-                },
-              },
-            },
-          },
-          CrearMovimientoRequest: {
-            type: 'object',
-            required: ['tipo', 'monto', 'password'],
-            properties: {
-              tipo: { type: 'string', enum: ['ingreso', 'egreso'] },
-              monto: { type: 'number', minimum: 0.01, example: 2000.0 },
-              descripcion: { type: 'string', example: 'Pago a proveedor' },
-              password: { type: 'string', description: 'Contraseña del usuario logueado (confirmación)' },
-            },
-          },
-          ResumenMovimientos: {
-            type: 'object',
-            properties: {
-              ingresos: { type: 'number', example: 5000.0 },
-              egresos: { type: 'number', example: 7000.0 },
-              total: { type: 'number', example: -2000.0 },
-            },
-          },
-          ProductoMasVendido: {
-            type: 'object',
-            properties: {
-              producto_id: { type: 'string', format: 'uuid', description: 'ID del producto' },
-              cantidad_total: { type: 'number', example: 500, description: 'Total de unidades vendidas (solo ventas completadas)' },
-              monto_total: { type: 'number', example: 12500.0, description: 'Monto total vendido del producto' },
-            },
-          },
-
-          // ===== Stock schemas =====
-          StockItem: {
-            allOf: [
-              { $ref: '#/components/schemas/Producto' },
-              {
-                type: 'object',
-                properties: {
-                  rubro: {
-                    type: 'object',
-                    properties: {
-                      id: { type: 'string', format: 'uuid' },
-                      nombre: { type: 'string' },
-                    },
-                  },
-                  proveedor: {
-                    type: 'object',
-                    properties: {
-                      id: { type: 'string', format: 'uuid' },
-                      razon_social: { type: 'string' },
-                    },
-                  },
-                  estado_vencimiento: { type: 'string', enum: ['vencido', 'por_vencer', 'ok'] },
-                  stock_bajo: { type: 'boolean' },
-                },
-              },
-            ],
-          },
-          StockIngresoRequest: {
-            type: 'object',
-            required: ['nombre', 'codigo', 'cantidad', 'precio_compra', 'precio_venta', 'rubro_id', 'proveedor_id'],
-            properties: {
-              nombre: { type: 'string', example: 'Pan integral' },
-              codigo: { type: 'string', example: 'PAN-001' },
-              cantidad: { type: 'number', minimum: 0.001, example: 45 },
-              precio_compra: { type: 'number', minimum: 0, example: 180.0 },
-              precio_venta: { type: 'number', minimum: 0, example: 250.0 },
-              rubro_id: { type: 'string', format: 'uuid' },
-              proveedor_id: { type: 'string', format: 'uuid' },
-              fecha_compra: { type: 'string', format: 'date' },
-              fecha_vencimiento: { type: 'string', format: 'date' },
-              numero_lote: { type: 'string' },
-              unidad_medida: { type: 'string', enum: ['unidad', 'kg', 'g', 'l', 'ml'], default: 'unidad' },
-            },
-          },
-          StockEditRequest: {
-            type: 'object',
-            properties: {
-              nombre: { type: 'string' },
-              codigo: { type: 'string' },
-              cantidad: { type: 'number', minimum: 0 },
-              precio_compra: { type: 'number', minimum: 0 },
-              precio_venta: { type: 'number', minimum: 0 },
-              rubro_id: { type: 'string', format: 'uuid' },
-              proveedor_id: { type: 'string', format: 'uuid' },
-              fecha_compra: { type: 'string', format: 'date' },
-              fecha_vencimiento: { type: 'string', format: 'date' },
-              numero_lote: { type: 'string' },
-              unidad_medida: { type: 'string', enum: ['unidad', 'kg', 'g', 'l', 'ml'] },
-            },
-          },
-        },
+        // schemas: se generan desde los DTOs Zod (ver COMPONENT_SCHEMAS arriba).
       },
       tags: [
         { name: 'Health', description: 'Health checks del servidor' },

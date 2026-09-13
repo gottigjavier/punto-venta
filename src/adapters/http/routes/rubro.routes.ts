@@ -25,13 +25,13 @@ export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              data: { type: 'array', items: { $ref: 'Rubro' } },
             },
           },
         },
       },
     },
-    listRubrosHandler
+    listRubrosHandler,
   );
 
   // GET /api/v1/rubros/:id
@@ -49,14 +49,13 @@ export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Rubro' },
             },
           },
-
         },
       },
     },
-    getRubroByIdHandler
+    getRubroByIdHandler,
   );
 
   // POST /api/v1/rubros
@@ -73,15 +72,13 @@ export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Rubro' },
             },
           },
-
-
         },
       },
     },
-    createRubroHandler
+    createRubroHandler,
   );
 
   // PUT /api/v1/rubros/:id
@@ -99,15 +96,13 @@ export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Rubro' },
             },
           },
-
-
         },
       },
     },
-    updateRubroHandler
+    updateRubroHandler,
   );
 
   // DELETE /api/v1/rubros/:id
@@ -127,15 +122,18 @@ export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
               success: { type: 'boolean', example: true },
               data: {
                 type: 'object',
-                properties: { message: { type: 'string', example: 'Rubro eliminado exitosamente' } },
+                properties: {
+                  message: {
+                    type: 'string',
+                    example: 'Rubro eliminado exitosamente',
+                  },
+                },
               },
             },
           },
-
-
         },
       },
     },
-    deleteRubroHandler
+    deleteRubroHandler,
   );
 }

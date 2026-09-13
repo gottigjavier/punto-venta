@@ -29,22 +29,14 @@ export async function stockRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: { type: 'array', items: { type: 'object', additionalProperties: true } },
-              pagination: {
-                type: 'object',
-                properties: {
-                  page: { type: 'integer' },
-                  limit: { type: 'integer' },
-                  total: { type: 'integer' },
-                  totalPages: { type: 'integer' },
-                },
-              },
+              data: { type: 'array', items: { $ref: 'StockItem' } },
+              pagination: { $ref: 'Pagination' },
             },
           },
         },
       },
     },
-    listStockHandler
+    listStockHandler,
   );
 
   // GET /api/v1/stock/autocomplete
@@ -63,13 +55,13 @@ export async function stockRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: { type: 'array', items: { type: 'object', additionalProperties: true } },
+              data: { type: 'array', items: { $ref: 'Producto' } },
             },
           },
         },
       },
     },
-    stockAutocompleteHandler
+    stockAutocompleteHandler,
   );
 
   // POST /api/v1/stock/ingreso
@@ -93,14 +85,12 @@ export async function stockRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Lote' },
             },
           },
-
-
         },
       },
     },
-    stockIngresoHandler
+    stockIngresoHandler,
   );
 }

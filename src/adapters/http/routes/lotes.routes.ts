@@ -34,13 +34,13 @@ export async function loteRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Lote' },
             },
           },
         },
       },
     },
-    editarLoteHandler
+    editarLoteHandler,
   );
 
   // POST /api/v1/lotes/:id/retirar
@@ -64,13 +64,13 @@ export async function loteRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Lote' },
             },
           },
         },
       },
     },
-    retirarLoteHandler
+    retirarLoteHandler,
   );
 
   // DELETE /api/v1/lotes/:id
@@ -99,6 +99,6 @@ export async function loteRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    eliminarLoteHandler
+    eliminarLoteHandler,
   );
 }

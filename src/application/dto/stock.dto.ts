@@ -5,36 +5,38 @@ import { z } from 'zod';
 
 // Stock entry (ingreso) schema — crea o SUMA un lote del producto
 export const StockIngresoSchema = z.object({
-  producto_id: z
-    .string()
-    .uuid('ID de producto inválido'),
+  producto_id: z.string().uuid('ID de producto inválido'),
   numero_lote: z
     .string()
     .max(50, 'Número de lote máximo 50 caracteres')
     .nullable()
     .optional()
     .transform((v) => (v === '' ? null : v)),
-  cantidad: z
+  cantidad: z.number().positive('Cantidad debe ser mayor a 0'),
+  fecha_compra: z.string().optional().nullable(),
+  fecha_vencimiento: z.string().optional().nullable(),
+  precio_compra: z.number().min(0, 'Precio de compra no puede ser negativo'),
+  cantidad_aviso: z.coerce
     .number()
-    .positive('Cantidad debe ser mayor a 0'),
-  fecha_compra: z
-    .string()
-    .optional()
-    .nullable(),
-  fecha_vencimiento: z
-    .string()
-    .optional()
-    .nullable(),
-  precio_compra: z
-    .number()
-    .min(0, 'Precio de compra no puede ser negativo'),
-  cantidad_aviso: z
-    .coerce.number()
     .min(0, 'Cantidad de aviso no puede ser negativa')
     .optional(),
 });
 
 export type StockIngresoInput = z.infer<typeof StockIngresoSchema>;
+
+// Wire-shape (Swagger) del request de ingreso: idéntico al de validación pero
+// SIN `.transform()` (z.toJSONSchema no puede representar transforms). Se usa
+// SOLO para documentar el request body en OpenAPI; la validación sigue usando
+// StockIngresoSchema (source of truth de negocio).
+export const StockIngresoRequestSchema = z.object({
+  producto_id: z.string().uuid(),
+  numero_lote: z.string().max(50).nullable().optional(),
+  cantidad: z.number().positive(),
+  fecha_compra: z.string().nullable().optional(),
+  fecha_vencimiento: z.string().nullable().optional(),
+  precio_compra: z.number().min(0),
+  cantidad_aviso: z.number().min(0).optional(),
+});
 
 // Editar lote — NUNCA toca cantidad_disponible (el stock solo cambia por ingreso/venta)
 export const EditarLoteSchema = z.object({
@@ -44,14 +46,8 @@ export const EditarLoteSchema = z.object({
     .nullable()
     .optional()
     .transform((v) => (v === '' ? null : v)),
-  fecha_compra: z
-    .string()
-    .optional()
-    .nullable(),
-  fecha_vencimiento: z
-    .string()
-    .optional()
-    .nullable(),
+  fecha_compra: z.string().optional().nullable(),
+  fecha_vencimiento: z.string().optional().nullable(),
   precio_compra: z
     .number()
     .min(0, 'Precio de compra no puede ser negativo')
@@ -59,6 +55,16 @@ export const EditarLoteSchema = z.object({
 });
 
 export type EditarLoteInput = z.infer<typeof EditarLoteSchema>;
+
+// Wire-shape (Swagger) del edit de lote: igual a EditarLoteSchema pero sin
+// `.transform()` en numero_lote (z.toJSONSchema no representa transforms). Solo
+// se usa para documentar el request body; la validación sigue con EditarLoteSchema.
+export const StockEditRequestSchema = z.object({
+  numero_lote: z.string().max(50).nullable().optional(),
+  fecha_compra: z.string().nullable().optional(),
+  fecha_vencimiento: z.string().nullable().optional(),
+  precio_compra: z.number().min(0).optional(),
+});
 
 // Lote ID param
 export const LoteIdParamSchema = z.object({

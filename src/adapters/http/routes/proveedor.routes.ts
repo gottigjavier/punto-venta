@@ -27,22 +27,14 @@ export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: { type: 'array', items: { type: 'object', additionalProperties: true } },
-              pagination: {
-                type: 'object',
-                properties: {
-                  page: { type: 'integer' },
-                  limit: { type: 'integer' },
-                  total: { type: 'integer' },
-                  totalPages: { type: 'integer' },
-                },
-              },
+              data: { type: 'array', items: { $ref: 'Proveedor' } },
+              pagination: { $ref: 'Pagination' },
             },
           },
         },
       },
     },
-    listProveedoresHandler
+    listProveedoresHandler,
   );
 
   // GET /api/v1/proveedores/:id
@@ -60,14 +52,13 @@ export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Proveedor' },
             },
           },
-
         },
       },
     },
-    getProveedorByIdHandler
+    getProveedorByIdHandler,
   );
 
   // POST /api/v1/proveedores
@@ -84,15 +75,13 @@ export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Proveedor' },
             },
           },
-
-
         },
       },
     },
-    createProveedorHandler
+    createProveedorHandler,
   );
 
   // PUT /api/v1/proveedores/:id
@@ -110,15 +99,13 @@ export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Proveedor' },
             },
           },
-
-
         },
       },
     },
-    updateProveedorHandler
+    updateProveedorHandler,
   );
 
   // DELETE /api/v1/proveedores/:id
@@ -138,15 +125,18 @@ export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
               success: { type: 'boolean', example: true },
               data: {
                 type: 'object',
-                properties: { message: { type: 'string', example: 'Proveedor eliminado exitosamente' } },
+                properties: {
+                  message: {
+                    type: 'string',
+                    example: 'Proveedor eliminado exitosamente',
+                  },
+                },
               },
             },
           },
-
-
         },
       },
     },
-    deleteProveedorHandler
+    deleteProveedorHandler,
   );
 }

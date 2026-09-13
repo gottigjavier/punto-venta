@@ -19,7 +19,8 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
     '/',
     {
       schema: {
-        description: 'Listar usuarios con paginación y filtros. Solo administradores.',
+        description:
+          'Listar usuarios con paginación y filtros. Solo administradores.',
         tags: ['Usuarios'],
         // NOTE: querystring validation is handled by Zod (UsuarioQuerySchema) in
         // listUsuariosHandler. Single source of truth.
@@ -29,22 +30,14 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: { type: 'array', items: { type: 'object', additionalProperties: true } },
-              pagination: {
-                type: 'object',
-                properties: {
-                  page: { type: 'integer' },
-                  limit: { type: 'integer' },
-                  total: { type: 'integer' },
-                  totalPages: { type: 'integer' },
-                },
-              },
+              data: { type: 'array', items: { $ref: 'Usuario' } },
+              pagination: { $ref: 'Pagination' },
             },
           },
         },
       },
     },
-    listUsuariosHandler
+    listUsuariosHandler,
   );
 
   // GET /api/v1/usuarios/:id
@@ -61,14 +54,13 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Usuario' },
             },
           },
-
         },
       },
     },
-    getUsuarioByIdHandler
+    getUsuarioByIdHandler,
   );
 
   // POST /api/v1/usuarios
@@ -87,15 +79,13 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Usuario' },
             },
           },
-
-
         },
       },
     },
-    createUsuarioHandler
+    createUsuarioHandler,
   );
 
   // PUT /api/v1/usuarios/:id
@@ -112,15 +102,13 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               success: { type: 'boolean', example: true },
-              data: { type: 'object', additionalProperties: true },
+              data: { $ref: 'Usuario' },
             },
           },
-
-
         },
       },
     },
-    updateUsuarioHandler
+    updateUsuarioHandler,
   );
 
   // DELETE /api/v1/usuarios/:id (deactivate, not delete)
@@ -141,15 +129,18 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
               success: { type: 'boolean', example: true },
               data: {
                 type: 'object',
-                properties: { message: { type: 'string', example: 'Usuario desactivado exitosamente' } },
+                properties: {
+                  message: {
+                    type: 'string',
+                    example: 'Usuario desactivado exitosamente',
+                  },
+                },
               },
             },
           },
-
-
         },
       },
     },
-    deactivateUsuarioHandler
+    deactivateUsuarioHandler,
   );
 }
