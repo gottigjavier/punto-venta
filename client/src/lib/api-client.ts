@@ -1,4 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import type { UsuarioSafe } from './types';
 
 const API_BASE = '/api/v1';
 
@@ -123,7 +124,7 @@ export interface ApiResponse<T> {
 // Auth
 export const authApi = {
   login: (nik_usuario: string, password: string) =>
-    api.post<ApiResponse<{ accessToken: string; user: unknown }>>('/auth/login', { nik_usuario, password }),
+    api.post<ApiResponse<{ accessToken: string; user: UsuarioSafe }>>('/auth/login', { nik_usuario, password }),
   refresh: () => api.post<ApiResponse<{ accessToken: string }>>('/auth/refresh', {}, { withCredentials: true }),
   logout: () => api.post<ApiResponse<{ message: string }>>('/auth/logout'),
 };

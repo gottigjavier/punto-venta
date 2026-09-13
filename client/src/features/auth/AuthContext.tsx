@@ -1,12 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { authApi, setAccessToken, redirectToLogin } from '@/lib/api-client';
+import type { UsuarioSafe } from '@/lib/types';
 
-interface User {
-  id: string;
-  nik_usuario: string;
-  rol: string;
-  nombre_usuario: string;
-}
+// Sesión: usa el tipo canónico de cliente (Q5) — duplicaba localmente a UsuarioSafe.
+type User = UsuarioSafe;
 
 interface AuthContextType {
   user: User | null;
