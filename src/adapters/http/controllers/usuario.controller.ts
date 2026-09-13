@@ -133,6 +133,19 @@ export async function updateUsuarioHandler(
     });
   }
 
+  // Q7: no permitir que un admin se desactive a sí mismo vía update
+  // (UpdateUsuarioSchema permite `activo`, que hubiera esquivado el guard de
+  // la ruta DELETE de desactivación).
+  if (parsed.data.activo === false && request.user?.userId === parsed.data.id) {
+    return reply.status(403).send({
+      success: false,
+      error: {
+        code: 'FORBIDDEN',
+        message: 'No puedes desactivar tu propio usuario',
+      },
+    });
+  }
+
   const result = await updateUsuario(parsed.data);
 
   if (result.isErr()) {
@@ -163,13 +176,13 @@ export async function deactivateUsuarioHandler(
     });
   }
 
-  // Prevent deactivating yourself
+  // Q7: no permitir que un admin desactive su propia cuenta (semántica 403).
   const currentUser = request.user;
   if (currentUser && currentUser.userId === parsed.data.id) {
-    return reply.status(400).send({
+    return reply.status(403).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
+        code: 'FORBIDDEN',
         message: 'No puedes desactivar tu propio usuario',
       },
     });

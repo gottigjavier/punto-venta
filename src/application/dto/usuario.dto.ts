@@ -1,6 +1,7 @@
 // src/application/dto/usuario.dto.ts
 // User management DTOs with Zod validation
 import { z } from 'zod';
+import { ROLES } from '../../domain/roles.js';
 
 // Password strength validation
 const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
@@ -25,7 +26,7 @@ export const CreateUsuarioSchema = z.object({
     .string()
     .max(20, 'Teléfono máximo 20 caracteres')
     .optional(),
-  rol: z.enum(['admin', 'gerente', 'despachador']),
+  rol: z.enum(ROLES),
   activo: z.boolean().default(true),
 });
 
@@ -45,7 +46,7 @@ export type UpdateUsuarioInput = z.infer<typeof UpdateUsuarioSchema>;
 // User query params for listing
 export const UsuarioQuerySchema = z.object({
   search: z.string().optional(),
-  rol: z.enum(['admin', 'gerente', 'despachador']).optional(),
+  rol: z.enum(ROLES).optional(),
   activo: z.coerce.boolean().optional(),
   sort: z.enum(['nombre_usuario', 'nik_usuario', 'email', 'rol', 'created_at']).default('created_at'),
   order: z.enum(['asc', 'desc']).default('desc'),

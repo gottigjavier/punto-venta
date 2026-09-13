@@ -3,6 +3,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { verifyAccessToken } from '../../../infrastructure/auth/jwt.js';
 import type { TokenPayload } from '../../../infrastructure/auth/jwt.js';
+import type { Rol } from '../../../domain/roles.js';
 
 // Extend FastifyRequest to include user
 declare module 'fastify' {
@@ -45,7 +46,7 @@ export async function authenticate(
 }
 
 // Authorization middleware factory
-export function authorize(...roles: string[]) {
+export function authorize(...roles: Rol[]) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     // First ensure user is authenticated
     await authenticate(request, reply);

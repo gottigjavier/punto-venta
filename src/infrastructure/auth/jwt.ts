@@ -2,13 +2,13 @@
 // JWT token generation and verification
 import jwt from 'jsonwebtoken';
 import { env, JWT_EXPIRES_IN, JWT_REFRESH_EXPIRES_IN } from '../config/env.js';
-import type { Result } from 'neverthrow';
-import { ok, err } from 'neverthrow';
+import { ok, err, type Result } from 'neverthrow';
+import type { Rol } from '../../domain/roles.js';
 
 export interface TokenPayload {
   userId: string;
   nik_usuario: string;
-  rol: string;
+  rol: Rol;
 }
 
 // Payload del refresh token: incluye subtype (para no aceptar un access token en
