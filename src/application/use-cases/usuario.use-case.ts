@@ -1,17 +1,26 @@
 // src/application/use-cases/usuario.use-case.ts
 // User management use cases (admin only)
-import { ok, err } from 'neverthrow';
-import { prisma } from '../../infrastructure/database/prisma/client.js';
-import type { AppResult } from '../../shared/types/result.js';
-import { notFoundError, conflictError, databaseError } from '../../shared/types/result.js';
-import type { UsuarioSafe } from '../../domain/entities/usuario.js';
-import type { CreateUsuarioInput, UpdateUsuarioInput, UsuarioQueryInput } from '../dto/usuario.dto.js';
-import { hashPassword } from '../../infrastructure/auth/password.js';
-import { logger } from '../../infrastructure/logging/logger.js';
+import { ok, err } from "neverthrow";
+import { Prisma } from "@prisma/client";
+import { prisma } from "../../infrastructure/database/prisma/client.js";
+import type { AppResult } from "../../shared/types/result.js";
+import {
+  notFoundError,
+  conflictError,
+  databaseError,
+} from "../../shared/types/result.js";
+import type { UsuarioSafe } from "../../domain/entities/usuario.js";
+import type {
+  CreateUsuarioInput,
+  UpdateUsuarioInput,
+  UsuarioQueryInput,
+} from "../dto/usuario.dto.js";
+import { hashPassword } from "../../infrastructure/auth/password.js";
+import { logger } from "../../infrastructure/logging/logger.js";
 
 // Get user by ID (safe, without password)
 export async function getUsuarioById(
-  id: string
+  id: string,
 ): Promise<AppResult<UsuarioSafe>> {
   try {
     const usuario = await prisma.usuario.findUnique({
@@ -19,38 +28,41 @@ export async function getUsuarioById(
     });
 
     if (!usuario) {
-      return err(notFoundError('Usuario', id));
+      return err(notFoundError("Usuario", id));
     }
 
     const { password_hash: _, ...safeUser } = usuario;
     return ok(safeUser as UsuarioSafe);
   } catch (error) {
-    logger.error({ error, id }, 'Error al obtener usuario');
-    return err(databaseError('Error al obtener usuario', error as Error));
+    logger.error({ error, id }, "Error al obtener usuario");
+    return err(databaseError("Error al obtener usuario", error as Error));
   }
 }
 
 // List users with pagination
-export async function listUsuarios(
-  query: UsuarioQueryInput
-): Promise<AppResult<{ data: UsuarioSafe[]; pagination: {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-} }>> {
+export async function listUsuarios(query: UsuarioQueryInput): Promise<
+  AppResult<{
+    data: UsuarioSafe[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }>
+> {
   try {
     const { search, rol, activo, sort, order, page, limit } = query;
     const skip = (page - 1) * limit;
 
     // Build where clause
-    const where: Record<string, unknown> = {};
+    const where: Prisma.UsuarioWhereInput = {};
 
     if (search) {
       where.OR = [
-        { nombre_usuario: { contains: search, mode: 'insensitive' } },
-        { nik_usuario: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
+        { nombre_usuario: { contains: search, mode: "insensitive" } },
+        { nik_usuario: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -63,7 +75,7 @@ export async function listUsuarios(
     }
 
     // Build orderBy
-    const orderBy: Record<string, string> = { [sort]: order };
+    const orderBy: Prisma.UsuarioOrderByWithRelationInput = { [sort]: order };
 
     // Execute query
     const [usuarios, total] = await Promise.all([
@@ -94,14 +106,14 @@ export async function listUsuarios(
       },
     });
   } catch (error) {
-    logger.error({ error, query }, 'Error al listar usuarios');
-    return err(databaseError('Error al listar usuarios', error as Error));
+    logger.error({ error, query }, "Error al listar usuarios");
+    return err(databaseError("Error al listar usuarios", error as Error));
   }
 }
 
 // Create user (admin only)
 export async function createUsuario(
-  input: CreateUsuarioInput
+  input: CreateUsuarioInput,
 ): Promise<AppResult<UsuarioSafe>> {
   try {
     // Check username uniqueness
@@ -110,7 +122,9 @@ export async function createUsuario(
     });
 
     if (existingNik) {
-      return err(conflictError('Usuario', `Nick "${input.nik_usuario}" ya registrado`));
+      return err(
+        conflictError("Usuario", `Nick "${input.nik_usuario}" ya registrado`),
+      );
     }
 
     // Check email uniqueness
@@ -119,7 +133,9 @@ export async function createUsuario(
     });
 
     if (existingEmail) {
-      return err(conflictError('Usuario', `Email "${input.email}" ya registrado`));
+      return err(
+        conflictError("Usuario", `Email "${input.email}" ya registrado`),
+      );
     }
 
     // Hash password
@@ -139,21 +155,24 @@ export async function createUsuario(
 
     const { password_hash: _, ...safeUser } = usuario;
 
-    logger.info({ userId: usuario.id, nik_usuario: usuario.nik_usuario }, 'Usuario creado');
+    logger.info(
+      { userId: usuario.id, nik_usuario: usuario.nik_usuario },
+      "Usuario creado",
+    );
     return ok(safeUser as UsuarioSafe);
   } catch (error) {
     // No loguear el input crudo: incluye `password` en texto plano.
     logger.error(
       { error, nik_usuario: input.nik_usuario, email: input.email },
-      'Error al crear usuario'
+      "Error al crear usuario",
     );
-    return err(databaseError('Error al crear usuario', error as Error));
+    return err(databaseError("Error al crear usuario", error as Error));
   }
 }
 
 // Update user (admin only)
 export async function updateUsuario(
-  input: UpdateUsuarioInput
+  input: UpdateUsuarioInput,
 ): Promise<AppResult<UsuarioSafe>> {
   try {
     const { id, ...data } = input;
@@ -164,7 +183,7 @@ export async function updateUsuario(
     });
 
     if (!existing) {
-      return err(notFoundError('Usuario', id));
+      return err(notFoundError("Usuario", id));
     }
 
     // If nik_usuario is being changed, check uniqueness
@@ -177,7 +196,9 @@ export async function updateUsuario(
       });
 
       if (nikExists) {
-        return err(conflictError('Usuario', `Nick "${data.nik_usuario}" ya registrado`));
+        return err(
+          conflictError("Usuario", `Nick "${data.nik_usuario}" ya registrado`),
+        );
       }
     }
 
@@ -191,17 +212,27 @@ export async function updateUsuario(
       });
 
       if (emailExists) {
-        return err(conflictError('Usuario', `Email "${data.email}" ya registrado`));
+        return err(
+          conflictError("Usuario", `Email "${data.email}" ya registrado`),
+        );
       }
     }
 
-    // Hash password if provided
-    const updateData: Record<string, unknown> = { ...data };
+    // Hash password if provided (build field-by-field to avoid spreading
+    // `password` into the typed Prisma input, which expects password_hash).
+    const updateData: Prisma.UsuarioUncheckedUpdateInput = {};
+    if (data.nombre_usuario !== undefined)
+      updateData.nombre_usuario = data.nombre_usuario;
+    if (data.nik_usuario !== undefined)
+      updateData.nik_usuario = data.nik_usuario;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.telefono !== undefined) updateData.telefono = data.telefono;
+    if (data.rol !== undefined) updateData.rol = data.rol;
+    if (data.activo !== undefined) updateData.activo = data.activo;
     if (data.password) {
       updateData.password_hash = await hashPassword(data.password);
       // Revocar todas las sesiones existentes al cambiar la contraseña (S5).
       updateData.refresh_token_version = { increment: 1 };
-      delete updateData.password;
     }
 
     const usuario = await prisma.usuario.update({
@@ -211,17 +242,20 @@ export async function updateUsuario(
 
     const { password_hash: _, ...safeUser } = usuario;
 
-    logger.info({ userId: usuario.id, nik_usuario: usuario.nik_usuario }, 'Usuario actualizado');
+    logger.info(
+      { userId: usuario.id, nik_usuario: usuario.nik_usuario },
+      "Usuario actualizado",
+    );
     return ok(safeUser as UsuarioSafe);
   } catch (error) {
-    logger.error({ error, id: input.id }, 'Error al actualizar usuario');
-    return err(databaseError('Error al actualizar usuario', error as Error));
+    logger.error({ error, id: input.id }, "Error al actualizar usuario");
+    return err(databaseError("Error al actualizar usuario", error as Error));
   }
 }
 
 // Deactivate user (admin only, soft delete)
 export async function deactivateUsuario(
-  id: string
+  id: string,
 ): Promise<AppResult<{ success: boolean }>> {
   try {
     const existing = await prisma.usuario.findUnique({
@@ -229,7 +263,7 @@ export async function deactivateUsuario(
     });
 
     if (!existing) {
-      return err(notFoundError('Usuario', id));
+      return err(notFoundError("Usuario", id));
     }
 
     // Prevent deactivating yourself
@@ -244,10 +278,13 @@ export async function deactivateUsuario(
       },
     });
 
-    logger.info({ userId: id, nik_usuario: existing.nik_usuario }, 'Usuario desactivado');
+    logger.info(
+      { userId: id, nik_usuario: existing.nik_usuario },
+      "Usuario desactivado",
+    );
     return ok({ success: true });
   } catch (error) {
-    logger.error({ error, id }, 'Error al desactivar usuario');
-    return err(databaseError('Error al desactivar usuario', error as Error));
+    logger.error({ error, id }, "Error al desactivar usuario");
+    return err(databaseError("Error al desactivar usuario", error as Error));
   }
 }

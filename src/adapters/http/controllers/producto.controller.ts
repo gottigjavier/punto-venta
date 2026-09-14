@@ -1,12 +1,12 @@
 // src/adapters/http/controllers/producto.controller.ts
 // Product HTTP controllers
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from "fastify";
 import {
   CreateProductoSchema,
   UpdateProductoSchema,
   ProductoQuerySchema,
   ProductoIdParamSchema,
-} from '../../../application/dto/producto.dto.js';
+} from "../../../application/dto/producto.dto.js";
 import {
   getProductoById,
   listProductos,
@@ -15,9 +15,9 @@ import {
   deleteProducto,
   restoreProducto,
   searchProductos,
-} from '../../../application/use-cases/producto.use-case.js';
-import type { DomainError } from '../../../shared/types/result.js';
-import { sendDomainError } from '../utils/domain-error.js';
+} from "../../../application/use-cases/producto.use-case.js";
+import type { DomainError } from "../../../shared/types/result.js";
+import { sendDomainError } from "../utils/domain-error.js";
 
 // Helper to handle domain errors
 function handleDomainError(reply: FastifyReply, error: DomainError): void {
@@ -25,8 +25,12 @@ function handleDomainError(reply: FastifyReply, error: DomainError): void {
   sendDomainError(
     reply,
     error,
-    error.code === 'CONFLICT' && 'producto_id' in error
-      ? { producto_id: error.producto_id, activo: error.activo, restaurable: error.restaurable }
+    error.code === "CONFLICT" && "producto_id" in error
+      ? {
+          producto_id: error.producto_id,
+          activo: error.activo,
+          restaurable: error.restaurable,
+        }
       : undefined,
   );
 }
@@ -34,7 +38,7 @@ function handleDomainError(reply: FastifyReply, error: DomainError): void {
 // GET /api/v1/productos
 export async function listProductosHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = ProductoQuerySchema.safeParse(request.query);
 
@@ -42,8 +46,8 @@ export async function listProductosHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -67,17 +71,16 @@ export async function listProductosHandler(
 // GET /api/v1/productos/:id
 export async function getProductoByIdHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = ProductoIdParamSchema.safeParse(params);
+  const parsed = ProductoIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de producto inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de producto inválido",
       },
     });
   }
@@ -97,7 +100,7 @@ export async function getProductoByIdHandler(
 // POST /api/v1/productos
 export async function createProductoHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = CreateProductoSchema.safeParse(request.body);
 
@@ -105,8 +108,8 @@ export async function createProductoHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -127,25 +130,38 @@ export async function createProductoHandler(
 // PUT /api/v1/productos/:id
 export async function updateProductoHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const body = request.body as Record<string, unknown>;
+  const parsedParams = ProductoIdParamSchema.safeParse(request.params);
+  const parsedBody = UpdateProductoSchema.omit({ id: true }).safeParse(
+    request.body,
+  );
 
-  const parsed = UpdateProductoSchema.safeParse({ ...body, id: params.id });
-
-  if (!parsed.success) {
+  if (!parsedParams.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
-        details: parsed.error.flatten().fieldErrors,
+        code: "VALIDATION_ERROR",
+        message: "ID de producto inválido",
       },
     });
   }
 
-  const result = await updateProducto(parsed.data);
+  if (!parsedBody.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
+        details: parsedBody.error.flatten().fieldErrors,
+      },
+    });
+  }
+
+  const result = await updateProducto({
+    ...parsedBody.data,
+    id: parsedParams.data.id,
+  });
 
   if (result.isErr()) {
     return handleDomainError(reply, result.error);
@@ -162,17 +178,16 @@ export async function updateProductoHandler(
 // Bloqueado si el producto tiene al menos un lote activo (VALIDATION_ERROR).
 export async function deleteProductoHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = ProductoIdParamSchema.safeParse(params);
+  const parsed = ProductoIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de producto inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de producto inválido",
       },
     });
   }
@@ -194,17 +209,16 @@ export async function deleteProductoHandler(
 // Bloqueado con VALIDATION_ERROR (400) si tiene lote activo (mismo criterio que deleteProducto).
 export async function restoreProductoHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = ProductoIdParamSchema.safeParse(params);
+  const parsed = ProductoIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de producto inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de producto inválido",
       },
     });
   }
@@ -224,7 +238,7 @@ export async function restoreProductoHandler(
 // GET /api/v1/productos/search?q=...
 export async function searchProductosHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const query = request.query as { q?: string; tipo?: string };
 
@@ -232,13 +246,13 @@ export async function searchProductosHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Mínimo 3 caracteres para búsqueda',
+        code: "VALIDATION_ERROR",
+        message: "Mínimo 3 caracteres para búsqueda",
       },
     });
   }
 
-  const tipo = (query.tipo as 'nombre' | 'codigo') ?? 'nombre';
+  const tipo = (query.tipo as "nombre" | "codigo") ?? "nombre";
   const result = await searchProductos(query.q, tipo);
 
   if (result.isErr()) {

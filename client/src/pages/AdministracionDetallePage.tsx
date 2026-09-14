@@ -1,16 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from "react";
+import type { AxiosError } from "axios";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   cierresApi,
   type CierreDetail,
   type VentaCierreFila,
   type VentaCierreQueryParams,
-} from '@/lib/api-client';
-import { formatDate } from '@/lib/format';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+} from "@/lib/api-client";
+import { formatDate } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -19,7 +20,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   ArrowLeft,
   RefreshCw,
@@ -27,17 +28,22 @@ import {
   AlertTriangle,
   ChevronUp,
   ChevronDown,
-} from 'lucide-react';
+} from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function formatCurrency(value: number): string {
-  return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${value.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-const VENTA_COLORS = ['text-blue-600', 'text-emerald-600', 'text-amber-600', 'text-rose-600'];
+const VENTA_COLORS = [
+  "text-blue-600",
+  "text-emerald-600",
+  "text-amber-600",
+  "text-rose-600",
+];
 
 /** Build a sequential color map: each unique id_venta gets the next palette index (cyclical every 4). */
 function buildColorMap(rows: VentaCierreFila[]): Record<string, number> {
@@ -62,31 +68,31 @@ export function AdministracionDetallePage() {
 
   // State — split: filtrosInput (UI) vs filtrosAplicados (fetch triggers)
   const [filtrosInput, setFiltrosInput] = useState({
-    idVenta: '',
-    vendedor: '',
-    producto: '',
-    montoMin: '',
-    montoMax: '',
+    idVenta: "",
+    vendedor: "",
+    producto: "",
+    montoMin: "",
+    montoMax: "",
   });
   const [filtrosAplicados, setFiltrosAplicados] = useState({
-    idVenta: '',
-    vendedor: '',
-    producto: '',
-    montoMin: '',
-    montoMax: '',
+    idVenta: "",
+    vendedor: "",
+    producto: "",
+    montoMin: "",
+    montoMax: "",
   });
   const [sort, setSort] = useState<{
-    campo: 'cantidad' | 'monto' | 'id_venta';
-    dir: 'asc' | 'desc';
-  }>({ campo: 'id_venta', dir: 'asc' });
+    campo: "cantidad" | "monto" | "id_venta";
+    dir: "asc" | "desc";
+  }>({ campo: "id_venta", dir: "asc" });
   const [localSort, setLocalSort] = useState<{
-    campo: 'vendedor' | 'producto' | null;
-    dir: 'asc' | 'desc';
-  }>({ campo: null, dir: 'asc' });
+    campo: "vendedor" | "producto" | null;
+    dir: "asc" | "desc";
+  }>({ campo: null, dir: "asc" });
   const [datos, setDatos] = useState<VentaCierreFila[]>([]);
   const [totalMonto, setTotalMonto] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<'not_found' | null>(null);
+  const [error, setError] = useState<"not_found" | null>(null);
   const [cierreDetail, setCierreDetail] = useState<CierreDetail | null>(null);
 
   // Fetch cierre detail on mount (once)
@@ -96,13 +102,13 @@ export function AdministracionDetallePage() {
       .getById(cierreId)
       .then(({ data }) => {
         if (!data.data) {
-          setError('not_found');
+          setError("not_found");
           return;
         }
         setCierreDetail(data.data);
       })
-      .catch((err) => {
-        if (err?.response?.status === 404) setError('not_found');
+      .catch((err: AxiosError) => {
+        if (err?.response?.status === 404) setError("not_found");
       });
   }, [cierreId]);
 
@@ -116,8 +122,10 @@ export function AdministracionDetallePage() {
     if (filtrosAplicados.idVenta) params.id_venta = filtrosAplicados.idVenta;
     if (filtrosAplicados.vendedor) params.vendedor = filtrosAplicados.vendedor;
     if (filtrosAplicados.producto) params.producto = filtrosAplicados.producto;
-    if (filtrosAplicados.montoMin) params.monto_min = parseFloat(filtrosAplicados.montoMin);
-    if (filtrosAplicados.montoMax) params.monto_max = parseFloat(filtrosAplicados.montoMax);
+    if (filtrosAplicados.montoMin)
+      params.monto_min = parseFloat(filtrosAplicados.montoMin);
+    if (filtrosAplicados.montoMax)
+      params.monto_max = parseFloat(filtrosAplicados.montoMax);
     params.sort = sort.campo;
     params.order = sort.dir;
 
@@ -125,14 +133,14 @@ export function AdministracionDetallePage() {
       .getVentas(cierreId, params)
       .then(({ data }) => {
         if (!data.data) {
-          setError('not_found');
+          setError("not_found");
           return;
         }
         setDatos(data.data.rows);
         setTotalMonto(data.data.total_monto);
       })
-      .catch((err) => {
-        if (err?.response?.status === 404) setError('not_found');
+      .catch((err: AxiosError) => {
+        if (err?.response?.status === 404) setError("not_found");
       })
       .finally(() => setLoading(false));
   }, [cierreId, filtrosAplicados, sort]);
@@ -141,26 +149,26 @@ export function AdministracionDetallePage() {
   const commitFiltros = () => setFiltrosAplicados({ ...filtrosInput });
 
   const onEnterFiltros = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') commitFiltros();
+    if (e.key === "Enter") commitFiltros();
   };
 
   // Handlers
-  const onVolver = () => navigate('/administracion');
+  const onVolver = () => void navigate("/administracion");
 
-  const onSort = (campo: 'cantidad' | 'monto' | 'id_venta') => {
-    setLocalSort({ campo: null, dir: 'asc' }); // clear local sort when doing server-side
+  const onSort = (campo: "cantidad" | "monto" | "id_venta") => {
+    setLocalSort({ campo: null, dir: "asc" }); // clear local sort when doing server-side
     setSort((prev) =>
       prev.campo === campo
-        ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { campo, dir: campo === 'id_venta' ? 'asc' : 'desc' },
+        ? { campo, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { campo, dir: campo === "id_venta" ? "asc" : "desc" },
     );
   };
 
-  const onLocalSort = (campo: 'vendedor' | 'producto') => {
+  const onLocalSort = (campo: "vendedor" | "producto") => {
     setLocalSort((prev) =>
       prev.campo === campo
-        ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { campo, dir: 'asc' },
+        ? { campo, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { campo, dir: "asc" },
     );
   };
 
@@ -180,20 +188,27 @@ export function AdministracionDetallePage() {
     setFiltrosInput((prev) => ({ ...prev, idVenta: v }));
 
   const onClearFiltros = () => {
-    const empty = { idVenta: '', vendedor: '', producto: '', montoMin: '', montoMax: '' };
+    const empty = {
+      idVenta: "",
+      vendedor: "",
+      producto: "",
+      montoMin: "",
+      montoMax: "",
+    };
     setFiltrosInput(empty);
     setFiltrosAplicados(empty);
   };
 
   const onExportCsv = () => {
-    const headers = 'ID Venta,Vendedor,Producto,Cantidad,Monto';
+    const headers = "ID Venta,Vendedor,Producto,Cantidad,Monto";
     const csvRows = datos.map(
-      (r) => `${r.id_venta},${r.vendedor},${r.producto},${r.cantidad},${r.monto}`,
+      (r) =>
+        `${r.id_venta},${r.vendedor},${r.producto},${r.cantidad},${r.monto}`,
     );
-    const csv = [headers, ...csvRows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const csv = [headers, ...csvRows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = `cierre-${cierreId}-ventas.csv`;
     document.body.appendChild(link);
@@ -209,19 +224,24 @@ export function AdministracionDetallePage() {
     sorted.sort((a, b) => {
       const va = a[localSort.campo!].toLowerCase();
       const vb = b[localSort.campo!].toLowerCase();
-      return localSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return localSort.dir === "asc"
+        ? va.localeCompare(vb)
+        : vb.localeCompare(va);
     });
     return sorted;
   }, [datos, localSort]);
 
   // Are any filters applied?
-  const hayFiltrosAplicados = Object.values(filtrosAplicados).some((v) => v !== '');
+  const hayFiltrosAplicados = Object.values(filtrosAplicados).some(
+    (v) => v !== "",
+  );
 
   // Sequential color map — computed from fetched data
   const colorMap = useMemo(() => buildColorMap(datos), [datos]);
 
   // Derived totals from cierre detail (ingresos/egresos/monto_total)
-  const diferencia = (cierreDetail?.ingresos_total ?? 0) - (cierreDetail?.egresos_total ?? 0);
+  const diferencia =
+    (cierreDetail?.ingresos_total ?? 0) - (cierreDetail?.egresos_total ?? 0);
   const totalCaja = cierreDetail?.monto_total ?? 0; // total archivado del cierre: ventas + diferencia
   const totalBrutoVentas = totalCaja - diferencia; // solo ventas (bruto) — inmune a los filtros de la tabla
 
@@ -260,7 +280,7 @@ export function AdministracionDetallePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">
-          Cierre #{cierreId?.slice(0, 8) ?? ''}
+          Cierre #{cierreId?.slice(0, 8) ?? ""}
         </h1>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onVolver}>
@@ -279,26 +299,38 @@ export function AdministracionDetallePage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground text-xs">Apertura</span>
-                <p className="font-medium">{formatDate(cierreDetail.fecha_apertura)}</p>
+                <p className="font-medium">
+                  {formatDate(cierreDetail.fecha_apertura)}
+                </p>
               </div>
               <div>
                 <span className="text-muted-foreground text-xs">Cierre</span>
                 <p className="font-medium">
-                  {cierreDetail.fecha_cierre ? formatDate(cierreDetail.fecha_cierre) : '—'}
+                  {cierreDetail.fecha_cierre
+                    ? formatDate(cierreDetail.fecha_cierre)
+                    : "—"}
                 </p>
               </div>
               <div>
-                <span className="text-muted-foreground text-xs">Usuario apertura</span>
-                <p className="font-medium">{cierreDetail.usuario_apertura.nombre_usuario}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground text-xs">Usuario cierre</span>
+                <span className="text-muted-foreground text-xs">
+                  Usuario apertura
+                </span>
                 <p className="font-medium">
-                  {cierreDetail.usuario_cierre?.nombre_usuario ?? '—'}
+                  {cierreDetail.usuario_apertura.nombre_usuario}
                 </p>
               </div>
               <div>
-                <span className="text-muted-foreground text-xs">Monto total</span>
+                <span className="text-muted-foreground text-xs">
+                  Usuario cierre
+                </span>
+                <p className="font-medium">
+                  {cierreDetail.usuario_cierre?.nombre_usuario ?? "—"}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs">
+                  Monto total
+                </span>
                 <p className="font-semibold">{formatCurrency(totalCaja)}</p>
               </div>
               <div>
@@ -389,8 +421,8 @@ export function AdministracionDetallePage() {
           {rowsToShow.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               {hayFiltrosAplicados
-                ? 'Este cierre no tiene ventas que coincidan con los filtros.'
-                : 'Este cierre no tiene ventas registradas.'}
+                ? "Este cierre no tiene ventas que coincidan con los filtros."
+                : "Este cierre no tiene ventas registradas."}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -399,11 +431,11 @@ export function AdministracionDetallePage() {
                   <TableRow>
                     <TableHead
                       className="cursor-pointer select-none"
-                      onClick={() => onSort('id_venta')}
+                      onClick={() => onSort("id_venta")}
                     >
-                      ID Venta{' '}
-                      {sort.campo === 'id_venta' &&
-                        (sort.dir === 'asc' ? (
+                      ID Venta{" "}
+                      {sort.campo === "id_venta" &&
+                        (sort.dir === "asc" ? (
                           <ChevronUp className="inline h-3 w-3" />
                         ) : (
                           <ChevronDown className="inline h-3 w-3" />
@@ -411,11 +443,11 @@ export function AdministracionDetallePage() {
                     </TableHead>
                     <TableHead
                       className="cursor-pointer select-none"
-                      onClick={() => onLocalSort('vendedor')}
+                      onClick={() => onLocalSort("vendedor")}
                     >
-                      Vendedor{' '}
-                      {localSort.campo === 'vendedor' &&
-                        (localSort.dir === 'asc' ? (
+                      Vendedor{" "}
+                      {localSort.campo === "vendedor" &&
+                        (localSort.dir === "asc" ? (
                           <ChevronUp className="inline h-3 w-3" />
                         ) : (
                           <ChevronDown className="inline h-3 w-3" />
@@ -423,11 +455,11 @@ export function AdministracionDetallePage() {
                     </TableHead>
                     <TableHead
                       className="cursor-pointer select-none"
-                      onClick={() => onLocalSort('producto')}
+                      onClick={() => onLocalSort("producto")}
                     >
-                      Producto{' '}
-                      {localSort.campo === 'producto' &&
-                        (localSort.dir === 'asc' ? (
+                      Producto{" "}
+                      {localSort.campo === "producto" &&
+                        (localSort.dir === "asc" ? (
                           <ChevronUp className="inline h-3 w-3" />
                         ) : (
                           <ChevronDown className="inline h-3 w-3" />
@@ -435,11 +467,11 @@ export function AdministracionDetallePage() {
                     </TableHead>
                     <TableHead
                       className="text-right cursor-pointer select-none"
-                      onClick={() => onSort('cantidad')}
+                      onClick={() => onSort("cantidad")}
                     >
-                      Cantidad{' '}
-                      {sort.campo === 'cantidad' &&
-                        (sort.dir === 'asc' ? (
+                      Cantidad{" "}
+                      {sort.campo === "cantidad" &&
+                        (sort.dir === "asc" ? (
                           <ChevronUp className="inline h-3 w-3" />
                         ) : (
                           <ChevronDown className="inline h-3 w-3" />
@@ -447,11 +479,11 @@ export function AdministracionDetallePage() {
                     </TableHead>
                     <TableHead
                       className="text-right cursor-pointer select-none"
-                      onClick={() => onSort('monto')}
+                      onClick={() => onSort("monto")}
                     >
-                      Monto{' '}
-                      {sort.campo === 'monto' &&
-                        (sort.dir === 'asc' ? (
+                      Monto{" "}
+                      {sort.campo === "monto" &&
+                        (sort.dir === "asc" ? (
                           <ChevronUp className="inline h-3 w-3" />
                         ) : (
                           <ChevronDown className="inline h-3 w-3" />
@@ -462,12 +494,18 @@ export function AdministracionDetallePage() {
                 <TableBody>
                   {rowsToShow.map((fila, idx) => (
                     <TableRow key={`${fila.id_venta}-${idx}`}>
-                      <TableCell className={`text-sm font-mono ${VENTA_COLORS[colorMap[fila.id_venta] ?? 0]}`}>
+                      <TableCell
+                        className={`text-sm font-mono ${VENTA_COLORS[colorMap[fila.id_venta] ?? 0]}`}
+                      >
                         {fila.id_venta.slice(0, 8)}
                       </TableCell>
                       <TableCell className="text-sm">{fila.vendedor}</TableCell>
-                      <TableCell className="text-sm font-medium">{fila.producto}</TableCell>
-                      <TableCell className="text-right text-sm">{fila.cantidad}</TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {fila.producto}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {fila.cantidad}
+                      </TableCell>
                       <TableCell className="text-right text-sm font-semibold">
                         {formatCurrency(fila.monto)}
                       </TableCell>
@@ -476,7 +514,9 @@ export function AdministracionDetallePage() {
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={4} className="font-medium">Total Ventas</TableCell>
+                    <TableCell colSpan={4} className="font-medium">
+                      Total Ventas
+                    </TableCell>
                     <TableCell className="text-right font-semibold text-muted-foreground">
                       {formatCurrency(totalMonto)}
                     </TableCell>
@@ -492,7 +532,7 @@ export function AdministracionDetallePage() {
       {(cierreDetail?.movimientos?.length ?? 0) > 0 && (
         <Card>
           <CardHeader>
-             <CardTitle className="text-base">Ingresos y Egresos</CardTitle>
+            <CardTitle className="text-base">Ingresos y Egresos</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="overflow-x-auto">
@@ -501,28 +541,36 @@ export function AdministracionDetallePage() {
                   <TableRow>
                     <TableHead>Fecha</TableHead>
                     <TableHead>Usuario</TableHead>
-                     <TableHead>Tipo</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {cierreDetail?.movimientos.map((m) => (
                     <TableRow key={m.id}>
-                      <TableCell className="text-sm">{formatDate(m.created_at)}</TableCell>
-                      <TableCell className="text-sm">{m.usuario.nombre_usuario}</TableCell>
+                      <TableCell className="text-sm">
+                        {formatDate(m.created_at)}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {m.usuario.nombre_usuario}
+                      </TableCell>
                       <TableCell
                         className={`text-sm font-medium ${
-                          m.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'
+                          m.tipo === "ingreso"
+                            ? "text-green-600"
+                            : "text-red-600"
                         }`}
                       >
-                        {m.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}
+                        {m.tipo === "ingreso" ? "Ingreso" : "Egreso"}
                       </TableCell>
                       <TableCell
                         className={`text-right text-sm font-semibold ${
-                          m.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'
+                          m.tipo === "ingreso"
+                            ? "text-green-600"
+                            : "text-red-600"
                         }`}
                       >
-                        {m.tipo === 'ingreso'
+                        {m.tipo === "ingreso"
                           ? formatCurrency(m.monto)
                           : `-${formatCurrency(m.monto)}`}
                       </TableCell>
@@ -531,10 +579,16 @@ export function AdministracionDetallePage() {
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={3} className="font-medium">Diferencia Ingresos y Egresos</TableCell>
+                    <TableCell colSpan={3} className="font-medium">
+                      Diferencia Ingresos y Egresos
+                    </TableCell>
                     <TableCell
                       className={`text-right font-semibold ${
-                        diferencia > 0 ? 'text-green-300' : diferencia < 0 ? 'text-red-300' : 'text-muted-foreground'
+                        diferencia > 0
+                          ? "text-green-300"
+                          : diferencia < 0
+                            ? "text-red-300"
+                            : "text-muted-foreground"
                       }`}
                     >
                       {formatCurrency(diferencia)}
@@ -563,14 +617,16 @@ export function AdministracionDetallePage() {
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="text-sm">Diferencia Ingresos/Egresos</TableCell>
+                  <TableCell className="text-sm">
+                    Diferencia Ingresos/Egresos
+                  </TableCell>
                   <TableCell
                     className={`text-right text-sm font-semibold ${
                       diferencia > 0
-                        ? 'text-green-300'
+                        ? "text-green-300"
                         : diferencia < 0
-                          ? 'text-red-300'
-                          : 'text-muted-foreground'
+                          ? "text-red-300"
+                          : "text-muted-foreground"
                     }`}
                   >
                     {formatCurrency(diferencia)}

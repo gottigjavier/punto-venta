@@ -1,11 +1,11 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { UsuarioSafe } from './types';
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import type { UsuarioSafe } from "./types";
 
-const API_BASE = '/api/v1';
+const API_BASE = "/api/v1";
 
 // Ruta interna de login. Valor fijo, nunca derivado de entrada de usuario, para
 // evitar open-redirect al reenviar tras un 401 / refresh fallido.
-export const LOGIN_PATH = '/login';
+export const LOGIN_PATH = "/login";
 
 export function redirectToLogin(): void {
   // Solo se navega a un path interno fijo; jamás se construye el destino desde
@@ -25,7 +25,7 @@ export function setAccessToken(token: string | null): void {
 
 export const api = axios.create({
   baseURL: API_BASE,
-  headers: { 'Content-Type': 'application/json' },
+  headers: { "Content-Type": "application/json" },
   // R4-3: timeout global para que ninguna llamada (incl. la restauración de
   // sesión en el mount) pueda quedar colgada sin límite si el backend no responde.
   timeout: 10000,
@@ -60,20 +60,26 @@ function processQueue(error: unknown, token: string | null) {
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    const url = originalRequest?.url ?? '';
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+    };
+    const url = originalRequest?.url ?? "";
 
     // No reintentar refresh en los propios endpoints de auth: login 401 por
     // credenciales inválidas, refresh 401 por sesión expirada y logout 401 por
     // sesión ya no válida. Evita bucles y redirecciones espurias.
     const authEndpoint =
-      url.includes('/auth/login') ||
-      url.includes('/auth/refresh') ||
-      url.includes('/auth/logout');
+      url.includes("/auth/login") ||
+      url.includes("/auth/refresh") ||
+      url.includes("/auth/logout");
 
-    if (error.response?.status === 401 && !originalRequest._retry && !authEndpoint) {
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !authEndpoint
+    ) {
       if (isRefreshing) {
-        return new Promise((resolve, reject) => {
+        return new Promise<string>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then((token) => {
           originalRequest.headers.Authorization = `Bearer ${token}`;
@@ -85,7 +91,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post(
+        const { data } = await axios.post<ApiResponse<{ accessToken: string }>>(
           `${API_BASE}/auth/refresh`,
           {},
           { withCredentials: true, timeout: 10000 },
@@ -124,50 +130,67 @@ export interface ApiResponse<T> {
 // Auth
 export const authApi = {
   login: (nik_usuario: string, password: string) =>
-    api.post<ApiResponse<{ accessToken: string; user: UsuarioSafe }>>('/auth/login', { nik_usuario, password }),
-  refresh: () => api.post<ApiResponse<{ accessToken: string }>>('/auth/refresh', {}, { withCredentials: true }),
-  logout: () => api.post<ApiResponse<{ message: string }>>('/auth/logout'),
+    api.post<ApiResponse<{ accessToken: string; user: UsuarioSafe }>>(
+      "/auth/login",
+      { nik_usuario, password },
+    ),
+  refresh: () =>
+    api.post<ApiResponse<{ accessToken: string }>>(
+      "/auth/refresh",
+      {},
+      { withCredentials: true },
+    ),
+  logout: () => api.post<ApiResponse<{ message: string }>>("/auth/logout"),
 };
 
 // Productos
 export const productosApi = {
   list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<unknown[]>>('/productos', { params }),
+    api.get<ApiResponse<unknown[]>>("/productos", { params }),
   getById: (id: string) => api.get<ApiResponse<unknown>>(`/productos/${id}`),
-  create: (data: unknown) => api.post<ApiResponse<unknown>>('/productos', data),
-  update: (id: string, data: unknown) => api.put<ApiResponse<unknown>>(`/productos/${id}`, data),
+  create: (data: unknown) => api.post<ApiResponse<unknown>>("/productos", data),
+  update: (id: string, data: unknown) =>
+    api.put<ApiResponse<unknown>>(`/productos/${id}`, data),
   delete: (id: string) => api.delete<ApiResponse<unknown>>(`/productos/${id}`),
-  restore: (id: string) => api.post<ApiResponse<unknown>>(`/productos/${id}/restore`, {}),
+  restore: (id: string) =>
+    api.post<ApiResponse<unknown>>(`/productos/${id}/restore`, {}),
   search: (q: string, tipo?: string) =>
-    api.get<ApiResponse<unknown[]>>('/productos/search', { params: { q, tipo } }),
+    api.get<ApiResponse<unknown[]>>("/productos/search", {
+      params: { q, tipo },
+    }),
 };
 
 // Proveedores
 export const proveedoresApi = {
   list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<unknown[]>>('/proveedores', { params }),
+    api.get<ApiResponse<unknown[]>>("/proveedores", { params }),
   getById: (id: string) => api.get<ApiResponse<unknown>>(`/proveedores/${id}`),
-  create: (data: unknown) => api.post<ApiResponse<unknown>>('/proveedores', data),
-  update: (id: string, data: unknown) => api.put<ApiResponse<unknown>>(`/proveedores/${id}`, data),
-  delete: (id: string) => api.delete<ApiResponse<unknown>>(`/proveedores/${id}`),
+  create: (data: unknown) =>
+    api.post<ApiResponse<unknown>>("/proveedores", data),
+  update: (id: string, data: unknown) =>
+    api.put<ApiResponse<unknown>>(`/proveedores/${id}`, data),
+  delete: (id: string) =>
+    api.delete<ApiResponse<unknown>>(`/proveedores/${id}`),
 };
 
 // Rubros
 export const rubrosApi = {
-  list: () => api.get<ApiResponse<unknown[]>>('/rubros'),
+  list: () => api.get<ApiResponse<unknown[]>>("/rubros"),
   getById: (id: string) => api.get<ApiResponse<unknown>>(`/rubros/${id}`),
-  create: (data: unknown) => api.post<ApiResponse<unknown>>('/rubros', data),
-  update: (id: string, data: unknown) => api.put<ApiResponse<unknown>>(`/rubros/${id}`, data),
+  create: (data: unknown) => api.post<ApiResponse<unknown>>("/rubros", data),
+  update: (id: string, data: unknown) =>
+    api.put<ApiResponse<unknown>>(`/rubros/${id}`, data),
   delete: (id: string) => api.delete<ApiResponse<unknown>>(`/rubros/${id}`),
 };
 
 // Usuarios
 export const usuariosApi = {
   list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<unknown[]>>('/usuarios', { params }),
+    api.get<ApiResponse<unknown[]>>("/usuarios", { params }),
   getById: (id: string) => api.get<ApiResponse<unknown>>(`/usuarios/${id}`),
-  create: (data: unknown) => api.post<ApiResponse<unknown>>('/usuarios', data),
-  update: (id: string, data: unknown) => api.put<ApiResponse<unknown>>(`/usuarios/${id}`, data),
+  create: (data: unknown) => api.post<ApiResponse<unknown>>("/usuarios", data),
+  update: (id: string, data: unknown) =>
+    api.put<ApiResponse<unknown>>(`/usuarios/${id}`, data),
   delete: (id: string) => api.delete<ApiResponse<unknown>>(`/usuarios/${id}`),
 };
 
@@ -180,7 +203,7 @@ export interface LoteItem {
   fecha_compra: string | null;
   fecha_vencimiento: string | null;
   precio_compra: number;
-  estado: 'activo' | 'agotado' | 'vencido' | 'descartado';
+  estado: "activo" | "agotado" | "vencido" | "descartado";
   created_at: string;
   producto: {
     id: string;
@@ -192,7 +215,7 @@ export interface LoteItem {
   };
   rubro: { id: string; nombre: string } | null;
   proveedor: { id: string; razon_social: string } | null;
-  estado_vencimiento: 'vencido' | 'por_vencer' | 'ok';
+  estado_vencimiento: "vencido" | "por_vencer" | "ok";
   stock_bajo: boolean;
 }
 
@@ -206,7 +229,7 @@ export interface EditarLotePayload {
 
 export const lotesApi = {
   list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<LoteItem[]>>('/stock', { params }),
+    api.get<ApiResponse<LoteItem[]>>("/stock", { params }),
   update: (id: string, data: EditarLotePayload) =>
     api.put<ApiResponse<LoteItem>>(`/lotes/${id}`, data),
   retirar: (id: string) =>
@@ -218,10 +241,13 @@ export const lotesApi = {
 // Stock
 export const stockApi = {
   list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<LoteItem[]>>('/stock', { params }),
-  ingreso: (data: unknown) => api.post<ApiResponse<unknown>>('/stock/ingreso', data),
+    api.get<ApiResponse<LoteItem[]>>("/stock", { params }),
+  ingreso: (data: unknown) =>
+    api.post<ApiResponse<unknown>>("/stock/ingreso", data),
   autocomplete: (query: string, tipo?: string) =>
-    api.get<ApiResponse<unknown[]>>('/stock/autocomplete', { params: { query, tipo } }),
+    api.get<ApiResponse<unknown[]>>("/stock/autocomplete", {
+      params: { query, tipo },
+    }),
 };
 
 // Producto (lista con stock_actual tras el split)
@@ -262,7 +288,7 @@ export interface CierreDetalle {
 
 export interface CierreMovimiento {
   id: string;
-  tipo: 'ingreso' | 'egreso';
+  tipo: "ingreso" | "egreso";
   monto: number;
   descripcion: string | null;
   usuario_id: string;
@@ -295,8 +321,8 @@ export interface CierresQueryParams {
   proveedor_id?: string;
   monto_min?: number;
   monto_max?: number;
-  sort?: 'fecha_cierre' | 'monto_total' | 'cantidad_ventas';
-  order?: 'asc' | 'desc';
+  sort?: "fecha_cierre" | "monto_total" | "cantidad_ventas";
+  order?: "asc" | "desc";
 }
 
 /** Una fila aplanada de venta del cierre (una por línea de producto) */
@@ -322,25 +348,28 @@ export interface VentaCierreQueryParams {
   producto?: string;
   monto_min?: number;
   monto_max?: number;
-  sort?: 'cantidad' | 'monto' | 'id_venta';
-  order?: 'asc' | 'desc';
+  sort?: "cantidad" | "monto" | "id_venta";
+  order?: "asc" | "desc";
 }
 
 export const cierresApi = {
   list: (params?: CierresQueryParams) =>
-    api.get<ApiResponse<CierreListItem[]>>('/ventas/cierres', { params }),
+    api.get<ApiResponse<CierreListItem[]>>("/ventas/cierres", { params }),
   getById: (id: string) =>
     api.get<ApiResponse<CierreDetail>>(`/ventas/cierres/${id}`),
   exportCsv: (id: string) =>
-    api.get(`/ventas/cierres/${id}/csv`, { responseType: 'blob' }),
+    api.get(`/ventas/cierres/${id}/csv`, { responseType: "blob" }),
   getVentas: (cierreId: string, params?: VentaCierreQueryParams) =>
-    api.get<ApiResponse<VentaCierreRespuesta>>(`/ventas/cierres/${cierreId}/ventas`, { params }),
+    api.get<ApiResponse<VentaCierreRespuesta>>(
+      `/ventas/cierres/${cierreId}/ventas`,
+      { params },
+    ),
 };
 
 // Ventas
 export interface MovimientoCajaItem {
   id: string;
-  tipo: 'ingreso' | 'egreso';
+  tipo: "ingreso" | "egreso";
   monto: number;
   descripcion: string | null;
   usuario_id: string;
@@ -358,11 +387,11 @@ export interface ResumenMovimientos {
 /** A unified history row (a sale OR a cash movement) from GET /ventas/historial */
 export interface FilaHistorial {
   id: string;
-  tipo_fila: 'venta' | 'movimiento';
+  tipo_fila: "venta" | "movimiento";
   created_at: string;
   usuario_nombre: string;
   monto: number;
-  estado: 'Venta' | 'Ingreso' | 'Egreso';
+  estado: "Venta" | "Ingreso" | "Egreso";
   cantidad_items: number | null;
   referencia_id?: string | null;
 }
@@ -370,38 +399,39 @@ export interface FilaHistorial {
 export interface HistorialQueryParams {
   page?: number;
   limit?: number;
-  sort?: 'created_at' | 'monto';
-  order?: 'asc' | 'desc';
+  sort?: "created_at" | "monto";
+  order?: "asc" | "desc";
   fecha_desde?: string;
   fecha_hasta?: string;
   usuario_id?: string;
-  tipo_fila?: 'venta' | 'movimiento';
+  tipo_fila?: "venta" | "movimiento";
 }
 
 export const ventasApi = {
-  resumenDia: () => api.get<ApiResponse<unknown>>('/ventas/resumen/dia'),
-  ultimasVentas: () => api.get<ApiResponse<unknown[]>>('/ventas/ultimas-ventas'),
-  masVendidos: () => api.get<ApiResponse<unknown[]>>('/ventas/mas-vendidos'),
+  resumenDia: () => api.get<ApiResponse<unknown>>("/ventas/resumen/dia"),
+  ultimasVentas: () =>
+    api.get<ApiResponse<unknown[]>>("/ventas/ultimas-ventas"),
+  masVendidos: () => api.get<ApiResponse<unknown[]>>("/ventas/mas-vendidos"),
   list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<unknown[]>>('/ventas', { params }),
+    api.get<ApiResponse<unknown[]>>("/ventas", { params }),
   historial: (params?: HistorialQueryParams) =>
-    api.get<ApiResponse<FilaHistorial[]>>('/ventas/historial', { params }),
+    api.get<ApiResponse<FilaHistorial[]>>("/ventas/historial", { params }),
   getById: (id: string) => api.get<ApiResponse<unknown>>(`/ventas/${id}`),
-  create: (data: unknown) => api.post<ApiResponse<unknown>>('/ventas', data),
-  cerrarCaja: (data: { password: string }) => api.post<ApiResponse<unknown>>('/ventas/cierre-caja', data),
+  create: (data: unknown) => api.post<ApiResponse<unknown>>("/ventas", data),
+  cerrarCaja: (data: { password: string }) =>
+    api.post<ApiResponse<unknown>>("/ventas/cierre-caja", data),
   delete: (id: string) => api.delete<ApiResponse<unknown>>(`/ventas/${id}`),
 };
 
 export const movimientosApi = {
   list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<MovimientoCajaItem[]> & { resumen?: ResumenMovimientos }>(
-      '/ventas/movimientos',
-      { params },
-    ),
+    api.get<
+      ApiResponse<MovimientoCajaItem[]> & { resumen?: ResumenMovimientos }
+    >("/ventas/movimientos", { params }),
   create: (data: {
-    tipo: 'ingreso' | 'egreso';
+    tipo: "ingreso" | "egreso";
     monto: number;
     descripcion?: string;
     password: string;
-  }) => api.post<ApiResponse<MovimientoCajaItem>>('/ventas/movimientos', data),
+  }) => api.post<ApiResponse<MovimientoCajaItem>>("/ventas/movimientos", data),
 };

@@ -1,15 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  cierresApi,
-  type CierreListItem,
-} from '@/lib/api-client';
-import { formatDate } from '@/lib/format';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { cierresApi, type CierreListItem } from "@/lib/api-client";
+import { formatDate } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -17,7 +14,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   ShieldCheck,
   RefreshCw,
@@ -27,7 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
-} from 'lucide-react';
+} from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,14 +42,14 @@ interface Pagination {
 // ---------------------------------------------------------------------------
 
 function formatCurrency(value: number): string {
-  return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${value.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function estadoBadge(estado: string) {
   switch (estado) {
-    case 'cerrado':
+    case "cerrado":
       return <Badge variant="success">Cerrado</Badge>;
-    case 'abierto':
+    case "abierto":
       return <Badge variant="outline">Abierto</Badge>;
     default:
       return <Badge variant="secondary">{estado}</Badge>;
@@ -69,7 +66,7 @@ export function AdministracionPage() {
   // Data
   const [cierres, setCierres] = useState<CierreListItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [networkError, setNetworkError] = useState('');
+  const [networkError, setNetworkError] = useState("");
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 20,
@@ -78,8 +75,8 @@ export function AdministracionPage() {
   });
 
   // Filters
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
 
   // -----------------------------------------------------------------------
   // Fetch cierres
@@ -87,24 +84,24 @@ export function AdministracionPage() {
   const fetchCierres = useCallback(
     async (page = 1) => {
       setLoading(true);
-      setNetworkError('');
+      setNetworkError("");
       try {
         const params: Record<string, unknown> = {
           page,
           limit: pagination.limit,
-          sort: 'fecha_cierre',
-          order: 'desc',
+          sort: "fecha_cierre",
+          order: "desc",
         };
         if (fechaDesde) params.fecha_desde = fechaDesde;
         if (fechaHasta) params.fecha_hasta = fechaHasta;
 
         const { data } = await cierresApi.list(params);
-        setCierres((data.data as CierreListItem[]) ?? []);
+        setCierres(data.data ?? []);
         if (data.pagination) {
-          setPagination(data.pagination as Pagination);
+          setPagination(data.pagination);
         }
       } catch {
-        setNetworkError('Error al cargar los cierres de caja');
+        setNetworkError("Error al cargar los cierres de caja");
       } finally {
         setLoading(false);
       }
@@ -113,15 +110,15 @@ export function AdministracionPage() {
   );
 
   useEffect(() => {
-    fetchCierres(1);
+    void fetchCierres(1);
   }, [fetchCierres]);
 
   // -----------------------------------------------------------------------
   // Reset filters
   // -----------------------------------------------------------------------
   const resetFilters = () => {
-    setFechaDesde('');
-    setFechaHasta('');
+    setFechaDesde("");
+    setFechaHasta("");
   };
 
   return (
@@ -146,7 +143,7 @@ export function AdministracionPage() {
             variant="ghost"
             size="icon"
             className="ml-auto h-6 w-6"
-            onClick={() => setNetworkError('')}
+            onClick={() => setNetworkError("")}
           >
             <X className="h-3 w-3" />
           </Button>
@@ -204,7 +201,9 @@ export function AdministracionPage() {
                       <TableHead>Fecha Cierre</TableHead>
                       <TableHead>Vendedor Cierre</TableHead>
                       <TableHead className="text-right">Monto Total</TableHead>
-                      <TableHead className="text-center">Cant. Ventas</TableHead>
+                      <TableHead className="text-center">
+                        Cant. Ventas
+                      </TableHead>
                       <TableHead className="text-center">Estado</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
@@ -213,24 +212,28 @@ export function AdministracionPage() {
                     {cierres.map((c) => (
                       <TableRow key={c.id}>
                         <TableCell className="text-sm">
-                          {c.fecha_cierre ? formatDate(c.fecha_cierre) : '---'}
+                          {c.fecha_cierre ? formatDate(c.fecha_cierre) : "---"}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {c.usuario_cierre?.nombre_usuario ?? '---'}
+                          {c.usuario_cierre?.nombre_usuario ?? "---"}
                         </TableCell>
                         <TableCell className="text-right font-semibold">
                           {formatCurrency(c.monto_total)}
                         </TableCell>
-                        <TableCell className="text-center">{c.cantidad_ventas}</TableCell>
                         <TableCell className="text-center">
-                          {estadoBadge('cerrado')}
+                          {c.cantidad_ventas}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {estadoBadge("cerrado")}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => navigate(`/administracion/${c.id}`)}
+                            onClick={() =>
+                              void navigate(`/administracion/${c.id}`)
+                            }
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
@@ -245,17 +248,19 @@ export function AdministracionPage() {
               {pagination.totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
-                    Mostrando {(pagination.page - 1) * pagination.limit + 1}
-                    {' '}-{' '}
-                    {Math.min(pagination.page * pagination.limit, pagination.total)}
-                    {' '}de {pagination.total}
+                    Mostrando {(pagination.page - 1) * pagination.limit + 1} -{" "}
+                    {Math.min(
+                      pagination.page * pagination.limit,
+                      pagination.total,
+                    )}{" "}
+                    de {pagination.total}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={pagination.page <= 1}
-                      onClick={() => fetchCierres(pagination.page - 1)}
+                      onClick={() => void fetchCierres(pagination.page - 1)}
                     >
                       <ChevronLeft className="h-4 w-4" />
                       Anterior
@@ -267,7 +272,7 @@ export function AdministracionPage() {
                       variant="outline"
                       size="sm"
                       disabled={pagination.page >= pagination.totalPages}
-                      onClick={() => fetchCierres(pagination.page + 1)}
+                      onClick={() => void fetchCierres(pagination.page + 1)}
                     >
                       Siguiente
                       <ChevronRight className="h-4 w-4" />

@@ -1,28 +1,27 @@
 // src/adapters/http/controllers/usuario.controller.ts
 // User management HTTP controllers (admin only)
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from "fastify";
 import {
   CreateUsuarioSchema,
   UpdateUsuarioSchema,
   UsuarioQuerySchema,
   UsuarioIdParamSchema,
-} from '../../../application/dto/usuario.dto.js';
+} from "../../../application/dto/usuario.dto.js";
 import {
   getUsuarioById,
   listUsuarios,
   createUsuario,
   updateUsuario,
   deactivateUsuario,
-} from '../../../application/use-cases/usuario.use-case.js';
-import { sendDomainError } from '../utils/domain-error.js';
+} from "../../../application/use-cases/usuario.use-case.js";
+import { sendDomainError } from "../utils/domain-error.js";
 
 // Helper to handle domain errors
-
 
 // GET /api/v1/usuarios
 export async function listUsuariosHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = UsuarioQuerySchema.safeParse(request.query);
 
@@ -30,8 +29,8 @@ export async function listUsuariosHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -55,17 +54,16 @@ export async function listUsuariosHandler(
 // GET /api/v1/usuarios/:id
 export async function getUsuarioByIdHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = UsuarioIdParamSchema.safeParse(params);
+  const parsed = UsuarioIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de usuario inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de usuario inválido",
       },
     });
   }
@@ -85,7 +83,7 @@ export async function getUsuarioByIdHandler(
 // POST /api/v1/usuarios
 export async function createUsuarioHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = CreateUsuarioSchema.safeParse(request.body);
 
@@ -93,8 +91,8 @@ export async function createUsuarioHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -115,20 +113,30 @@ export async function createUsuarioHandler(
 // PUT /api/v1/usuarios/:id
 export async function updateUsuarioHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const body = request.body as Record<string, unknown>;
+  const parsedParams = UsuarioIdParamSchema.safeParse(request.params);
+  const parsedBody = UpdateUsuarioSchema.omit({ id: true }).safeParse(
+    request.body,
+  );
 
-  const parsed = UpdateUsuarioSchema.safeParse({ ...body, id: params.id });
-
-  if (!parsed.success) {
+  if (!parsedParams.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
-        details: parsed.error.flatten().fieldErrors,
+        code: "VALIDATION_ERROR",
+        message: "ID de usuario inválido",
+      },
+    });
+  }
+
+  if (!parsedBody.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
+        details: parsedBody.error.flatten().fieldErrors,
       },
     });
   }
@@ -136,17 +144,23 @@ export async function updateUsuarioHandler(
   // Q7: no permitir que un admin se desactive a sí mismo vía update
   // (UpdateUsuarioSchema permite `activo`, que hubiera esquivado el guard de
   // la ruta DELETE de desactivación).
-  if (parsed.data.activo === false && request.user?.userId === parsed.data.id) {
+  if (
+    parsedBody.data.activo === false &&
+    request.user?.userId === parsedParams.data.id
+  ) {
     return reply.status(403).send({
       success: false,
       error: {
-        code: 'FORBIDDEN',
-        message: 'No puedes desactivar tu propio usuario',
+        code: "FORBIDDEN",
+        message: "No puedes desactivar tu propio usuario",
       },
     });
   }
 
-  const result = await updateUsuario(parsed.data);
+  const result = await updateUsuario({
+    ...parsedBody.data,
+    id: parsedParams.data.id,
+  });
 
   if (result.isErr()) {
     return sendDomainError(reply, result.error);
@@ -161,17 +175,16 @@ export async function updateUsuarioHandler(
 // DELETE /api/v1/usuarios/:id (deactivate, not delete)
 export async function deactivateUsuarioHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = UsuarioIdParamSchema.safeParse(params);
+  const parsed = UsuarioIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de usuario inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de usuario inválido",
       },
     });
   }
@@ -182,8 +195,8 @@ export async function deactivateUsuarioHandler(
     return reply.status(403).send({
       success: false,
       error: {
-        code: 'FORBIDDEN',
-        message: 'No puedes desactivar tu propio usuario',
+        code: "FORBIDDEN",
+        message: "No puedes desactivar tu propio usuario",
       },
     });
   }
@@ -196,6 +209,6 @@ export async function deactivateUsuarioHandler(
 
   reply.send({
     success: true,
-    data: { message: 'Usuario desactivado exitosamente' },
+    data: { message: "Usuario desactivado exitosamente" },
   });
 }

@@ -1,6 +1,13 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { authApi, setAccessToken, redirectToLogin } from '@/lib/api-client';
-import type { UsuarioSafe } from '@/lib/types';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from "react";
+import { authApi, setAccessToken, redirectToLogin } from "@/lib/api-client";
+import type { Rol, UsuarioSafe } from "@/lib/types";
 
 // Sesión: usa el tipo canónico de cliente (Q5) — duplicaba localmente a UsuarioSafe.
 type User = UsuarioSafe;
@@ -15,18 +22,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Shape del payload JWT decodificado. Solo expone los campos que parseJwt
+// consume; se valida en el límite con un cast para no propagar `any`.
+interface JwtSessionPayload {
+  userId: string;
+  nik_usuario: string;
+  rol: Rol;
+}
+
 function parseJwt(token: string): User | null {
   try {
-    const base64Url = token.split('.')[1];
+    const base64Url = token.split(".")[1];
     if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
     const jsonPayload = decodeURIComponent(
       atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join(''),
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(""),
     );
-    const payload = JSON.parse(jsonPayload);
+    const payload = JSON.parse(jsonPayload) as JwtSessionPayload;
     return {
       id: payload.userId,
       nik_usuario: payload.nik_usuario,
@@ -48,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // httpOnly del refresh token. Si expiró, quedamos deslogueados (login).
     let active = true;
 
-    (async () => {
+    void (async () => {
       try {
         const { data } = await authApi.refresh();
         const token = data.data.accessToken;
@@ -87,7 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, logout, isAuthenticated: !!user }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -95,6 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }

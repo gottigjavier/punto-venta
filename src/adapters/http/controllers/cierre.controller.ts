@@ -1,23 +1,23 @@
 // src/adapters/http/controllers/cierre.controller.ts
 // Cash closure HTTP controllers
-import type { FastifyRequest, FastifyReply } from 'fastify';
-import { ListCierresQuerySchema } from '../../../application/dto/cierre.dto.js';
-import { VentaCierreQuerySchema } from '../../../application/dto/venta.dto.js';
+import type { FastifyRequest, FastifyReply } from "fastify";
+import { z } from "zod";
+import { ListCierresQuerySchema } from "../../../application/dto/cierre.dto.js";
+import { VentaCierreQuerySchema } from "../../../application/dto/venta.dto.js";
 import {
   listCierres,
   getCierreById,
   exportCierreCsv,
   listVentasByCierreConDetalles,
-} from '../../../application/use-cases/cierre.use-case.js';
-import { sendDomainError } from '../utils/domain-error.js';
+} from "../../../application/use-cases/cierre.use-case.js";
+import { sendDomainError } from "../utils/domain-error.js";
 
 // Helper to handle domain errors (same pattern as venta.controller.ts)
-
 
 // GET /api/v1/ventas/cierres - List cash closures with filters and pagination
 export async function listCierresHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = ListCierresQuerySchema.safeParse(request.query);
 
@@ -25,8 +25,8 @@ export async function listCierresHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -50,19 +50,22 @@ export async function listCierresHandler(
 // GET /api/v1/ventas/cierres/:id - Get cash closure by ID with details
 export async function getCierreByIdHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const { id } = request.params as { id: string };
+  const parsedId = z
+    .object({ id: z.string().min(1) })
+    .safeParse(request.params);
 
-  if (!id) {
+  if (!parsedId.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de cierre requerido',
+        code: "VALIDATION_ERROR",
+        message: "ID de cierre requerido",
       },
     });
   }
+  const { id } = parsedId.data;
 
   const result = await getCierreById(id);
 
@@ -79,19 +82,22 @@ export async function getCierreByIdHandler(
 // GET /api/v1/ventas/cierres/:id/csv - Export cash closure details as CSV
 export async function exportCierreCsvHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const { id } = request.params as { id: string };
+  const parsedId = z
+    .object({ id: z.string().min(1) })
+    .safeParse(request.params);
 
-  if (!id) {
+  if (!parsedId.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de cierre requerido',
+        code: "VALIDATION_ERROR",
+        message: "ID de cierre requerido",
       },
     });
   }
+  const { id } = parsedId.data;
 
   const result = await exportCierreCsv(id);
 
@@ -100,30 +106,30 @@ export async function exportCierreCsvHandler(
   }
 
   reply
-    .header('Content-Type', 'text/csv; charset=utf-8')
-    .header(
-      'Content-Disposition',
-      `attachment; filename="cierre-${id}.csv"`
-    )
+    .header("Content-Type", "text/csv; charset=utf-8")
+    .header("Content-Disposition", `attachment; filename="cierre-${id}.csv"`)
     .send(result.value.csv);
 }
 
 // GET /api/v1/ventas/cierres/:id/ventas - Detailed sales rows for a cash closure (flat)
 export async function cierreVentasHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const { id } = request.params as { id: string };
+  const parsedId = z
+    .object({ id: z.string().min(1) })
+    .safeParse(request.params);
 
-  if (!id) {
+  if (!parsedId.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de cierre requerido',
+        code: "VALIDATION_ERROR",
+        message: "ID de cierre requerido",
       },
     });
   }
+  const { id } = parsedId.data;
 
   const parsed = VentaCierreQuerySchema.safeParse(request.query);
 
@@ -131,8 +137,8 @@ export async function cierreVentasHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });

@@ -1,12 +1,25 @@
-import { useEffect, useState, useCallback } from 'react';
-import { lotesApi, stockApi, productosApi, rubrosApi, type LoteItem, type ApiResponse } from '@/lib/api-client';
-import { formatDate } from '@/lib/format';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { useEffect, useState, useCallback } from "react";
+import {
+  lotesApi,
+  stockApi,
+  productosApi,
+  rubrosApi,
+  type LoteItem,
+} from "@/lib/api-client";
+import { formatDate } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -14,24 +27,50 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Pencil, RefreshCw, Package, LogIn, Ban, Trash2, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Search,
+  Pencil,
+  RefreshCw,
+  Package,
+  LogIn,
+  Ban,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 
 // --- Types ---
-type LoteEstado = LoteItem['estado'];
+type LoteEstado = LoteItem["estado"];
 type SortField =
-  | 'numero_lote'
-  | 'producto.nombre'
-  | 'cantidad_disponible'
-  | 'fecha_vencimiento'
-  | 'fecha_compra'
-  | 'precio_compra'
-  | 'created_at';
-type SortOrder = 'asc' | 'desc';
+  | "numero_lote"
+  | "producto.nombre"
+  | "cantidad_disponible"
+  | "fecha_vencimiento"
+  | "fecha_compra"
+  | "precio_compra"
+  | "created_at";
+type SortOrder = "asc" | "desc";
 
-interface Rubro { id: string; nombre: string }
-interface ProductoOption { id: string; nombre: string; codigo?: string }
+interface Rubro {
+  id: string;
+  nombre: string;
+}
+interface ProductoOption {
+  id: string;
+  nombre: string;
+  codigo?: string;
+}
 
 // --- Helpers ---
 function formatCurrency(value: number): string {
@@ -40,24 +79,24 @@ function formatCurrency(value: number): string {
 
 function estadoLoteBadge(estado: LoteEstado) {
   switch (estado) {
-    case 'activo':
+    case "activo":
       return <Badge variant="success">Activo</Badge>;
-    case 'agotado':
+    case "agotado":
       return <Badge variant="outline">Agotado</Badge>;
-    case 'vencido':
+    case "vencido":
       return <Badge variant="destructive">Vencido</Badge>;
-    case 'descartado':
+    case "descartado":
       return <Badge variant="secondary">Descartado</Badge>;
   }
 }
 
-function vencimientoBadge(estado: LoteItem['estado_vencimiento']) {
+function vencimientoBadge(estado: LoteItem["estado_vencimiento"]) {
   switch (estado) {
-    case 'vencido':
+    case "vencido":
       return <Badge variant="destructive">Vencido</Badge>;
-    case 'por_vencer':
+    case "por_vencer":
       return <Badge variant="outline">Por vencer</Badge>;
-    case 'ok':
+    case "ok":
       return <Badge variant="success">OK</Badge>;
   }
 }
@@ -65,24 +104,29 @@ function vencimientoBadge(estado: LoteItem['estado_vencimiento']) {
 // --- Component ---
 export function StockPage() {
   const [items, setItems] = useState<LoteItem[]>([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  });
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [search, setSearch] = useState('');
-  const [rubroId, setRubroId] = useState<string>('');
+  const [search, setSearch] = useState("");
+  const [rubroId, setRubroId] = useState<string>("");
   const [archivados, setArchivados] = useState(false);
 
   // Sort
-  const [sortField, setSortField] = useState<SortField>('created_at');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   // Dropdown data
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [productos, setProductos] = useState<ProductoOption[]>([]);
 
   // Modal states
-  const [loteModal, setLoteModal] = useState<null | 'ingreso'>(null);
+  const [loteModal, setLoteModal] = useState<null | "ingreso">(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<LoteItem | null>(null);
   const [retirarOpen, setRetirarOpen] = useState(false);
@@ -95,106 +139,124 @@ export function StockPage() {
 
   // Form para ingreso de stock
   const INITIAL_LOTE_FORM = {
-    producto_id: '',
-    numero_lote: '',
-    cantidad: '',
-    fecha_compra: '',
-    fecha_vencimiento: '',
-    precio_compra: '',
+    producto_id: "",
+    numero_lote: "",
+    cantidad: "",
+    fecha_compra: "",
+    fecha_vencimiento: "",
+    precio_compra: "",
   };
   const [loteForm, setLoteForm] = useState(INITIAL_LOTE_FORM);
 
   // Form para editar (NUNCA cantidad_disponible)
   const INITIAL_EDIT_FORM = {
-    numero_lote: '',
-    fecha_compra: '',
-    fecha_vencimiento: '',
-    precio_compra: '',
+    numero_lote: "",
+    fecha_compra: "",
+    fecha_vencimiento: "",
+    precio_compra: "",
   };
   const [editForm, setEditForm] = useState(INITIAL_EDIT_FORM);
 
   // Fetch rubros y productos una vez
   useEffect(() => {
-    rubrosApi.list().then(({ data }) => {
-      setRubros((data.data as Rubro[]) ?? []);
-    }).catch(() => { /* silent */ });
-    productosApi.list({ limit: 200, activo: true }).then(({ data }) => {
-      setProductos((data.data as ProductoOption[]) ?? []);
-    }).catch(() => { /* silent */ });
+    rubrosApi
+      .list()
+      .then(({ data }) => {
+        setRubros((data.data as Rubro[]) ?? []);
+      })
+      .catch(() => {
+        /* silent */
+      });
+    productosApi
+      .list({ limit: 200, activo: true })
+      .then(({ data }) => {
+        setProductos((data.data as ProductoOption[]) ?? []);
+      })
+      .catch(() => {
+        /* silent */
+      });
   }, []);
 
   // Fetch stock (fila por lote)
-  const fetchStock = useCallback(async (page = 1) => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = {
-        page,
-        limit: pagination.limit,
-        sort: sortField,
-        order: sortOrder,
-      };
-      if (search) params.search = search;
-      if (rubroId) params.rubro_id = rubroId;
-      if (archivados) params.archivados = true;
+  const fetchStock = useCallback(
+    async (page = 1) => {
+      setLoading(true);
+      try {
+        const params: Record<string, unknown> = {
+          page,
+          limit: pagination.limit,
+          sort: sortField,
+          order: sortOrder,
+        };
+        if (search) params.search = search;
+        if (rubroId) params.rubro_id = rubroId;
+        if (archivados) params.archivados = true;
 
-      const { data } = await lotesApi.list(params);
-      const response = data as ApiResponse<LoteItem[]>;
-      setItems(response.data ?? []);
-      if (response.pagination) setPagination(response.pagination);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [search, rubroId, archivados, sortField, sortOrder, pagination.limit]);
+        const { data } = await lotesApi.list(params);
+        const response = data;
+        setItems(response.data ?? []);
+        if (response.pagination) setPagination(response.pagination);
+      } catch {
+        // silent
+      } finally {
+        setLoading(false);
+      }
+    },
+    [search, rubroId, archivados, sortField, sortOrder, pagination.limit],
+  );
 
   useEffect(() => {
-    fetchStock(1);
+    void fetchStock(1);
   }, [fetchStock]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
       setSortField(field);
-      setSortOrder('asc');
+      setSortOrder("asc");
     }
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDown className="ml-1 h-3 w-3 text-muted-foreground" />;
-    return sortOrder === 'asc'
-      ? <ArrowUp className="ml-1 h-3 w-3" />
-      : <ArrowDown className="ml-1 h-3 w-3" />;
+    if (sortField !== field)
+      return <ArrowUpDown className="ml-1 h-3 w-3 text-muted-foreground" />;
+    return sortOrder === "asc" ? (
+      <ArrowUp className="ml-1 h-3 w-3" />
+    ) : (
+      <ArrowDown className="ml-1 h-3 w-3" />
+    );
   };
 
   const goToPage = (page: number) => {
     if (page < 1 || page > pagination.totalPages) return;
-    fetchStock(page);
+    void fetchStock(page);
   };
 
   const resetFilters = () => {
-    setSearch('');
-    setRubroId('');
+    setSearch("");
+    setRubroId("");
     setArchivados(false);
-    setSortField('created_at');
-    setSortOrder('desc');
+    setSortField("created_at");
+    setSortOrder("desc");
   };
 
   // --- Handlers de modales ---
   const openLoteModal = () => {
     setLoteForm(INITIAL_LOTE_FORM);
     setFormError(null);
-    setLoteModal('ingreso');
+    setLoteModal("ingreso");
   };
 
   const openEdit = (lote: LoteItem) => {
     setEditing(lote);
     setEditForm({
-      numero_lote: lote.numero_lote ?? '',
-      fecha_compra: lote.fecha_compra ? lote.fecha_compra.slice(0, 10) : '',
-      fecha_vencimiento: lote.fecha_vencimiento ? lote.fecha_vencimiento.slice(0, 10) : '',
-      precio_compra: String(lote.precio_compra ?? ''),
+      numero_lote: lote.numero_lote ?? "",
+      fecha_compra: lote.fecha_compra ? lote.fecha_compra.slice(0, 10) : "",
+      fecha_vencimiento: lote.fecha_vencimiento
+        ? lote.fecha_vencimiento.slice(0, 10)
+        : "",
+      precio_compra: String(lote.precio_compra ?? ""),
     });
     setFormError(null);
     setEditOpen(true);
@@ -214,8 +276,12 @@ export function StockPage() {
   const submitLote = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    if (!loteForm.producto_id || !loteForm.cantidad || !loteForm.precio_compra) {
-      setFormError('Producto, cantidad y precio de compra son obligatorios.');
+    if (
+      !loteForm.producto_id ||
+      !loteForm.cantidad ||
+      !loteForm.precio_compra
+    ) {
+      setFormError("Producto, cantidad y precio de compra son obligatorios.");
       return;
     }
     setSubmitting(true);
@@ -230,10 +296,12 @@ export function StockPage() {
       };
       await stockApi.ingreso(base);
       setLoteModal(null);
-      fetchStock(pagination.page);
+      void fetchStock(pagination.page);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
-      setFormError(msg ?? 'No se pudo guardar el lote.');
+      const msg = (
+        err as { response?: { data?: { error?: { message?: string } } } }
+      )?.response?.data?.error?.message;
+      setFormError(msg ?? "No se pudo guardar el lote.");
     } finally {
       setSubmitting(false);
     }
@@ -249,13 +317,17 @@ export function StockPage() {
         numero_lote: editForm.numero_lote || null,
         fecha_compra: editForm.fecha_compra || null,
         fecha_vencimiento: editForm.fecha_vencimiento || null,
-        precio_compra: editForm.precio_compra ? Number(editForm.precio_compra) : undefined,
+        precio_compra: editForm.precio_compra
+          ? Number(editForm.precio_compra)
+          : undefined,
       });
       setEditOpen(false);
-      fetchStock(pagination.page);
+      void fetchStock(pagination.page);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
-      setFormError(msg ?? 'No se pudo editar el lote.');
+      const msg = (
+        err as { response?: { data?: { error?: { message?: string } } } }
+      )?.response?.data?.error?.message;
+      setFormError(msg ?? "No se pudo editar el lote.");
     } finally {
       setSubmitting(false);
     }
@@ -267,10 +339,12 @@ export function StockPage() {
     try {
       await lotesApi.retirar(retirando.id);
       setRetirarOpen(false);
-      fetchStock(pagination.page);
+      void fetchStock(pagination.page);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
-      setFormError(msg ?? 'No se pudo retirar el lote.');
+      const msg = (
+        err as { response?: { data?: { error?: { message?: string } } } }
+      )?.response?.data?.error?.message;
+      setFormError(msg ?? "No se pudo retirar el lote.");
     } finally {
       setSubmitting(false);
     }
@@ -283,14 +357,19 @@ export function StockPage() {
     try {
       await lotesApi.delete(eliminando.id);
       setDeleteOpen(false);
-      fetchStock(pagination.page);
+      void fetchStock(pagination.page);
     } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
+      const status = (err as { response?: { status?: number } })?.response
+        ?.status;
+      const msg = (
+        err as { response?: { data?: { error?: { message?: string } } } }
+      )?.response?.data?.error?.message;
       // 409: el lote tiene ventas asociadas → solo puede retirarse
-      setDeleteError(status === 409
-        ? 'El lote tiene ventas asociadas: solo puede retirarse.'
-        : (msg ?? 'No se pudo eliminar el lote.'));
+      setDeleteError(
+        status === 409
+          ? "El lote tiene ventas asociadas: solo puede retirarse."
+          : (msg ?? "No se pudo eliminar el lote."),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -302,7 +381,9 @@ export function StockPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Stock</h1>
-          <p className="text-sm text-muted-foreground">Gestioná los lotes (N° de Lote) del inventario</p>
+          <p className="text-sm text-muted-foreground">
+            Gestioná los lotes (N° de Lote) del inventario
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => openLoteModal()}>
@@ -325,23 +406,36 @@ export function StockPage() {
               />
             </div>
 
-            <Select value={rubroId} onValueChange={(v) => setRubroId(v === 'all' ? '' : v)}>
+            <Select
+              value={rubroId}
+              onValueChange={(v) => setRubroId(v === "all" ? "" : v)}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Todos los rubros" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los rubros</SelectItem>
                 {rubros.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>{r.nombre}</SelectItem>
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.nombre}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            <Button variant={archivados ? 'default' : 'outline'} size="sm" onClick={() => setArchivados((p) => !p)}>
+            <Button
+              variant={archivados ? "default" : "outline"}
+              size="sm"
+              onClick={() => setArchivados((p) => !p)}
+            >
               Archivados
             </Button>
 
-            <Button variant="outline" size="icon" onClick={() => fetchStock(pagination.page)}>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void fetchStock(pagination.page)}
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
 
@@ -360,7 +454,11 @@ export function StockPage() {
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Package className="mb-2 h-8 w-8" />
-              <p>{archivados ? 'No hay lotes archivados' : 'No hay lotes en stock'}</p>
+              <p>
+                {archivados
+                  ? "No hay lotes archivados"
+                  : "No hay lotes en stock"}
+              </p>
             </div>
           ) : (
             <>
@@ -368,22 +466,38 @@ export function StockPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('numero_lote')}>
+                      <TableHead
+                        className="cursor-pointer select-none"
+                        onClick={() => toggleSort("numero_lote")}
+                      >
                         N° de Lote <SortIcon field="numero_lote" />
                       </TableHead>
-                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('producto.nombre')}>
+                      <TableHead
+                        className="cursor-pointer select-none"
+                        onClick={() => toggleSort("producto.nombre")}
+                      >
                         Producto <SortIcon field="producto.nombre" />
                       </TableHead>
                       <TableHead>Rubro</TableHead>
                       <TableHead className="max-w-[140px]">Proveedor</TableHead>
-                      <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort('cantidad_disponible')}>
-                        Cant. Disponible <SortIcon field="cantidad_disponible" />
+                      <TableHead
+                        className="text-right cursor-pointer select-none"
+                        onClick={() => toggleSort("cantidad_disponible")}
+                      >
+                        Cant. Disponible{" "}
+                        <SortIcon field="cantidad_disponible" />
                       </TableHead>
                       <TableHead>Fecha Compra</TableHead>
-                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('fecha_vencimiento')}>
+                      <TableHead
+                        className="cursor-pointer select-none"
+                        onClick={() => toggleSort("fecha_vencimiento")}
+                      >
                         Vencimiento <SortIcon field="fecha_vencimiento" />
                       </TableHead>
-                      <TableHead className="text-right cursor-pointer select-none" onClick={() => toggleSort('precio_compra')}>
+                      <TableHead
+                        className="text-right cursor-pointer select-none"
+                        onClick={() => toggleSort("precio_compra")}
+                      >
                         P. Compra <SortIcon field="precio_compra" />
                       </TableHead>
                       <TableHead className="text-center">Estado Lote</TableHead>
@@ -394,34 +508,64 @@ export function StockPage() {
                   <TableBody>
                     {items.map((l) => (
                       <TableRow key={l.id}>
-                        <TableCell className="font-mono text-xs">{l.numero_lote || '—'}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {l.numero_lote || "—"}
+                        </TableCell>
                         <TableCell className="font-medium">
                           {l.producto?.nombre}
                           <span className="block text-xs font-normal text-muted-foreground">
-                            {l.producto?.codigo || '—'}
+                            {l.producto?.codigo || "—"}
                           </span>
                         </TableCell>
-                        <TableCell>{l.rubro?.nombre ?? '—'}</TableCell>
-                        <TableCell className="max-w-[140px] truncate">{l.proveedor?.razon_social ?? '—'}</TableCell>
-                        <TableCell className={`text-right font-semibold ${l.stock_bajo ? 'text-blue-500' : ''}`}>
+                        <TableCell>{l.rubro?.nombre ?? "—"}</TableCell>
+                        <TableCell className="max-w-[140px] truncate">
+                          {l.proveedor?.razon_social ?? "—"}
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-semibold ${l.stock_bajo ? "text-blue-500" : ""}`}
+                        >
                           {l.cantidad_disponible}
                         </TableCell>
                         <TableCell>{formatDate(l.fecha_compra)}</TableCell>
                         <TableCell>{formatDate(l.fecha_vencimiento)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(l.precio_compra)}</TableCell>
-                        <TableCell className="text-center">{estadoLoteBadge(l.estado)}</TableCell>
-                        <TableCell className="text-center">{vencimientoBadge(l.estado_vencimiento)}</TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(l.precio_compra)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {estadoLoteBadge(l.estado)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {vencimientoBadge(l.estado_vencimiento)}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(l)} title="Editar">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => openEdit(l)}
+                              title="Editar"
+                            >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             {!archivados && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openRetirar(l)} title="Retirar">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => openRetirar(l)}
+                                title="Retirar"
+                              >
                                 <Ban className="h-3.5 w-3.5" />
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => openDelete(l)} title="Eliminar">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => openDelete(l)}
+                              title="Eliminar"
+                            >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -437,31 +581,68 @@ export function StockPage() {
                 <div className="mt-4 flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
                     Mostrando {(pagination.page - 1) * pagination.limit + 1}
-                    {' - '}
-                    {Math.min(pagination.page * pagination.limit, pagination.total)}
-                    {' '}de {pagination.total}
+                    {" - "}
+                    {Math.min(
+                      pagination.page * pagination.limit,
+                      pagination.total,
+                    )}{" "}
+                    de {pagination.total}
                   </p>
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8" disabled={pagination.page <= 1} onClick={() => goToPage(pagination.page - 1)}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={pagination.page <= 1}
+                      onClick={() => goToPage(pagination.page - 1)}
+                    >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-                      .filter((p) => p === 1 || p === pagination.totalPages || Math.abs(p - pagination.page) <= 1)
-                      .reduce<(number | 'dots')[]>((acc, p, i, arr) => {
-                        if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('dots');
+                    {Array.from(
+                      { length: pagination.totalPages },
+                      (_, i) => i + 1,
+                    )
+                      .filter(
+                        (p) =>
+                          p === 1 ||
+                          p === pagination.totalPages ||
+                          Math.abs(p - pagination.page) <= 1,
+                      )
+                      .reduce<(number | "dots")[]>((acc, p, i, arr) => {
+                        if (i > 0 && p - (arr[i - 1] as number) > 1)
+                          acc.push("dots");
                         acc.push(p);
                         return acc;
                       }, [])
                       .map((item, i) =>
-                        item === 'dots' ? (
-                          <span key={`dots-${i}`} className="px-1 text-muted-foreground">...</span>
+                        item === "dots" ? (
+                          <span
+                            key={`dots-${i}`}
+                            className="px-1 text-muted-foreground"
+                          >
+                            ...
+                          </span>
                         ) : (
-                          <Button key={item} variant={pagination.page === item ? 'default' : 'outline'} size="icon" className="h-8 w-8" onClick={() => goToPage(item)}>
+                          <Button
+                            key={item}
+                            variant={
+                              pagination.page === item ? "default" : "outline"
+                            }
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => goToPage(item)}
+                          >
                             {item}
                           </Button>
-                        )
+                        ),
                       )}
-                    <Button variant="outline" size="icon" className="h-8 w-8" disabled={pagination.page >= pagination.totalPages} onClick={() => goToPage(pagination.page + 1)}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={pagination.page >= pagination.totalPages}
+                      onClick={() => goToPage(pagination.page + 1)}
+                    >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
@@ -473,24 +654,35 @@ export function StockPage() {
       </Card>
 
       {/* Create / Ingreso Dialog */}
-      <Dialog open={loteModal !== null} onOpenChange={(o) => !o && setLoteModal(null)}>
+      <Dialog
+        open={loteModal !== null}
+        onOpenChange={(o) => !o && setLoteModal(null)}
+      >
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Ingreso de Stock</DialogTitle>
             <DialogDescription>
-              Crea o suma unidades a un lote existente (por N° de Lote y vencimiento).
+              Crea o suma unidades a un lote existente (por N° de Lote y
+              vencimiento).
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={submitLote} className="space-y-4">
+          <form onSubmit={(e) => void submitLote(e)} className="space-y-4">
             <div className="space-y-2">
               <Label>Producto *</Label>
-              <Select value={loteForm.producto_id} onValueChange={(v) => setLoteForm((f) => ({ ...f, producto_id: v }))}>
+              <Select
+                value={loteForm.producto_id}
+                onValueChange={(v) =>
+                  setLoteForm((f) => ({ ...f, producto_id: v }))
+                }
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar producto" />
                 </SelectTrigger>
                 <SelectContent>
                   {productos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.nombre} {p.codigo ? `(${p.codigo})` : ''}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nombre} {p.codigo ? `(${p.codigo})` : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -498,33 +690,93 @@ export function StockPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="numero_lote">N° de Lote</Label>
-                <Input id="numero_lote" value={loteForm.numero_lote} onChange={(e) => setLoteForm((f) => ({ ...f, numero_lote: e.target.value }))} placeholder="Opcional" />
+                <Input
+                  id="numero_lote"
+                  value={loteForm.numero_lote}
+                  onChange={(e) =>
+                    setLoteForm((f) => ({ ...f, numero_lote: e.target.value }))
+                  }
+                  placeholder="Opcional"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cantidad">Cantidad *</Label>
-                <Input id="cantidad" type="number" step="0.001" min="0" value={loteForm.cantidad} onChange={(e) => setLoteForm((f) => ({ ...f, cantidad: e.target.value }))} placeholder="0" />
+                <Input
+                  id="cantidad"
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  value={loteForm.cantidad}
+                  onChange={(e) =>
+                    setLoteForm((f) => ({ ...f, cantidad: e.target.value }))
+                  }
+                  placeholder="0"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fecha_compra">Fecha Compra</Label>
-                <Input id="fecha_compra" type="date" value={loteForm.fecha_compra} onChange={(e) => setLoteForm((f) => ({ ...f, fecha_compra: e.target.value }))} />
+                <Input
+                  id="fecha_compra"
+                  type="date"
+                  value={loteForm.fecha_compra}
+                  onChange={(e) =>
+                    setLoteForm((f) => ({ ...f, fecha_compra: e.target.value }))
+                  }
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fecha_vencimiento">Fecha Vencimiento</Label>
-                <Input id="fecha_vencimiento" type="date" value={loteForm.fecha_vencimiento} onChange={(e) => setLoteForm((f) => ({ ...f, fecha_vencimiento: e.target.value }))} />
+                <Input
+                  id="fecha_vencimiento"
+                  type="date"
+                  value={loteForm.fecha_vencimiento}
+                  onChange={(e) =>
+                    setLoteForm((f) => ({
+                      ...f,
+                      fecha_vencimiento: e.target.value,
+                    }))
+                  }
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="precio_compra">Precio Compra *</Label>
-                <Input id="precio_compra" type="number" step="0.01" min="0" value={loteForm.precio_compra} onChange={(e) => setLoteForm((f) => ({ ...f, precio_compra: e.target.value }))} placeholder="0.00" />
+                <Input
+                  id="precio_compra"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={loteForm.precio_compra}
+                  onChange={(e) =>
+                    setLoteForm((f) => ({
+                      ...f,
+                      precio_compra: e.target.value,
+                    }))
+                  }
+                  placeholder="0.00"
+                />
               </div>
             </div>
-            {formError && <p className="text-sm font-medium text-destructive">{formError}</p>}
+            {formError && (
+              <p className="text-sm font-medium text-destructive">
+                {formError}
+              </p>
+            )}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setLoteModal(null)} disabled={submitting}>Cancelar</Button>
-              <Button type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar'}</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setLoteModal(null)}
+                disabled={submitting}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? "Guardando..." : "Guardar"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -535,65 +787,161 @@ export function StockPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar Lote</DialogTitle>
-            <DialogDescription>Modificá los metadatos del lote. El stock no se altera.</DialogDescription>
+            <DialogDescription>
+              Modificá los metadatos del lote. El stock no se altera.
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={submitEdit} className="space-y-4">
+          <form onSubmit={(e) => void submitEdit(e)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="edit_numero_lote">N° de Lote</Label>
-              <Input id="edit_numero_lote" value={editForm.numero_lote} onChange={(e) => setEditForm((f) => ({ ...f, numero_lote: e.target.value }))} />
+              <Input
+                id="edit_numero_lote"
+                value={editForm.numero_lote}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, numero_lote: e.target.value }))
+                }
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit_fecha_compra">Fecha Compra</Label>
-                <Input id="edit_fecha_compra" type="date" value={editForm.fecha_compra} onChange={(e) => setEditForm((f) => ({ ...f, fecha_compra: e.target.value }))} />
+                <Input
+                  id="edit_fecha_compra"
+                  type="date"
+                  value={editForm.fecha_compra}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, fecha_compra: e.target.value }))
+                  }
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit_fecha_vencimiento">Fecha Vencimiento</Label>
-                <Input id="edit_fecha_vencimiento" type="date" value={editForm.fecha_vencimiento} onChange={(e) => setEditForm((f) => ({ ...f, fecha_vencimiento: e.target.value }))} />
+                <Label htmlFor="edit_fecha_vencimiento">
+                  Fecha Vencimiento
+                </Label>
+                <Input
+                  id="edit_fecha_vencimiento"
+                  type="date"
+                  value={editForm.fecha_vencimiento}
+                  onChange={(e) =>
+                    setEditForm((f) => ({
+                      ...f,
+                      fecha_vencimiento: e.target.value,
+                    }))
+                  }
+                />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit_precio_compra">Precio Compra</Label>
-              <Input id="edit_precio_compra" type="number" step="0.01" min="0" value={editForm.precio_compra} onChange={(e) => setEditForm((f) => ({ ...f, precio_compra: e.target.value }))} placeholder="0.00" />
+              <Input
+                id="edit_precio_compra"
+                type="number"
+                step="0.01"
+                min="0"
+                value={editForm.precio_compra}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, precio_compra: e.target.value }))
+                }
+                placeholder="0.00"
+              />
             </div>
-            {formError && <p className="text-sm font-medium text-destructive">{formError}</p>}
+            {formError && (
+              <p className="text-sm font-medium text-destructive">
+                {formError}
+              </p>
+            )}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={submitting}>Cancelar</Button>
-              <Button type="submit" disabled={submitting}>{submitting ? 'Guardando...' : 'Guardar Cambios'}</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditOpen(false)}
+                disabled={submitting}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? "Guardando..." : "Guardar Cambios"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Retirar Confirmation */}
-      <Dialog open={retirarOpen} onOpenChange={(o) => !o && setRetirarOpen(false)}>
+      <Dialog
+        open={retirarOpen}
+        onOpenChange={(o) => !o && setRetirarOpen(false)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Retirar Lote</DialogTitle>
             <DialogDescription>
-              Vas a marcar el lote <span className="font-semibold text-foreground">{retirando?.numero_lote || '—'}</span> como descartado. No se podrá vender y conservará su historial.
+              Vas a marcar el lote{" "}
+              <span className="font-semibold text-foreground">
+                {retirando?.numero_lote || "—"}
+              </span>{" "}
+              como descartado. No se podrá vender y conservará su historial.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setRetirarOpen(false)} disabled={submitting}>Cancelar</Button>
-            <Button type="button" variant="destructive" onClick={handleRetirar} disabled={submitting}>{submitting ? 'Retirando...' : 'Retirar'}</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRetirarOpen(false)}
+              disabled={submitting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleRetirar()}
+              disabled={submitting}
+            >
+              {submitting ? "Retirando..." : "Retirar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation */}
-      <Dialog open={deleteOpen} onOpenChange={(o) => !o && setDeleteOpen(false)}>
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(o) => !o && setDeleteOpen(false)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Eliminar Lote</DialogTitle>
             <DialogDescription>
-              Estás seguro que querés eliminar el lote <span className="font-semibold text-foreground">{eliminando?.numero_lote || '—'}</span>? Esta acción no se puede deshacer.
+              Estás seguro que querés eliminar el lote{" "}
+              <span className="font-semibold text-foreground">
+                {eliminando?.numero_lote || "—"}
+              </span>
+              ? Esta acción no se puede deshacer.
             </DialogDescription>
-            {deleteError && <p className="text-sm font-medium text-destructive">{deleteError}</p>}
+            {deleteError && (
+              <p className="text-sm font-medium text-destructive">
+                {deleteError}
+              </p>
+            )}
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={submitting}>Cancelar</Button>
-            <Button type="button" variant="destructive" onClick={handleDelete} disabled={submitting}>{submitting ? 'Eliminando...' : 'Eliminar'}</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={submitting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleDelete()}
+              disabled={submitting}
+            >
+              {submitting ? "Eliminando..." : "Eliminar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

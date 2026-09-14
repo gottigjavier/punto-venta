@@ -522,7 +522,7 @@ export async function updateProducto(
         }
       }
       return err(
-        conflictError("Producto", `Código ya existe para este proveedor`),
+        conflictError("Producto", "Código ya existe para este proveedor"),
       );
     }
     logger.error({ error, id: input.id }, "Error al actualizar producto");

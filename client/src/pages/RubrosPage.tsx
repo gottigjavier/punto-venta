@@ -1,11 +1,18 @@
-import { useEffect, useState, useCallback } from 'react';
-import { rubrosApi } from '@/lib/api-client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { useEffect, useState, useCallback } from "react";
+import { rubrosApi } from "@/lib/api-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -13,8 +20,8 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/components/ui/dialog';
-import { Tags, Plus, Pencil, Trash2, Search, RefreshCw } from 'lucide-react';
+} from "@/components/ui/dialog";
+import { Tags, Plus, Pencil, Trash2, Search, RefreshCw } from "lucide-react";
 
 interface Rubro {
   id: string;
@@ -23,12 +30,12 @@ interface Rubro {
   activo: boolean;
 }
 
-const INITIAL_FORM = { nombre: '', descripcion: '' };
+const INITIAL_FORM = { nombre: "", descripcion: "" };
 
 export function RubrosPage() {
   const [rubros, setRubros] = useState<Rubro[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   // Modal states
   const [formOpen, setFormOpen] = useState(false);
@@ -45,14 +52,14 @@ export function RubrosPage() {
       const { data } = await rubrosApi.list();
       setRubros(data.data as Rubro[]);
     } catch (e) {
-      console.error('Error fetching rubros:', e);
+      console.error("Error fetching rubros:", e);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchRubros();
+    void fetchRubros();
   }, [fetchRubros]);
 
   const filtered = rubros.filter((r) =>
@@ -68,7 +75,7 @@ export function RubrosPage() {
 
   const openEdit = (rubro: Rubro) => {
     setEditing(rubro);
-    setForm({ nombre: rubro.nombre, descripcion: rubro.descripcion ?? '' });
+    setForm({ nombre: rubro.nombre, descripcion: rubro.descripcion ?? "" });
     setFormOpen(true);
   };
 
@@ -79,7 +86,9 @@ export function RubrosPage() {
     try {
       const payload = {
         nombre: form.nombre.trim(),
-        ...(form.descripcion.trim() ? { descripcion: form.descripcion.trim() } : {}),
+        ...(form.descripcion.trim()
+          ? { descripcion: form.descripcion.trim() }
+          : {}),
       };
       if (editing) {
         await rubrosApi.update(editing.id, payload);
@@ -87,9 +96,9 @@ export function RubrosPage() {
         await rubrosApi.create(payload);
       }
       setFormOpen(false);
-      fetchRubros();
+      void fetchRubros();
     } catch (e) {
-      console.error('Error saving rubro:', e);
+      console.error("Error saving rubro:", e);
     } finally {
       setSubmitting(false);
     }
@@ -109,11 +118,12 @@ export function RubrosPage() {
       await rubrosApi.delete(deleting.id);
       setDeleteOpen(false);
       setDeleting(null);
-      fetchRubros();
+      void fetchRubros();
     } catch (e) {
       const msg =
-        (e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ??
-        'No se pudo eliminar el rubro. Intenta de nuevo.';
+        (e as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ??
+        "No se pudo eliminar el rubro. Intenta de nuevo.";
       setDeleteError(msg);
     } finally {
       setSubmitting(false);
@@ -125,7 +135,9 @@ export function RubrosPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Rubros</h1>
-          <p className="text-sm text-muted-foreground">Gestioná las categorias de productos</p>
+          <p className="text-sm text-muted-foreground">
+            Gestioná las categorias de productos
+          </p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
@@ -145,7 +157,11 @@ export function RubrosPage() {
                 className="pl-9"
               />
             </div>
-            <Button variant="outline" size="icon" onClick={fetchRubros}>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void fetchRubros()}
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
@@ -159,7 +175,9 @@ export function RubrosPage() {
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Tags className="mb-2 h-8 w-8" />
-              <p>{search ? 'No se encontraron rubros' : 'No hay rubros todavia'}</p>
+              <p>
+                {search ? "No se encontraron rubros" : "No hay rubros todavia"}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -177,11 +195,11 @@ export function RubrosPage() {
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{r.nombre}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {r.descripcion || '---'}
+                        {r.descripcion || "---"}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant={r.activo ? 'success' : 'secondary'}>
-                          {r.activo ? 'Activo' : 'Inactivo'}
+                        <Badge variant={r.activo ? "success" : "secondary"}>
+                          {r.activo ? "Activo" : "Inactivo"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -217,20 +235,24 @@ export function RubrosPage() {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Rubro' : 'Nuevo Rubro'}</DialogTitle>
+            <DialogTitle>
+              {editing ? "Editar Rubro" : "Nuevo Rubro"}
+            </DialogTitle>
             <DialogDescription>
               {editing
-                ? 'Modifica los datos del rubro.'
-                : 'Completá los datos para crear un rubro nuevo.'}
+                ? "Modifica los datos del rubro."
+                : "Completá los datos para crear un rubro nuevo."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="nombre">Nombre *</Label>
               <Input
                 id="nombre"
                 value={form.nombre}
-                onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, nombre: e.target.value }))
+                }
                 placeholder="Nombre del rubro"
                 autoFocus
               />
@@ -240,7 +262,9 @@ export function RubrosPage() {
               <Input
                 id="descripcion"
                 value={form.descripcion}
-                onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, descripcion: e.target.value }))
+                }
                 placeholder="Descripcion opcional"
               />
             </div>
@@ -253,8 +277,15 @@ export function RubrosPage() {
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={!form.nombre.trim() || submitting}>
-                {submitting ? 'Guardando...' : editing ? 'Guardar Cambios' : 'Crear Rubro'}
+              <Button
+                type="submit"
+                disabled={!form.nombre.trim() || submitting}
+              >
+                {submitting
+                  ? "Guardando..."
+                  : editing
+                    ? "Guardar Cambios"
+                    : "Crear Rubro"}
               </Button>
             </DialogFooter>
           </form>
@@ -267,12 +298,16 @@ export function RubrosPage() {
           <DialogHeader>
             <DialogTitle>Eliminar Rubro</DialogTitle>
             <DialogDescription>
-              Estas seguro que queres eliminar el rubro{' '}
-              <span className="font-semibold text-foreground">{deleting?.nombre}</span>? Esta accion
-              no se puede deshacer.
+              Estas seguro que queres eliminar el rubro{" "}
+              <span className="font-semibold text-foreground">
+                {deleting?.nombre}
+              </span>
+              ? Esta accion no se puede deshacer.
             </DialogDescription>
             {deleteError && (
-              <p className="text-sm font-medium text-destructive">{deleteError}</p>
+              <p className="text-sm font-medium text-destructive">
+                {deleteError}
+              </p>
             )}
           </DialogHeader>
           <DialogFooter>
@@ -287,10 +322,10 @@ export function RubrosPage() {
             <Button
               type="button"
               variant="destructive"
-              onClick={handleDelete}
+              onClick={() => void handleDelete()}
               disabled={submitting}
             >
-              {submitting ? 'Eliminando...' : 'Eliminar'}
+              {submitting ? "Eliminando..." : "Eliminar"}
             </Button>
           </DialogFooter>
         </DialogContent>

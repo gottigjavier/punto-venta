@@ -6,8 +6,6 @@ export interface Rubro {
   nombre: string;
   descripcion: string | null;
   activo: boolean;
-  created_at: Date;
-  updated_at: Date | null;
 }
 
 // Rubro with product count

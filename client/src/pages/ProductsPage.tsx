@@ -1,11 +1,18 @@
-import { useEffect, useState, useCallback } from 'react';
-import { productosApi, rubrosApi, proveedoresApi } from '@/lib/api-client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { useEffect, useState, useCallback } from "react";
+import { productosApi, rubrosApi, proveedoresApi } from "@/lib/api-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -13,17 +20,25 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Package, Plus, Pencil, Trash2, Search, RefreshCw, RotateCcw } from 'lucide-react';
-import { useAuth } from '@/features/auth/AuthContext';
-import { getApiErrorMessage, parseRestoreSuggestion } from '@/lib/api-errors';
+} from "@/components/ui/select";
+import {
+  Package,
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  RefreshCw,
+  RotateCcw,
+} from "lucide-react";
+import { useAuth } from "@/features/auth/AuthContext";
+import { getApiErrorMessage, parseRestoreSuggestion } from "@/lib/api-errors";
 
 interface Producto {
   id: string;
@@ -50,23 +65,23 @@ interface Proveedor {
   razon_social: string;
 }
 
-const UNIDADES = ['kg', 'g', 'l', 'ml', 'unidad'] as const;
+const UNIDADES = ["kg", "g", "l", "ml", "unidad"] as const;
 
 const INITIAL_FORM = {
-  nombre: '',
-  codigo: '',
-  precio_venta: '',
-  rubro_id: '',
-  proveedor_id: '',
-  cantidad_aviso: '0',
-  vencimiento_preaviso_dias: '30',
-  unidad_medida: 'unidad',
+  nombre: "",
+  codigo: "",
+  precio_venta: "",
+  rubro_id: "",
+  proveedor_id: "",
+  cantidad_aviso: "0",
+  vencimiento_preaviso_dias: "30",
+  unidad_medida: "unidad",
 };
 
 export function ProductsPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   // Dropdown data
   const [rubros, setRubros] = useState<Rubro[]>([]);
@@ -86,44 +101,52 @@ export function ProductsPage() {
   // Vista de inactivos + restore
   const [verInactivos, setVerInactivos] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [restoreCandidate, setRestoreCandidate] = useState<{ producto_id: string } | null>(null);
+  const [restoreCandidate, setRestoreCandidate] = useState<{
+    producto_id: string;
+  } | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
   const { user } = useAuth();
-  const puedeRestaurar = user?.rol === 'admin' || user?.rol === 'gerente';
+  const puedeRestaurar = user?.rol === "admin" || user?.rol === "gerente";
 
   const fetchProductos = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, unknown> = { limit: 50 };
       if (search) params.search = search;
-      if (verInactivos) params.activo = 'false';
+      if (verInactivos) params.activo = "false";
       const { data } = await productosApi.list(params);
       setProductos(data.data as Producto[]);
     } catch (e) {
-      console.error('Error cargando productos:', e);
-      setError('No se pudieron cargar los productos.');
+      console.error("Error cargando productos:", e);
+      setError("No se pudieron cargar los productos.");
     } finally {
       setLoading(false);
     }
   }, [search, verInactivos]);
 
   useEffect(() => {
-    fetchProductos();
+    void fetchProductos();
   }, [fetchProductos]);
 
   // Load dropdown data once
   useEffect(() => {
-    rubrosApi.list().then(({ data }) => {
-      setRubros((data.data as Rubro[]).filter((r) => r.activo));
-    }).catch((e) => {
-      console.error('Error cargando rubros:', e);
-    });
-    proveedoresApi.list({ limit: 100 }).then(({ data }) => {
-      setProveedores(data.data as Proveedor[]);
-    }).catch((e) => {
-      console.error('Error cargando proveedores:', e);
-    });
+    rubrosApi
+      .list()
+      .then(({ data }) => {
+        setRubros((data.data as Rubro[]).filter((r) => r.activo));
+      })
+      .catch((e) => {
+        console.error("Error cargando rubros:", e);
+      });
+    proveedoresApi
+      .list({ limit: 100 })
+      .then(({ data }) => {
+        setProveedores(data.data as Proveedor[]);
+      })
+      .catch((e) => {
+        console.error("Error cargando proveedores:", e);
+      });
   }, []);
 
   // -- Form handlers --
@@ -141,15 +164,18 @@ export function ProductsPage() {
     setRestoreCandidate(null);
     setForm({
       nombre: producto.nombre,
-      codigo: producto.codigo ?? '',
-      precio_venta: producto.precio_venta != null ? String(producto.precio_venta) : '',
-      rubro_id: producto.rubro?.id ?? '',
-      proveedor_id: producto.proveedor?.id ?? '',
-      cantidad_aviso: producto.cantidad_aviso != null ? String(producto.cantidad_aviso) : '0',
-      vencimiento_preaviso_dias: producto.vencimiento_preaviso_dias != null
-        ? String(producto.vencimiento_preaviso_dias)
-        : '30',
-      unidad_medida: producto.unidad_medida ?? 'unidad',
+      codigo: producto.codigo ?? "",
+      precio_venta:
+        producto.precio_venta != null ? String(producto.precio_venta) : "",
+      rubro_id: producto.rubro?.id ?? "",
+      proveedor_id: producto.proveedor?.id ?? "",
+      cantidad_aviso:
+        producto.cantidad_aviso != null ? String(producto.cantidad_aviso) : "0",
+      vencimiento_preaviso_dias:
+        producto.vencimiento_preaviso_dias != null
+          ? String(producto.vencimiento_preaviso_dias)
+          : "30",
+      unidad_medida: producto.unidad_medida ?? "unidad",
     });
     setFormOpen(true);
   };
@@ -157,7 +183,7 @@ export function ProductsPage() {
   const isFormValid = (): boolean => {
     if (!form.nombre.trim()) return false;
     if (!form.codigo.trim()) return false;
-    if (form.precio_venta === '' || Number(form.precio_venta) < 0) return false;
+    if (form.precio_venta === "" || Number(form.precio_venta) < 0) return false;
     if (!form.rubro_id) return false;
     if (!form.proveedor_id) return false;
     return true;
@@ -180,12 +206,15 @@ export function ProductsPage() {
         unidad_medida: form.unidad_medida,
       };
       const cantAviso = Number(form.cantidad_aviso);
-      if (!isNaN(cantAviso) && cantAviso >= 0) payload.cantidad_aviso = cantAviso;
+      if (!isNaN(cantAviso) && cantAviso >= 0)
+        payload.cantidad_aviso = cantAviso;
 
-      const preavisoVenc = form.vencimiento_preaviso_dias !== ''
-        ? Number(form.vencimiento_preaviso_dias)
-        : undefined;
-      if (preavisoVenc !== undefined) payload.vencimiento_preaviso_dias = preavisoVenc;
+      const preavisoVenc =
+        form.vencimiento_preaviso_dias !== ""
+          ? Number(form.vencimiento_preaviso_dias)
+          : undefined;
+      if (preavisoVenc !== undefined)
+        payload.vencimiento_preaviso_dias = preavisoVenc;
 
       if (editing) {
         await productosApi.update(editing.id, payload);
@@ -194,9 +223,9 @@ export function ProductsPage() {
       }
       setFormOpen(false);
       setError(null);
-      fetchProductos();
+      void fetchProductos();
     } catch (e) {
-      console.error('Error guardando producto:', e);
+      console.error("Error guardando producto:", e);
       setFormError(getApiErrorMessage(e));
       if (!editing) {
         setRestoreCandidate(parseRestoreSuggestion(e));
@@ -212,9 +241,9 @@ export function ProductsPage() {
     try {
       await productosApi.restore(producto.id);
       setSuccess(`Producto "${producto.nombre}" restaurado correctamente.`);
-      fetchProductos();
+      void fetchProductos();
     } catch (e) {
-      console.error('Error restaurando producto:', e);
+      console.error("Error restaurando producto:", e);
       setError(getApiErrorMessage(e));
     } finally {
       setRestoringId(null);
@@ -229,16 +258,15 @@ export function ProductsPage() {
       setFormOpen(false);
       setRestoreCandidate(null);
       setFormError(null);
-      setSuccess('Producto restaurado correctamente.');
-      fetchProductos();
+      setSuccess("Producto restaurado correctamente.");
+      void fetchProductos();
     } catch (e) {
-      console.error('Error restaurando producto:', e);
+      console.error("Error restaurando producto:", e);
       setFormError(getApiErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
   };
-
 
   // -- Delete handlers --
   const openDelete = (producto: Producto) => {
@@ -256,11 +284,12 @@ export function ProductsPage() {
       setDeleting(null);
       setDeleteError(null);
       setError(null);
-      fetchProductos();
+      void fetchProductos();
     } catch (e) {
       const msg =
-        (e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ??
-        'No se pudo eliminar el producto. Intenta de nuevo.';
+        (e as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message ??
+        "No se pudo eliminar el producto. Intenta de nuevo.";
       setDeleteError(msg);
     } finally {
       setSubmitting(false);
@@ -272,7 +301,9 @@ export function ProductsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Productos</h1>
-          <p className="text-sm text-muted-foreground">Gestioná el catálogo de productos</p>
+          <p className="text-sm text-muted-foreground">
+            Gestioná el catálogo de productos
+          </p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
@@ -319,13 +350,17 @@ export function ProductsPage() {
               />
             </div>
             <Button
-              variant={verInactivos ? 'default' : 'outline'}
+              variant={verInactivos ? "default" : "outline"}
               size="sm"
               onClick={() => setVerInactivos((p) => !p)}
             >
-              {verInactivos ? 'Activos' : 'Inactivos'}
+              {verInactivos ? "Activos" : "Inactivos"}
             </Button>
-            <Button variant="outline" size="icon" onClick={fetchProductos}>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void fetchProductos()}
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
@@ -339,7 +374,11 @@ export function ProductsPage() {
           ) : productos.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Package className="mb-2 h-8 w-8" />
-              <p>{verInactivos ? 'No hay productos inactivos' : 'No hay productos todavía'}</p>
+              <p>
+                {verInactivos
+                  ? "No hay productos inactivos"
+                  : "No hay productos todavía"}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -358,21 +397,35 @@ export function ProductsPage() {
                 </TableHeader>
                 <TableBody>
                   {productos.map((p) => {
-                    const alerta = (p.cantidad_aviso ?? 0) > 0 && Number(p.stock_actual ?? 0) < (p.cantidad_aviso ?? 0);
-                    const stockClass = alerta ? 'text-blue-500' : '';
+                    const alerta =
+                      (p.cantidad_aviso ?? 0) > 0 &&
+                      Number(p.stock_actual ?? 0) < (p.cantidad_aviso ?? 0);
+                    const stockClass = alerta ? "text-blue-500" : "";
                     return (
                       <TableRow key={p.id}>
-                        <TableCell className="font-mono text-xs">{p.codigo ?? '—'}</TableCell>
-                        <TableCell className="font-medium">{p.nombre}</TableCell>
-                        <TableCell>{p.rubro?.nombre ?? '—'}</TableCell>
-                        <TableCell className="max-w-[150px] truncate">{p.proveedor?.razon_social ?? '—'}</TableCell>
-                        <TableCell className="text-right">
-                          {p.precio_venta ? `$${Number(p.precio_venta).toFixed(2)}` : '—'}
+                        <TableCell className="font-mono text-xs">
+                          {p.codigo ?? "—"}
                         </TableCell>
-                        <TableCell className={`text-right font-semibold ${stockClass}`}>{String(p.stock_actual ?? '—')}</TableCell>
+                        <TableCell className="font-medium">
+                          {p.nombre}
+                        </TableCell>
+                        <TableCell>{p.rubro?.nombre ?? "—"}</TableCell>
+                        <TableCell className="max-w-[150px] truncate">
+                          {p.proveedor?.razon_social ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {p.precio_venta
+                            ? `$${Number(p.precio_venta).toFixed(2)}`
+                            : "—"}
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-semibold ${stockClass}`}
+                        >
+                          {String(p.stock_actual ?? "—")}
+                        </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={p.activo ? 'success' : 'secondary'}>
-                            {p.activo ? 'Activo' : 'Inactivo'}
+                          <Badge variant={p.activo ? "success" : "secondary"}>
+                            {p.activo ? "Activo" : "Inactivo"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -383,11 +436,13 @@ export function ProductsPage() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-8"
-                                  onClick={() => handleRestore(p)}
+                                  onClick={() => void handleRestore(p)}
                                   disabled={restoringId === p.id}
                                 >
                                   <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                  {restoringId === p.id ? 'Restaurando...' : 'Restaurar'}
+                                  {restoringId === p.id
+                                    ? "Restaurando..."
+                                    : "Restaurar"}
                                 </Button>
                               )
                             ) : (
@@ -426,17 +481,19 @@ export function ProductsPage() {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
+            <DialogTitle>
+              {editing ? "Editar Producto" : "Nuevo Producto"}
+            </DialogTitle>
             <DialogDescription>
               {editing
-                ? 'Modifica los datos del producto.'
-                : 'Completá los datos para crear un producto nuevo.'}
+                ? "Modifica los datos del producto."
+                : "Completá los datos para crear un producto nuevo."}
             </DialogDescription>
           </DialogHeader>
           {formError && (
             <p className="text-sm font-medium text-destructive">{formError}</p>
           )}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             {/* Row 1: Nombre + Codigo */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -444,7 +501,9 @@ export function ProductsPage() {
                 <Input
                   id="nombre"
                   value={form.nombre}
-                  onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, nombre: e.target.value }))
+                  }
                   placeholder="Nombre del producto"
                   autoFocus
                 />
@@ -454,7 +513,9 @@ export function ProductsPage() {
                 <Input
                   id="codigo"
                   value={form.codigo}
-                  onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, codigo: e.target.value }))
+                  }
                   placeholder="Codigo del producto"
                 />
               </div>
@@ -469,7 +530,9 @@ export function ProductsPage() {
                 step="0.01"
                 min="0"
                 value={form.precio_venta}
-                onChange={(e) => setForm((f) => ({ ...f, precio_venta: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, precio_venta: e.target.value }))
+                }
                 placeholder="0.00"
               />
             </div>
@@ -498,7 +561,9 @@ export function ProductsPage() {
                 <Label>Proveedor *</Label>
                 <Select
                   value={form.proveedor_id}
-                  onValueChange={(v) => setForm((f) => ({ ...f, proveedor_id: v }))}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, proveedor_id: v }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar proveedor" />
@@ -520,7 +585,9 @@ export function ProductsPage() {
                 <Label>Unidad de Medida *</Label>
                 <Select
                   value={form.unidad_medida}
-                  onValueChange={(v) => setForm((f) => ({ ...f, unidad_medida: v }))}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, unidad_medida: v }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -541,12 +608,16 @@ export function ProductsPage() {
                   type="number"
                   min="0"
                   value={form.cantidad_aviso}
-                  onChange={(e) => setForm((f) => ({ ...f, cantidad_aviso: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, cantidad_aviso: e.target.value }))
+                  }
                   placeholder="0"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vencimiento_preaviso_dias">Días Preaviso Vencimiento</Label>
+                <Label htmlFor="vencimiento_preaviso_dias">
+                  Días Preaviso Vencimiento
+                </Label>
                 <Input
                   id="vencimiento_preaviso_dias"
                   type="number"
@@ -554,11 +625,17 @@ export function ProductsPage() {
                   max="365"
                   step="1"
                   value={form.vencimiento_preaviso_dias}
-                  onChange={(e) => setForm((f) => ({ ...f, vencimiento_preaviso_dias: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      vencimiento_preaviso_dias: e.target.value,
+                    }))
+                  }
                   placeholder="30"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Cuántos días antes de vencer marcar como 'por vencer' (default: 30). 0 = desactivado.
+                  Cuántos días antes de vencer marcar como 'por vencer'
+                  (default: 30). 0 = desactivado.
                 </p>
               </div>
             </div>
@@ -568,7 +645,7 @@ export function ProductsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleRestoreCandidate}
+                  onClick={() => void handleRestoreCandidate()}
                   disabled={submitting}
                   className="mr-auto"
                 >
@@ -585,7 +662,11 @@ export function ProductsPage() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={!isFormValid() || submitting}>
-                {submitting ? 'Guardando...' : editing ? 'Guardar Cambios' : 'Crear Producto'}
+                {submitting
+                  ? "Guardando..."
+                  : editing
+                    ? "Guardar Cambios"
+                    : "Crear Producto"}
               </Button>
             </DialogFooter>
           </form>
@@ -598,12 +679,16 @@ export function ProductsPage() {
           <DialogHeader>
             <DialogTitle>Eliminar Producto</DialogTitle>
             <DialogDescription>
-              Estas seguro que queres eliminar el producto{' '}
-              <span className="font-semibold text-foreground">{deleting?.nombre}</span>? Esta accion
-              no se puede deshacer.
+              Estas seguro que queres eliminar el producto{" "}
+              <span className="font-semibold text-foreground">
+                {deleting?.nombre}
+              </span>
+              ? Esta accion no se puede deshacer.
             </DialogDescription>
             {deleteError && (
-              <p className="text-sm font-medium text-destructive">{deleteError}</p>
+              <p className="text-sm font-medium text-destructive">
+                {deleteError}
+              </p>
             )}
           </DialogHeader>
           <DialogFooter>
@@ -618,10 +703,10 @@ export function ProductsPage() {
             <Button
               type="button"
               variant="destructive"
-              onClick={handleDelete}
+              onClick={() => void handleDelete()}
               disabled={submitting}
             >
-              {submitting ? 'Eliminando...' : 'Eliminar'}
+              {submitting ? "Eliminando..." : "Eliminar"}
             </Button>
           </DialogFooter>
         </DialogContent>

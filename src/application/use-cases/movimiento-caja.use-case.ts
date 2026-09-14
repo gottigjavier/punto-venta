@@ -1,27 +1,30 @@
 // src/application/use-cases/movimiento-caja.use-case.ts
 // Movimientos de caja (ingresos/egresos) use cases
-import { ok, err } from 'neverthrow';
-import { prisma } from '../../infrastructure/database/prisma/client.js';
-import type { AppResult } from '../../shared/types/result.js';
-import { databaseError, validationError } from '../../shared/types/result.js';
-import type { MovimientoCaja } from '../../domain/entities/venta.js';
-import type { CrearMovimientoInput, MovimientoQueryInput } from '../dto/movimiento.dto.js';
-import { logger } from '../../infrastructure/logging/logger.js';
-import { toNumber } from '../../shared/utils/number.js';
-
+import { ok, err } from "neverthrow";
+import { Prisma } from "@prisma/client";
+import { prisma } from "../../infrastructure/database/prisma/client.js";
+import type { AppResult } from "../../shared/types/result.js";
+import { databaseError, validationError } from "../../shared/types/result.js";
+import type { MovimientoCaja } from "../../domain/entities/venta.js";
+import type {
+  CrearMovimientoInput,
+  MovimientoQueryInput,
+} from "../dto/movimiento.dto.js";
+import { logger } from "../../infrastructure/logging/logger.js";
+import { toNumber } from "../../shared/utils/number.js";
 
 // Helper to convert Prisma Decimal to number
 
 // Create a cash movement (ingreso/egreso) in the active period
 export async function crearMovimiento(
-  input: Omit<CrearMovimientoInput, 'password'>,
-  usuarioId: string
+  input: Omit<CrearMovimientoInput, "password">,
+  usuarioId: string,
 ): Promise<AppResult<MovimientoCaja>> {
   try {
     const monto = toNumber(input.monto);
 
     if (monto <= 0) {
-      return err(validationError('El monto debe ser mayor a 0'));
+      return err(validationError("El monto debe ser mayor a 0"));
     }
 
     const movimiento = await prisma.movimientoCaja.create({
@@ -46,21 +49,29 @@ export async function crearMovimiento(
     };
 
     logger.info(
-      { movimientoId: response.id, tipo: response.tipo, monto: response.monto, usuarioId },
-      'Movimiento de caja creado exitosamente'
+      {
+        movimientoId: response.id,
+        tipo: response.tipo,
+        monto: response.monto,
+        usuarioId,
+      },
+      "Movimiento de caja creado exitosamente",
     );
 
     return ok(response);
   } catch (error) {
-    logger.error({ error, input, usuarioId }, 'Error al crear movimiento de caja');
-    return err(databaseError('Error al crear movimiento de caja', error as Error));
+    logger.error(
+      { error, input, usuarioId },
+      "Error al crear movimiento de caja",
+    );
+    return err(
+      databaseError("Error al crear movimiento de caja", error as Error),
+    );
   }
 }
 
 // List movements of the active period with pagination
-export async function listarMovimientos(
-  query: MovimientoQueryInput
-): Promise<
+export async function listarMovimientos(query: MovimientoQueryInput): Promise<
   AppResult<{
     data: MovimientoCaja[];
     resumen: {
@@ -81,11 +92,13 @@ export async function listarMovimientos(
     const skip = (page - 1) * limit;
 
     // Only active period (cierre_caja_id = null)
-    const where: Record<string, unknown> = {
+    const where: Prisma.MovimientoCajaWhereInput = {
       cierre_caja_id: null,
     };
 
-    const orderBy: Record<string, string> = { [sort]: order };
+    const orderBy: Prisma.MovimientoCajaOrderByWithRelationInput = {
+      [sort]: order,
+    };
 
     const [movimientos, total] = await Promise.all([
       prisma.movimientoCaja.findMany({
@@ -109,10 +122,10 @@ export async function listarMovimientos(
     });
 
     const ingresos = todosActivos
-      .filter((m) => m.tipo === 'ingreso')
+      .filter((m) => m.tipo === "ingreso")
       .reduce((sum, m) => sum + toNumber(m.monto), 0);
     const egresos = todosActivos
-      .filter((m) => m.tipo === 'egreso')
+      .filter((m) => m.tipo === "egreso")
       .reduce((sum, m) => sum + toNumber(m.monto), 0);
 
     const data: MovimientoCaja[] = movimientos.map((m) => ({
@@ -138,8 +151,10 @@ export async function listarMovimientos(
       },
     });
   } catch (error) {
-    logger.error({ error, query }, 'Error al listar movimientos de caja');
-    return err(databaseError('Error al listar movimientos de caja', error as Error));
+    logger.error({ error, query }, "Error al listar movimientos de caja");
+    return err(
+      databaseError("Error al listar movimientos de caja", error as Error),
+    );
   }
 }
 
@@ -154,7 +169,7 @@ export async function archivarMovimientos(
       }) => Promise<{ count: number }>;
     };
   },
-  cierreCajaId: string
+  cierreCajaId: string,
 ): Promise<{ count: number }> {
   return tx.movimientoCaja.updateMany({
     where: { cierre_caja_id: null },

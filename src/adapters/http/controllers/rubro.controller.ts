@@ -1,27 +1,26 @@
 // src/adapters/http/controllers/rubro.controller.ts
 // Rubro HTTP controllers
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from "fastify";
 import {
   CreateRubroSchema,
   UpdateRubroSchema,
   RubroIdParamSchema,
-} from '../../../application/dto/rubro.dto.js';
+} from "../../../application/dto/rubro.dto.js";
 import {
   listRubros,
   getRubroById,
   createRubro,
   updateRubro,
   deleteRubro,
-} from '../../../application/use-cases/rubro.use-case.js';
-import { sendDomainError } from '../utils/domain-error.js';
+} from "../../../application/use-cases/rubro.use-case.js";
+import { sendDomainError } from "../utils/domain-error.js";
 
 // Helper to handle domain errors
-
 
 // GET /api/v1/rubros
 export async function listRubrosHandler(
   _request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const result = await listRubros();
 
@@ -38,17 +37,16 @@ export async function listRubrosHandler(
 // GET /api/v1/rubros/:id
 export async function getRubroByIdHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = RubroIdParamSchema.safeParse(params);
+  const parsed = RubroIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de rubro inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de rubro inválido",
       },
     });
   }
@@ -68,7 +66,7 @@ export async function getRubroByIdHandler(
 // POST /api/v1/rubros
 export async function createRubroHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = CreateRubroSchema.safeParse(request.body);
 
@@ -76,8 +74,8 @@ export async function createRubroHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -98,25 +96,38 @@ export async function createRubroHandler(
 // PUT /api/v1/rubros/:id
 export async function updateRubroHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const body = request.body as Record<string, unknown>;
+  const parsedParams = RubroIdParamSchema.safeParse(request.params);
+  const parsedBody = UpdateRubroSchema.omit({ id: true }).safeParse(
+    request.body,
+  );
 
-  const parsed = UpdateRubroSchema.safeParse({ ...body, id: params.id });
-
-  if (!parsed.success) {
+  if (!parsedParams.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
-        details: parsed.error.flatten().fieldErrors,
+        code: "VALIDATION_ERROR",
+        message: "ID de rubro inválido",
       },
     });
   }
 
-  const result = await updateRubro(parsed.data);
+  if (!parsedBody.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
+        details: parsedBody.error.flatten().fieldErrors,
+      },
+    });
+  }
+
+  const result = await updateRubro({
+    ...parsedBody.data,
+    id: parsedParams.data.id,
+  });
 
   if (result.isErr()) {
     return sendDomainError(reply, result.error);
@@ -131,17 +142,16 @@ export async function updateRubroHandler(
 // DELETE /api/v1/rubros/:id
 export async function deleteRubroHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = RubroIdParamSchema.safeParse(params);
+  const parsed = RubroIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de rubro inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de rubro inválido",
       },
     });
   }
@@ -154,6 +164,6 @@ export async function deleteRubroHandler(
 
   reply.send({
     success: true,
-    data: { message: 'Rubro eliminado exitosamente' },
+    data: { message: "Rubro eliminado exitosamente" },
   });
 }

@@ -1,28 +1,27 @@
 // src/adapters/http/controllers/proveedor.controller.ts
 // Supplier HTTP controllers
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from "fastify";
 import {
   CreateProveedorSchema,
   UpdateProveedorSchema,
   ProveedorQuerySchema,
   ProveedorIdParamSchema,
-} from '../../../application/dto/proveedor.dto.js';
+} from "../../../application/dto/proveedor.dto.js";
 import {
   getProveedorById,
   listProveedores,
   createProveedor,
   updateProveedor,
   deleteProveedor,
-} from '../../../application/use-cases/proveedor.use-case.js';
-import { sendDomainError } from '../utils/domain-error.js';
+} from "../../../application/use-cases/proveedor.use-case.js";
+import { sendDomainError } from "../utils/domain-error.js";
 
 // Helper to handle domain errors
-
 
 // GET /api/v1/proveedores
 export async function listProveedoresHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = ProveedorQuerySchema.safeParse(request.query);
 
@@ -30,8 +29,8 @@ export async function listProveedoresHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -55,17 +54,16 @@ export async function listProveedoresHandler(
 // GET /api/v1/proveedores/:id
 export async function getProveedorByIdHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = ProveedorIdParamSchema.safeParse(params);
+  const parsed = ProveedorIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de proveedor inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de proveedor inválido",
       },
     });
   }
@@ -85,7 +83,7 @@ export async function getProveedorByIdHandler(
 // POST /api/v1/proveedores
 export async function createProveedorHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = CreateProveedorSchema.safeParse(request.body);
 
@@ -93,8 +91,8 @@ export async function createProveedorHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -115,25 +113,38 @@ export async function createProveedorHandler(
 // PUT /api/v1/proveedores/:id
 export async function updateProveedorHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const body = request.body as Record<string, unknown>;
+  const parsedParams = ProveedorIdParamSchema.safeParse(request.params);
+  const parsedBody = UpdateProveedorSchema.omit({ id: true }).safeParse(
+    request.body,
+  );
 
-  const parsed = UpdateProveedorSchema.safeParse({ ...body, id: params.id });
-
-  if (!parsed.success) {
+  if (!parsedParams.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
-        details: parsed.error.flatten().fieldErrors,
+        code: "VALIDATION_ERROR",
+        message: "ID de proveedor inválido",
       },
     });
   }
 
-  const result = await updateProveedor(parsed.data);
+  if (!parsedBody.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
+        details: parsedBody.error.flatten().fieldErrors,
+      },
+    });
+  }
+
+  const result = await updateProveedor({
+    ...parsedBody.data,
+    id: parsedParams.data.id,
+  });
 
   if (result.isErr()) {
     return sendDomainError(reply, result.error);
@@ -148,17 +159,16 @@ export async function updateProveedorHandler(
 // DELETE /api/v1/proveedores/:id
 export async function deleteProveedorHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = ProveedorIdParamSchema.safeParse(params);
+  const parsed = ProveedorIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de proveedor inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de proveedor inválido",
       },
     });
   }
@@ -171,6 +181,6 @@ export async function deleteProveedorHandler(
 
   reply.send({
     success: true,
-    data: { message: 'Proveedor eliminado exitosamente' },
+    data: { message: "Proveedor eliminado exitosamente" },
   });
 }

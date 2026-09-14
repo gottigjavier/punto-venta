@@ -1,19 +1,19 @@
 // src/adapters/http/controllers/venta.controller.ts
 // Sale HTTP controllers
-import type { FastifyRequest, FastifyReply } from 'fastify';
-import { verifyPassword } from '../../../infrastructure/auth/password.js';
-import { prisma } from '../../../infrastructure/database/prisma/client.js';
+import type { FastifyRequest, FastifyReply } from "fastify";
+import { verifyPassword } from "../../../infrastructure/auth/password.js";
+import { prisma } from "../../../infrastructure/database/prisma/client.js";
 import {
   CreateVentaSchema,
   VentaQuerySchema,
   VentaIdParamSchema,
   CerrarCajaSchema,
-} from '../../../application/dto/venta.dto.js';
-import { HistorialQuerySchema } from '../../../application/dto/historial.dto.js';
+} from "../../../application/dto/venta.dto.js";
+import { HistorialQuerySchema } from "../../../application/dto/historial.dto.js";
 import {
   CrearMovimientoSchema,
   MovimientoQuerySchema,
-} from '../../../application/dto/movimiento.dto.js';
+} from "../../../application/dto/movimiento.dto.js";
 import {
   createVenta,
   getVentaById,
@@ -23,14 +23,14 @@ import {
   getMasVendidosPorProducto,
   deleteVenta,
   cerrarCaja,
-} from '../../../application/use-cases/venta.use-case.js';
+} from "../../../application/use-cases/venta.use-case.js";
 import {
   crearMovimiento,
   listarMovimientos,
-} from '../../../application/use-cases/movimiento-caja.use-case.js';
-import { historialUnificado } from '../../../application/use-cases/historial.use-case.js';
-import type { DomainError } from '../../../shared/types/result.js';
-import { sendDomainError } from '../utils/domain-error.js';
+} from "../../../application/use-cases/movimiento-caja.use-case.js";
+import { historialUnificado } from "../../../application/use-cases/historial.use-case.js";
+import type { DomainError } from "../../../shared/types/result.js";
+import { sendDomainError } from "../utils/domain-error.js";
 
 // Helper to handle domain errors
 function handleDomainError(reply: FastifyReply, error: DomainError): void {
@@ -38,7 +38,7 @@ function handleDomainError(reply: FastifyReply, error: DomainError): void {
   sendDomainError(
     reply,
     error,
-    error.code === 'STOCK_INSUFFICIENT'
+    error.code === "STOCK_INSUFFICIENT"
       ? { disponible: error.disponible, solicitado: error.solicitado }
       : undefined,
   );
@@ -47,7 +47,7 @@ function handleDomainError(reply: FastifyReply, error: DomainError): void {
 // POST /api/v1/ventas/cierre-caja - Close cash period (admin/gerente)
 export async function cerrarCajaHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = CerrarCajaSchema.safeParse(request.body);
 
@@ -55,8 +55,8 @@ export async function cerrarCajaHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -67,8 +67,8 @@ export async function cerrarCajaHandler(
     return reply.status(401).send({
       success: false,
       error: {
-        code: 'UNAUTHORIZED',
-        message: 'Usuario no autenticado',
+        code: "UNAUTHORIZED",
+        message: "Usuario no autenticado",
       },
     });
   }
@@ -88,7 +88,7 @@ export async function cerrarCajaHandler(
 // POST /api/v1/ventas - Create sale
 export async function createVentaHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = CreateVentaSchema.safeParse(request.body);
 
@@ -96,8 +96,8 @@ export async function createVentaHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -108,8 +108,8 @@ export async function createVentaHandler(
     return reply.status(401).send({
       success: false,
       error: {
-        code: 'UNAUTHORIZED',
-        message: 'Usuario no autenticado',
+        code: "UNAUTHORIZED",
+        message: "Usuario no autenticado",
       },
     });
   }
@@ -129,17 +129,16 @@ export async function createVentaHandler(
 // GET /api/v1/ventas/:id - Get sale by ID
 export async function getVentaByIdHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = VentaIdParamSchema.safeParse(params);
+  const parsed = VentaIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de venta inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de venta inválido",
       },
     });
   }
@@ -159,7 +158,7 @@ export async function getVentaByIdHandler(
 // GET /api/v1/ventas - List sales with pagination
 export async function listVentasHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = VentaQuerySchema.safeParse(request.query);
 
@@ -167,8 +166,8 @@ export async function listVentasHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -192,7 +191,7 @@ export async function listVentasHandler(
 // GET /api/v1/ventas/resumen/dia - Daily summary
 export async function getResumenDiaHandler(
   _request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const result = await getResumenDia();
 
@@ -209,17 +208,16 @@ export async function getResumenDiaHandler(
 // DELETE /api/v1/ventas/:id - Delete a completed sale (admin/gerente)
 export async function deleteVentaHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
-  const params = request.params as { id: string };
-  const parsed = VentaIdParamSchema.safeParse(params);
+  const parsed = VentaIdParamSchema.safeParse(request.params);
 
   if (!parsed.success) {
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de venta inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de venta inválido",
       },
     });
   }
@@ -239,7 +237,7 @@ export async function deleteVentaHandler(
 // GET /api/v1/ventas/ultimas-ventas - Last sale per product
 export async function getUltimasVentasHandler(
   _request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const result = await getUltimasVentasPorProducto();
 
@@ -256,7 +254,7 @@ export async function getUltimasVentasHandler(
 // GET /api/v1/ventas/mas-vendidos - Total quantity sold per product (all-time)
 export async function getMasVendidosHandler(
   _request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const result = await getMasVendidosPorProducto();
 
@@ -273,7 +271,7 @@ export async function getMasVendidosHandler(
 // POST /api/v1/ventas/movimientos - Create a cash movement (ingreso/egreso) with password confirmation
 export async function crearMovimientoHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = CrearMovimientoSchema.safeParse(request.body);
 
@@ -281,8 +279,8 @@ export async function crearMovimientoHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -293,8 +291,8 @@ export async function crearMovimientoHandler(
     return reply.status(401).send({
       success: false,
       error: {
-        code: 'UNAUTHORIZED',
-        message: 'Usuario no autenticado',
+        code: "UNAUTHORIZED",
+        message: "Usuario no autenticado",
       },
     });
   }
@@ -309,19 +307,22 @@ export async function crearMovimientoHandler(
     return reply.status(401).send({
       success: false,
       error: {
-        code: 'UNAUTHORIZED',
-        message: 'Usuario no encontrado',
+        code: "UNAUTHORIZED",
+        message: "Usuario no encontrado",
       },
     });
   }
 
-  const passwordValid = await verifyPassword(parsed.data.password, usuario.password_hash);
+  const passwordValid = await verifyPassword(
+    parsed.data.password,
+    usuario.password_hash,
+  );
   if (!passwordValid) {
     return reply.status(401).send({
       success: false,
       error: {
-        code: 'UNAUTHORIZED',
-        message: 'Contraseña incorrecta',
+        code: "UNAUTHORIZED",
+        message: "Contraseña incorrecta",
       },
     });
   }
@@ -332,7 +333,7 @@ export async function crearMovimientoHandler(
       monto: parsed.data.monto,
       descripcion: parsed.data.descripcion,
     },
-    user.userId
+    user.userId,
   );
 
   if (result.isErr()) {
@@ -348,7 +349,7 @@ export async function crearMovimientoHandler(
 // GET /api/v1/ventas/movimientos - List cash movements of the active period
 export async function listarMovimientosHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = MovimientoQuerySchema.safeParse(request.query);
 
@@ -356,8 +357,8 @@ export async function listarMovimientosHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -382,7 +383,7 @@ export async function listarMovimientosHandler(
 // GET /api/v1/ventas/historial - Unified history (sales + cash movements)
 export async function historialHandler(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const parsed = HistorialQuerySchema.safeParse(request.query);
 
@@ -390,8 +391,8 @@ export async function historialHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });

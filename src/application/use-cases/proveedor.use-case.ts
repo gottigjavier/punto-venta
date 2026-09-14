@@ -1,20 +1,28 @@
 // src/application/use-cases/proveedor.use-case.ts
 // Supplier use cases
-import { ok, err } from 'neverthrow';
-import { prisma } from '../../infrastructure/database/prisma/client.js';
-import type { AppResult } from '../../shared/types/result.js';
-import { notFoundError, conflictError, databaseError } from '../../shared/types/result.js';
-import type { Proveedor, ProveedorWithCount } from '../../domain/entities/proveedor.js';
+import { ok, err } from "neverthrow";
+import { Prisma } from "@prisma/client";
+import { prisma } from "../../infrastructure/database/prisma/client.js";
+import type { AppResult } from "../../shared/types/result.js";
+import {
+  notFoundError,
+  conflictError,
+  databaseError,
+} from "../../shared/types/result.js";
+import type {
+  Proveedor,
+  ProveedorWithCount,
+} from "../../domain/entities/proveedor.js";
 import type {
   CreateProveedorInput,
   UpdateProveedorInput,
   ProveedorQueryInput,
-} from '../dto/proveedor.dto.js';
-import { logger } from '../../infrastructure/logging/logger.js';
+} from "../dto/proveedor.dto.js";
+import { logger } from "../../infrastructure/logging/logger.js";
 
 // Get supplier by ID
 export async function getProveedorById(
-  id: string
+  id: string,
 ): Promise<AppResult<Proveedor>> {
   try {
     const proveedor = await prisma.proveedor.findUnique({
@@ -22,42 +30,45 @@ export async function getProveedorById(
     });
 
     if (!proveedor) {
-      return err(notFoundError('Proveedor', id));
+      return err(notFoundError("Proveedor", id));
     }
 
     return ok(proveedor as Proveedor);
   } catch (error) {
-    logger.error({ error, id }, 'Error al obtener proveedor');
-    return err(databaseError('Error al obtener proveedor', error as Error));
+    logger.error({ error, id }, "Error al obtener proveedor");
+    return err(databaseError("Error al obtener proveedor", error as Error));
   }
 }
 
 // List suppliers with pagination
-export async function listProveedores(
-  query: ProveedorQueryInput
-): Promise<AppResult<{ data: ProveedorWithCount[]; pagination: {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-} }>> {
+export async function listProveedores(query: ProveedorQueryInput): Promise<
+  AppResult<{
+    data: ProveedorWithCount[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }>
+> {
   try {
     const { search, sort, order, page, limit } = query;
     const skip = (page - 1) * limit;
 
     // Build where clause
-    const where: Record<string, unknown> = {};
+    const where: Prisma.ProveedorWhereInput = {};
 
     if (search) {
       where.OR = [
-        { razon_social: { contains: search, mode: 'insensitive' } },
-        { cuit: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
+        { razon_social: { contains: search, mode: "insensitive" } },
+        { cuit: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
       ];
     }
 
     // Build orderBy
-    const orderBy: Record<string, string> = { [sort]: order };
+    const orderBy: Prisma.ProveedorOrderByWithRelationInput = { [sort]: order };
 
     // Execute query
     const [proveedores, total] = await Promise.all([
@@ -87,14 +98,14 @@ export async function listProveedores(
       },
     });
   } catch (error) {
-    logger.error({ error, query }, 'Error al listar proveedores');
-    return err(databaseError('Error al listar proveedores', error as Error));
+    logger.error({ error, query }, "Error al listar proveedores");
+    return err(databaseError("Error al listar proveedores", error as Error));
   }
 }
 
 // Create supplier
 export async function createProveedor(
-  input: CreateProveedorInput
+  input: CreateProveedorInput,
 ): Promise<AppResult<Proveedor>> {
   try {
     // Check CUIT uniqueness
@@ -104,7 +115,9 @@ export async function createProveedor(
       });
 
       if (existing) {
-        return err(conflictError('Proveedor', `CUIT ${input.cuit} ya registrado`));
+        return err(
+          conflictError("Proveedor", `CUIT ${input.cuit} ya registrado`),
+        );
       }
     }
 
@@ -119,17 +132,20 @@ export async function createProveedor(
       },
     });
 
-    logger.info({ proveedorId: proveedor.id, razon_social: proveedor.razon_social }, 'Proveedor creado');
+    logger.info(
+      { proveedorId: proveedor.id, razon_social: proveedor.razon_social },
+      "Proveedor creado",
+    );
     return ok(proveedor as Proveedor);
   } catch (error) {
-    logger.error({ error, input }, 'Error al crear proveedor');
-    return err(databaseError('Error al crear proveedor', error as Error));
+    logger.error({ error, input }, "Error al crear proveedor");
+    return err(databaseError("Error al crear proveedor", error as Error));
   }
 }
 
 // Update supplier
 export async function updateProveedor(
-  input: UpdateProveedorInput
+  input: UpdateProveedorInput,
 ): Promise<AppResult<Proveedor>> {
   try {
     const { id, ...data } = input;
@@ -140,7 +156,7 @@ export async function updateProveedor(
     });
 
     if (!existing) {
-      return err(notFoundError('Proveedor', id));
+      return err(notFoundError("Proveedor", id));
     }
 
     // If CUIT is being changed, check uniqueness
@@ -153,35 +169,44 @@ export async function updateProveedor(
       });
 
       if (cuitExists) {
-        return err(conflictError('Proveedor', `CUIT ${data.cuit} ya registrado`));
+        return err(
+          conflictError("Proveedor", `CUIT ${data.cuit} ya registrado`),
+        );
       }
     }
 
     // Build update data, converting undefined to null for nullable fields
-    const updateData: Record<string, unknown> = {};
-    if (data.razon_social !== undefined) updateData.razon_social = data.razon_social;
-    if (data.representante !== undefined) updateData.representante = data.representante ?? null;
+    const updateData: Prisma.ProveedorUncheckedUpdateInput = {};
+    if (data.razon_social !== undefined)
+      updateData.razon_social = data.razon_social;
+    if (data.representante !== undefined)
+      updateData.representante = data.representante ?? null;
     if (data.cuit !== undefined) updateData.cuit = data.cuit ?? null;
-    if (data.direccion_postal !== undefined) updateData.direccion_postal = data.direccion_postal ?? null;
+    if (data.direccion_postal !== undefined)
+      updateData.direccion_postal = data.direccion_postal ?? null;
     if (data.email !== undefined) updateData.email = data.email ?? null;
-    if (data.telefonos !== undefined) updateData.telefonos = data.telefonos ?? [];
+    if (data.telefonos !== undefined)
+      updateData.telefonos = data.telefonos ?? [];
 
     const proveedor = await prisma.proveedor.update({
       where: { id },
       data: updateData,
     });
 
-    logger.info({ proveedorId: proveedor.id, razon_social: proveedor.razon_social }, 'Proveedor actualizado');
+    logger.info(
+      { proveedorId: proveedor.id, razon_social: proveedor.razon_social },
+      "Proveedor actualizado",
+    );
     return ok(proveedor as Proveedor);
   } catch (error) {
-    logger.error({ error, id: input.id }, 'Error al actualizar proveedor');
-    return err(databaseError('Error al actualizar proveedor', error as Error));
+    logger.error({ error, id: input.id }, "Error al actualizar proveedor");
+    return err(databaseError("Error al actualizar proveedor", error as Error));
   }
 }
 
 // Delete supplier
 export async function deleteProveedor(
-  id: string
+  id: string,
 ): Promise<AppResult<{ success: boolean }>> {
   try {
     const existing = await prisma.proveedor.findUnique({
@@ -194,14 +219,14 @@ export async function deleteProveedor(
     });
 
     if (!existing) {
-      return err(notFoundError('Proveedor', id));
+      return err(notFoundError("Proveedor", id));
     }
 
     // Check if supplier has products
     if (existing._count.productos > 0) {
       return err({
-        code: 'VALIDATION_ERROR',
-        message: 'No se puede eliminar proveedor con productos asociados',
+        code: "VALIDATION_ERROR",
+        message: "No se puede eliminar proveedor con productos asociados",
       });
     }
 
@@ -209,10 +234,13 @@ export async function deleteProveedor(
       where: { id },
     });
 
-    logger.info({ proveedorId: id, razon_social: existing.razon_social }, 'Proveedor eliminado');
+    logger.info(
+      { proveedorId: id, razon_social: existing.razon_social },
+      "Proveedor eliminado",
+    );
     return ok({ success: true });
   } catch (error) {
-    logger.error({ error, id }, 'Error al eliminar proveedor');
-    return err(databaseError('Error al eliminar proveedor', error as Error));
+    logger.error({ error, id }, "Error al eliminar proveedor");
+    return err(databaseError("Error al eliminar proveedor", error as Error));
   }
 }

@@ -1,18 +1,25 @@
-import { useEffect, useState, useCallback } from 'react';
-import { usuariosApi } from '@/lib/api-client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useEffect, useState, useCallback } from "react";
+import { usuariosApi } from "@/lib/api-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +27,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Users,
   Plus,
@@ -32,7 +39,7 @@ import {
   ChevronRight,
   Shield,
   UserCheck,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface Usuario {
   id: string;
@@ -40,7 +47,7 @@ interface Usuario {
   nik_usuario: string;
   email: string;
   telefono?: string | null;
-  rol: 'admin' | 'gerente' | 'despachador';
+  rol: "admin" | "gerente" | "despachador";
   activo: boolean;
   created_at: string;
 }
@@ -52,16 +59,16 @@ interface Pagination {
   totalPages: number;
 }
 
-type RolFilter = 'todos' | 'admin' | 'gerente' | 'despachador';
-type ActivoFilter = 'todos' | 'activos' | 'inactivos';
+type RolFilter = "todos" | "admin" | "gerente" | "despachador";
+type ActivoFilter = "todos" | "activos" | "inactivos";
 
 const INITIAL_FORM = {
-  nombre_usuario: '',
-  nik_usuario: '',
-  password: '',
-  email: '',
-  telefono: '',
-  rol: 'despachador' as 'admin' | 'gerente' | 'despachador',
+  nombre_usuario: "",
+  nik_usuario: "",
+  password: "",
+  email: "",
+  telefono: "",
+  rol: "despachador" as "admin" | "gerente" | "despachador",
   activo: true,
 };
 
@@ -69,30 +76,32 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
 
 const ROL_LABELS: Record<string, string> = {
-  admin: 'Admin',
-  gerente: 'Gerente',
-  despachador: 'Despachador',
+  admin: "Admin",
+  gerente: "Gerente",
+  despachador: "Despachador",
 };
 
-function rolBadgeVariant(rol: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+function rolBadgeVariant(
+  rol: string,
+): "default" | "secondary" | "destructive" | "outline" {
   switch (rol) {
-    case 'admin':
-      return 'destructive';
-    case 'gerente':
-      return 'default';
-    case 'despachador':
-      return 'secondary';
+    case "admin":
+      return "destructive";
+    case "gerente":
+      return "default";
+    case "despachador":
+      return "secondary";
     default:
-      return 'outline';
+      return "outline";
   }
 }
 
 export function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [rolFilter, setRolFilter] = useState<RolFilter>('todos');
-  const [activoFilter, setActivoFilter] = useState<ActivoFilter>('todos');
+  const [search, setSearch] = useState("");
+  const [rolFilter, setRolFilter] = useState<RolFilter>("todos");
+  const [activoFilter, setActivoFilter] = useState<ActivoFilter>("todos");
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 20,
@@ -111,64 +120,68 @@ export function UsuariosPage() {
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const fetchUsuarios = useCallback(async (page = 1) => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = {
-        page,
-        limit: pagination.limit,
-        sort: 'created_at',
-        order: 'desc',
-      };
-      if (search) params.search = search;
-      if (rolFilter !== 'todos') params.rol = rolFilter;
-      if (activoFilter !== 'todos') params.activo = activoFilter === 'activos';
-      const { data } = await usuariosApi.list(params);
-      setUsuarios(data.data as Usuario[]);
-      if (data.pagination) {
-        setPagination(data.pagination as Pagination);
+  const fetchUsuarios = useCallback(
+    async (page = 1) => {
+      setLoading(true);
+      try {
+        const params: Record<string, unknown> = {
+          page,
+          limit: pagination.limit,
+          sort: "created_at",
+          order: "desc",
+        };
+        if (search) params.search = search;
+        if (rolFilter !== "todos") params.rol = rolFilter;
+        if (activoFilter !== "todos")
+          params.activo = activoFilter === "activos";
+        const { data } = await usuariosApi.list(params);
+        setUsuarios(data.data as Usuario[]);
+        if (data.pagination) {
+          setPagination(data.pagination);
+        }
+      } catch (e) {
+        console.error("Error fetching usuarios:", e);
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      console.error('Error fetching usuarios:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, rolFilter, activoFilter, pagination.limit]);
+    },
+    [search, rolFilter, activoFilter, pagination.limit],
+  );
 
   useEffect(() => {
-    fetchUsuarios(1);
+    void fetchUsuarios(1);
   }, [fetchUsuarios]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!form.nombre_usuario.trim()) {
-      newErrors.nombre_usuario = 'El nombre de usuario es requerido';
+      newErrors.nombre_usuario = "El nombre de usuario es requerido";
     } else if (form.nombre_usuario.trim().length > 100) {
-      newErrors.nombre_usuario = 'Maximo 100 caracteres';
+      newErrors.nombre_usuario = "Maximo 100 caracteres";
     }
 
     if (!form.nik_usuario.trim()) {
-      newErrors.nik_usuario = 'El nik de usuario es requerido';
+      newErrors.nik_usuario = "El nik de usuario es requerido";
     } else if (form.nik_usuario.trim().length > 50) {
-      newErrors.nik_usuario = 'Maximo 50 caracteres';
+      newErrors.nik_usuario = "Maximo 50 caracteres";
     }
 
     if (!editing && !form.password) {
-      newErrors.password = 'La contraseña es requerida';
+      newErrors.password = "La contraseña es requerida";
     } else if (form.password && !PASSWORD_REGEX.test(form.password)) {
       newErrors.password =
-        'Minimo 8 caracteres, 1 mayuscula, 1 numero y 1 caracter especial';
+        "Minimo 8 caracteres, 1 mayuscula, 1 numero y 1 caracter especial";
     }
 
     if (!form.email.trim()) {
-      newErrors.email = 'El email es requerido';
+      newErrors.email = "El email es requerido";
     } else if (!EMAIL_REGEX.test(form.email.trim())) {
-      newErrors.email = 'Email invalido';
+      newErrors.email = "Email invalido";
     }
 
     if (form.telefono.trim() && form.telefono.trim().length > 20) {
-      newErrors.telefono = 'Maximo 20 caracteres';
+      newErrors.telefono = "Maximo 20 caracteres";
     }
 
     setErrors(newErrors);
@@ -188,9 +201,9 @@ export function UsuariosPage() {
     setForm({
       nombre_usuario: usuario.nombre_usuario,
       nik_usuario: usuario.nik_usuario,
-      password: '',
+      password: "",
       email: usuario.email,
-      telefono: usuario.telefono ?? '',
+      telefono: usuario.telefono ?? "",
       rol: usuario.rol,
       activo: usuario.activo,
     });
@@ -220,9 +233,9 @@ export function UsuariosPage() {
         await usuariosApi.create(payload);
       }
       setFormOpen(false);
-      fetchUsuarios(pagination.page);
+      void fetchUsuarios(pagination.page);
     } catch (e) {
-      console.error('Error saving usuario:', e);
+      console.error("Error saving usuario:", e);
     } finally {
       setSubmitting(false);
     }
@@ -241,9 +254,9 @@ export function UsuariosPage() {
       await usuariosApi.delete(deleting.id);
       setDeleteOpen(false);
       setDeleting(null);
-      fetchUsuarios(pagination.page);
+      void fetchUsuarios(pagination.page);
     } catch (e) {
-      console.error('Error deleting usuario:', e);
+      console.error("Error deleting usuario:", e);
     } finally {
       setSubmitting(false);
     }
@@ -254,7 +267,9 @@ export function UsuariosPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Usuarios</h1>
-          <p className="text-sm text-muted-foreground">Gestioná los usuarios del sistema</p>
+          <p className="text-sm text-muted-foreground">
+            Gestioná los usuarios del sistema
+          </p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
@@ -309,7 +324,7 @@ export function UsuariosPage() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => fetchUsuarios(1)}
+                onClick={() => void fetchUsuarios(1)}
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
@@ -326,9 +341,9 @@ export function UsuariosPage() {
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Users className="mb-2 h-8 w-8" />
               <p>
-                {search || rolFilter !== 'todos' || activoFilter !== 'todos'
-                  ? 'No se encontraron usuarios'
-                  : 'No hay usuarios todavia'}
+                {search || rolFilter !== "todos" || activoFilter !== "todos"
+                  ? "No se encontraron usuarios"
+                  : "No hay usuarios todavia"}
               </p>
             </div>
           ) : (
@@ -359,7 +374,7 @@ export function UsuariosPage() {
                           {u.email}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {u.telefono || '---'}
+                          {u.telefono || "---"}
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant={rolBadgeVariant(u.rol)}>
@@ -367,8 +382,8 @@ export function UsuariosPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={u.activo ? 'success' : 'secondary'}>
-                            {u.activo ? 'Activo' : 'Inactivo'}
+                          <Badge variant={u.activo ? "success" : "secondary"}>
+                            {u.activo ? "Activo" : "Inactivo"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -401,16 +416,19 @@ export function UsuariosPage() {
               {pagination.totalPages > 1 && (
                 <div className="flex items-center justify-between pt-4">
                   <p className="text-sm text-muted-foreground">
-                    Mostrando {(pagination.page - 1) * pagination.limit + 1} a{' '}
-                    {Math.min(pagination.page * pagination.limit, pagination.total)} de{' '}
-                    {pagination.total}
+                    Mostrando {(pagination.page - 1) * pagination.limit + 1} a{" "}
+                    {Math.min(
+                      pagination.page * pagination.limit,
+                      pagination.total,
+                    )}{" "}
+                    de {pagination.total}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       disabled={pagination.page <= 1}
-                      onClick={() => fetchUsuarios(pagination.page - 1)}
+                      onClick={() => void fetchUsuarios(pagination.page - 1)}
                     >
                       <ChevronLeft className="h-4 w-4" />
                       Anterior
@@ -422,7 +440,7 @@ export function UsuariosPage() {
                       variant="outline"
                       size="sm"
                       disabled={pagination.page >= pagination.totalPages}
-                      onClick={() => fetchUsuarios(pagination.page + 1)}
+                      onClick={() => void fetchUsuarios(pagination.page + 1)}
                     >
                       Siguiente
                       <ChevronRight className="h-4 w-4" />
@@ -439,25 +457,31 @@ export function UsuariosPage() {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Usuario' : 'Nuevo Usuario'}</DialogTitle>
+            <DialogTitle>
+              {editing ? "Editar Usuario" : "Nuevo Usuario"}
+            </DialogTitle>
             <DialogDescription>
               {editing
-                ? 'Modifica los datos del usuario. Deja la contraseña vacia para mantener la actual.'
-                : 'Completá los datos para crear un usuario nuevo.'}
+                ? "Modifica los datos del usuario. Deja la contraseña vacia para mantener la actual."
+                : "Completá los datos para crear un usuario nuevo."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="nombre_usuario">Nombre *</Label>
               <Input
                 id="nombre_usuario"
                 value={form.nombre_usuario}
-                onChange={(e) => setForm((f) => ({ ...f, nombre_usuario: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, nombre_usuario: e.target.value }))
+                }
                 placeholder="Nombre completo"
                 autoFocus
               />
               {errors.nombre_usuario && (
-                <p className="text-sm text-destructive">{errors.nombre_usuario}</p>
+                <p className="text-sm text-destructive">
+                  {errors.nombre_usuario}
+                </p>
               )}
             </div>
             <div className="space-y-2">
@@ -465,7 +489,9 @@ export function UsuariosPage() {
               <Input
                 id="nik_usuario"
                 value={form.nik_usuario}
-                onChange={(e) => setForm((f) => ({ ...f, nik_usuario: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, nik_usuario: e.target.value }))
+                }
                 placeholder="Nombre de usuario para login"
               />
               {errors.nik_usuario && (
@@ -474,14 +500,20 @@ export function UsuariosPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">
-                Contrasena {editing ? '(opcional)' : '*'}
+                Contrasena {editing ? "(opcional)" : "*"}
               </Label>
               <Input
                 id="password"
                 type="password"
                 value={form.password}
-                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                placeholder={editing ? 'Dejar vacio para mantener la actual' : 'Minimo 8 caracteres'}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, password: e.target.value }))
+                }
+                placeholder={
+                  editing
+                    ? "Dejar vacio para mantener la actual"
+                    : "Minimo 8 caracteres"
+                }
               />
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password}</p>
@@ -493,7 +525,9 @@ export function UsuariosPage() {
                 id="email"
                 type="email"
                 value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, email: e.target.value }))
+                }
                 placeholder="correo@ejemplo.com"
               />
               {errors.email && (
@@ -505,7 +539,9 @@ export function UsuariosPage() {
               <Input
                 id="telefono"
                 value={form.telefono}
-                onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, telefono: e.target.value }))
+                }
                 placeholder="Telefono opcional"
               />
               {errors.telefono && (
@@ -517,7 +553,10 @@ export function UsuariosPage() {
               <Select
                 value={form.rol}
                 onValueChange={(v) =>
-                  setForm((f) => ({ ...f, rol: v as 'admin' | 'gerente' | 'despachador' }))
+                  setForm((f) => ({
+                    ...f,
+                    rol: v as "admin" | "gerente" | "despachador",
+                  }))
                 }
               >
                 <SelectTrigger>
@@ -535,7 +574,9 @@ export function UsuariosPage() {
                 type="checkbox"
                 id="activo"
                 checked={form.activo}
-                onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, activo: e.target.checked }))
+                }
                 className="h-4 w-4 rounded border-input"
               />
               <Label htmlFor="activo" className="cursor-pointer">
@@ -561,10 +602,10 @@ export function UsuariosPage() {
                 }
               >
                 {submitting
-                  ? 'Guardando...'
+                  ? "Guardando..."
                   : editing
-                    ? 'Guardar Cambios'
-                    : 'Crear Usuario'}
+                    ? "Guardar Cambios"
+                    : "Crear Usuario"}
               </Button>
             </DialogFooter>
           </form>
@@ -577,7 +618,7 @@ export function UsuariosPage() {
           <DialogHeader>
             <DialogTitle>Desactivar Usuario</DialogTitle>
             <DialogDescription>
-              Estas seguro que queres desactivar al usuario{' '}
+              Estas seguro que queres desactivar al usuario{" "}
               <span className="font-semibold text-foreground">
                 {deleting?.nombre_usuario}
               </span>
@@ -596,10 +637,10 @@ export function UsuariosPage() {
             <Button
               type="button"
               variant="destructive"
-              onClick={handleDeactivate}
+              onClick={() => void handleDeactivate()}
               disabled={submitting}
             >
-              {submitting ? 'Desactivando...' : 'Desactivar'}
+              {submitting ? "Desactivando..." : "Desactivar"}
             </Button>
           </DialogFooter>
         </DialogContent>

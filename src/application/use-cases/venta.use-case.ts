@@ -361,7 +361,7 @@ export async function listVentas(query: VentaQueryInput): Promise<
     const skip = (page - 1) * limit;
 
     // Build where clause
-    const where: Record<string, unknown> = {};
+    const where: Prisma.VentaWhereInput = {};
 
     if (usuario_id) {
       where.usuario_id = usuario_id;
@@ -374,12 +374,11 @@ export async function listVentas(query: VentaQueryInput): Promise<
     if (fecha_desde || fecha_hasta) {
       where.created_at = {};
       if (fecha_desde) {
-        (where.created_at as Record<string, unknown>).gte =
+        (where.created_at as Prisma.DateTimeFilter).gte =
           startOfDay(fecha_desde);
       }
       if (fecha_hasta) {
-        (where.created_at as Record<string, unknown>).lte =
-          endOfDay(fecha_hasta);
+        (where.created_at as Prisma.DateTimeFilter).lte = endOfDay(fecha_hasta);
       }
     }
 
@@ -390,7 +389,7 @@ export async function listVentas(query: VentaQueryInput): Promise<
       where.cierre_caja_id = cierre_caja_id;
     }
 
-    const orderBy: Record<string, string> = { [sort]: order };
+    const orderBy: Prisma.VentaOrderByWithRelationInput = { [sort]: order };
 
     const [ventas, total] = await Promise.all([
       prisma.venta.findMany({

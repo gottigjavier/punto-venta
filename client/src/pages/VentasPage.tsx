@@ -224,8 +224,9 @@ function ProductCard({
 }) {
   return (
     <Card
-      className={`cursor-pointer transition-colors hover:border-primary ${disabled ? "opacity-60" : ""
-        }`}
+      className={`cursor-pointer transition-colors hover:border-primary ${
+        disabled ? "opacity-60" : ""
+      }`}
       onClick={() => !disabled && onAdd()}
     >
       <CardContent className="p-3">
@@ -444,7 +445,7 @@ function POSView() {
 
   // Fetch rubros and products on mount
   useEffect(() => {
-    loadRubrosAndProducts();
+    void loadRubrosAndProducts();
   }, [loadRubrosAndProducts]);
 
   // Search products (min 3 chars)
@@ -654,7 +655,7 @@ function POSView() {
       setSearchResults([]);
       // Refresh product grid + stock so the UI reflects the deducted stock
       // without requiring a full page reload.
-      loadRubrosAndProducts();
+      void loadRubrosAndProducts();
       searchInputRef.current?.focus();
     } catch (err: unknown) {
       const axiosErr = err as {
@@ -682,9 +683,9 @@ function POSView() {
         // reconciliá el carrito contra ese stock, para que el operador vea
         // cantidades reales antes de reintentar. Los resultados de búsqueda
         // activa también se refrescan.
-        loadRubrosAndProducts(true);
+        void loadRubrosAndProducts(true);
         if (searchQuery.length >= 3) {
-          handleSearch(searchQuery);
+          void handleSearch(searchQuery);
         }
       } else {
         saleResultValue = {
@@ -710,7 +711,7 @@ function POSView() {
             ref={searchInputRef}
             placeholder="Buscar producto (min. 3 caracteres)..."
             value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={(e) => void handleSearch(e.target.value)}
             className="pl-9 text-lg h-12"
           />
           {searching && (
@@ -992,7 +993,7 @@ function POSView() {
                   </Button>
                   <Button
                     className="flex-1"
-                    onClick={confirmSale}
+                    onClick={() => void confirmSale()}
                     disabled={shouldBlockConfirm({
                       cartLength: cart.length,
                       cartMode,
@@ -1020,10 +1021,11 @@ function POSView() {
           {saleResult && (
             <CardFooter>
               <div
-                className={`flex w-full items-center gap-2 rounded-md p-3 text-sm ${saleResult.type === "success"
+                className={`flex w-full items-center gap-2 rounded-md p-3 text-sm ${
+                  saleResult.type === "success"
                     ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"
                     : "bg-destructive/10 text-destructive"
-                  }`}
+                }`}
               >
                 {saleResult.type === "success" ? (
                   <Check className="h-4 w-4 shrink-0" />
@@ -1093,7 +1095,7 @@ function HistorialView({
       .then(({ data }) => {
         setUsuarios((data.data as Usuario[]) ?? []);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   const fetchHistorial = useCallback(
@@ -1113,9 +1115,9 @@ function HistorialView({
         if (usuarioFilter) params.usuario_id = usuarioFilter;
 
         const { data } = await ventasApi.historial(params);
-        setFilas((data.data as FilaHistorial[]) ?? []);
+        setFilas(data.data ?? []);
         if (data.pagination) {
-          setPagination(data.pagination as Pagination);
+          setPagination(data.pagination);
         }
       } catch {
         // silent
@@ -1127,14 +1129,14 @@ function HistorialView({
   );
 
   useEffect(() => {
-    fetchHistorial(1);
+    void fetchHistorial(1);
   }, [fetchHistorial]);
 
   // Refetch when parent signals a cash period was closed
   useEffect(() => {
     if (refreshKey && refreshKey > 0) {
       setPagination((p) => ({ ...p, page: 1 }));
-      fetchHistorial(1);
+      void fetchHistorial(1);
     }
   }, [refreshKey, fetchHistorial]);
 
@@ -1172,7 +1174,7 @@ function HistorialView({
     try {
       await ventasApi.delete(ventaId);
       setDetailOpen(false);
-      fetchHistorial(1);
+      void fetchHistorial(1);
       alert("Venta eliminada. El stock fue restituido.");
     } catch (err: unknown) {
       const axiosErr = err as {
@@ -1318,7 +1320,7 @@ function HistorialView({
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => viewDetails(f.id)}
+                              onClick={() => void viewDetails(f.id)}
                             >
                               <Eye className="h-3.5 w-3.5" />
                             </Button>
@@ -1348,7 +1350,7 @@ function HistorialView({
                       variant="outline"
                       size="sm"
                       disabled={pagination.page <= 1}
-                      onClick={() => fetchHistorial(pagination.page - 1)}
+                      onClick={() => void fetchHistorial(pagination.page - 1)}
                     >
                       <ChevronLeft className="h-4 w-4" />
                       Anterior
@@ -1360,7 +1362,7 @@ function HistorialView({
                       variant="outline"
                       size="sm"
                       disabled={pagination.page >= pagination.totalPages}
-                      onClick={() => fetchHistorial(pagination.page + 1)}
+                      onClick={() => void fetchHistorial(pagination.page + 1)}
                     >
                       Siguiente
                       <ChevronRight className="h-4 w-4" />
@@ -1463,7 +1465,7 @@ function HistorialView({
                   <Button
                     variant="destructive"
                     className="w-full"
-                    onClick={() => handleDelete(detailVenta.id)}
+                    onClick={() => void handleDelete(detailVenta.id)}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Eliminar venta
@@ -1550,7 +1552,7 @@ function ResumenDiaView({
   };
 
   useEffect(() => {
-    fetchResumen();
+    void fetchResumen();
   }, [fetchResumen]);
 
   if (loading) {
@@ -1571,7 +1573,7 @@ function ResumenDiaView({
           variant="outline"
           size="sm"
           className="mt-3"
-          onClick={fetchResumen}
+          onClick={() => void fetchResumen()}
         >
           Reintentar
         </Button>
@@ -1761,7 +1763,7 @@ function ResumenDiaView({
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && password.trim() && !cerrando) {
-                    handleCerrarCaja();
+                    void handleCerrarCaja();
                   }
                 }}
               />
@@ -1779,7 +1781,7 @@ function ResumenDiaView({
               Cancelar
             </Button>
             <Button
-              onClick={handleCerrarCaja}
+              onClick={() => void handleCerrarCaja()}
               disabled={!password.trim() || cerrando}
             >
               {cerrando ? "Cerrando..." : "Confirmar"}
@@ -1847,7 +1849,7 @@ function MovimientosView() {
   }, []);
 
   useEffect(() => {
-    fetchMovimientos();
+    void fetchMovimientos();
   }, [fetchMovimientos]);
 
   const abrirConfirmacion = () => {
@@ -1913,7 +1915,7 @@ function MovimientosView() {
           variant="outline"
           size="sm"
           className="mt-3"
-          onClick={fetchMovimientos}
+          onClick={() => void fetchMovimientos()}
         >
           Reintentar
         </Button>
@@ -2132,7 +2134,7 @@ function MovimientosView() {
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && password.trim() && !enviando) {
-                    confirmarMovimiento();
+                    void confirmarMovimiento();
                   }
                 }}
               />
@@ -2150,7 +2152,7 @@ function MovimientosView() {
               Cancelar
             </Button>
             <Button
-              onClick={confirmarMovimiento}
+              onClick={() => void confirmarMovimiento()}
               disabled={!password.trim() || enviando}
             >
               {enviando ? "Registrando..." : "Confirmar"}
@@ -2177,10 +2179,11 @@ function MovimientosView() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Tipo</span>
                 <span
-                  className={`font-semibold ${detalleMovimiento.tipo === "ingreso"
+                  className={`font-semibold ${
+                    detalleMovimiento.tipo === "ingreso"
                       ? "text-green-600"
                       : "text-red-600"
-                    }`}
+                  }`}
                 >
                   {detalleMovimiento.tipo === "ingreso" ? "Ingreso" : "Egreso"}
                 </span>
@@ -2188,10 +2191,11 @@ function MovimientosView() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Monto</span>
                 <span
-                  className={`text-lg font-bold ${detalleMovimiento.tipo === "ingreso"
+                  className={`text-lg font-bold ${
+                    detalleMovimiento.tipo === "ingreso"
                       ? "text-green-600"
                       : "text-red-600"
-                    }`}
+                  }`}
                 >
                   {formatCurrency(detalleMovimiento.monto)}
                 </span>
