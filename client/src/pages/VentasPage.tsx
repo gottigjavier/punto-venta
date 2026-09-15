@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   stockApi,
   ventasApi,
@@ -203,6 +203,69 @@ function estadoBadgeHistorial(estado: "Venta" | "Ingreso" | "Egreso") {
   }
 }
 
+// ─── Card width helpers ──────────────────────────────────────────────────
+const CARD_FONT = "500 14px system-ui, -apple-system, sans-serif";
+const CARD_FONT_MONO = "12px ui-monospace, SFMono-Regular, monospace";
+const CARD_FONT_XS = "12px system-ui, -apple-system, sans-serif";
+const CARD_FONT_XXS = "10px system-ui, -apple-system, sans-serif";
+
+// Fixed chrome inside the card (padding + gaps + price column + icon)
+const CARD_PADDING_X = 24; // px-3 * 2
+const CARD_GAP_X = 8; // gap-2
+const PRICE_COL_WIDTH = 80; // approximate price + button column
+const CARD_BORDER = 2; // border
+const CARD_ICON = 24; // leading icon (Package)
+
+function measureTextWidth(text: string, font: string): number {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return text.length * 8;
+  ctx.font = font;
+  return ctx.measureText(text).width;
+}
+
+function unitLabel(unit: string | null | undefined): string {
+  if (!unit) return "";
+  return unit === "unidad" ? "U" : unit;
+}
+
+function computeMinCardWidth(
+  products: ProductSearchResult[],
+  lastQtyMap: Map<string, number>,
+  ultimasVentasMap: Map<string, UltimaVenta>,
+): number {
+  if (products.length === 0) return 180;
+  let maxNamePx = 0;
+  let maxCodePx = 0;
+  let maxMetaPx = 0;
+  for (const p of products) {
+    const namePx = measureTextWidth(p.nombre, CARD_FONT);
+    if (namePx > maxNamePx) maxNamePx = namePx;
+    const codePx = measureTextWidth(p.codigo || "", CARD_FONT_MONO);
+    if (codePx > maxCodePx) maxCodePx = codePx;
+    const stockPx = measureTextWidth(
+      `Stock: ${p.stock_actual} ${unitLabel(p.unidad_medida)}`,
+      CARD_FONT_XS,
+    );
+    if (stockPx > maxMetaPx) maxMetaPx = stockPx;
+    const ultimaCantidad = ultimasVentasMap.get(p.id)?.ultima_cantidad ?? 0;
+    const ventaPx = measureTextWidth(
+      `Última venta: ${ultimaCantidad} ${unitLabel(p.unidad_medida)}`,
+      CARD_FONT_XXS,
+    );
+    if (ventaPx > maxMetaPx) maxMetaPx = ventaPx;
+    const lastQty = lastQtyMap.get(p.id) ?? 1;
+    const predPx = measureTextWidth(
+      `Cant predeterminada: ${lastQty} ${unitLabel(p.unidad_medida)}`,
+      CARD_FONT_XXS,
+    );
+    if (predPx > maxMetaPx) maxMetaPx = predPx;
+  }
+  const contentWidth = CARD_ICON + CARD_GAP_X + Math.max(maxNamePx, maxCodePx);
+  const innerWidth = Math.max(contentWidth, maxMetaPx) + PRICE_COL_WIDTH;
+  return Math.max(Math.ceil(innerWidth + CARD_PADDING_X + CARD_BORDER), 180);
+}
+
 // ---------------------------------------------------------------------------
 // Shared Product Card (used in both rubro tabs and search results)
 // ---------------------------------------------------------------------------
@@ -214,6 +277,7 @@ function ProductCard({
   ultimaCantidad,
   onAdd,
   disabled,
+  saleConfirmed,
 }: {
   product: ProductSearchResult;
   inCart?: CartItem | undefined;
@@ -221,6 +285,7 @@ function ProductCard({
   ultimaCantidad: number | null;
   onAdd: () => void;
   disabled: boolean;
+  saleConfirmed: boolean;
 }) {
   return (
     <Card
@@ -232,21 +297,25 @@ function ProductCard({
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="font-medium truncate text-sm">{product.nombre}</p>
+            <p className="font-medium text-sm whitespace-nowrap">
+              {product.nombre}
+            </p>
             <p className="text-xs text-muted-foreground font-mono">
               {product.codigo}
             </p>
             <p className="text-xs text-muted-foreground">
-              Stock: {product.stock_actual} {product.unidad_medida}
+              Stock: {product.stock_actual} {unitLabel(product.unidad_medida)}
             </p>
             {ultimaCantidad != null && ultimaCantidad > 0 && (
               <p className="text-[10px] text-blue-600 dark:text-blue-400">
-                Última venta: {ultimaCantidad} {product.unidad_medida}
+                Última venta: {ultimaCantidad}{" "}
+                {unitLabel(product.unidad_medida)}
               </p>
             )}
             {lastQty !== 1 && (
               <p className="text-[10px] text-muted-foreground">
-                Cant predeterminada: {lastQty} {product.unidad_medida}
+                Cant predeterminada: {lastQty}{" "}
+                {unitLabel(product.unidad_medida)}
               </p>
             )}
           </div>
@@ -254,7 +323,7 @@ function ProductCard({
             <p className="font-bold text-sm">
               {formatCurrency(product.precio_venta)}
             </p>
-            {inCart ? (
+            {!saleConfirmed && inCart ? (
               <Badge variant="default" className="mt-1 text-xs">
                 En carrito: {inCart.cantidad}
               </Badge>
@@ -321,6 +390,12 @@ function POSView() {
   // Track last used quantity per product
   const [lastQuantities, setLastQuantities] = useState<Map<string, number>>(
     new Map(),
+  );
+
+  // Dynamic min card width: uniformly sized to fit the widest product
+  const minCardWidth = useMemo(
+    () => computeMinCardWidth(allProducts, lastQuantities, ultimasVentasMap),
+    [allProducts, lastQuantities, ultimasVentasMap],
   );
 
   // Focus search on mount
@@ -763,7 +838,12 @@ function POSView() {
                 Cargando productos...
               </div>
             ) : activeRubroTab === "todos" ? (
-              <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+              <div
+                className="grid gap-2"
+                style={{
+                  gridTemplateColumns: `repeat(auto-fill, minmax(${minCardWidth}px, 1fr))`,
+                }}
+              >
                 {allProducts.map((product) => {
                   const inCart = cart.find(
                     (item) => item.producto_id === product.id,
@@ -783,6 +863,7 @@ function POSView() {
                       lastQty={lastQty}
                       ultimaCantidad={ultimaCantidad}
                       disabled={atStockLimit}
+                      saleConfirmed={cartMode === "confirmed"}
                       onAdd={() => addToCart(product)}
                     />
                   );
@@ -800,7 +881,12 @@ function POSView() {
                   );
                 }
                 return (
-                  <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+                  <div
+                    className="grid gap-2"
+                    style={{
+                      gridTemplateColumns: `repeat(auto-fill, minmax(${minCardWidth}px, 1fr))`,
+                    }}
+                  >
                     {products.map((product) => {
                       const inCart = cart.find(
                         (item) => item.producto_id === product.id,
@@ -821,6 +907,7 @@ function POSView() {
                           lastQty={lastQty}
                           ultimaCantidad={ultimaCantidad}
                           disabled={atStockLimit}
+                          saleConfirmed={cartMode === "confirmed"}
                           onAdd={() => addToCart(product)}
                         />
                       );
@@ -844,7 +931,12 @@ function POSView() {
           )}
 
         {searchResults.length > 0 && (
-          <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+          <div
+            className="grid gap-2"
+            style={{
+              gridTemplateColumns: `repeat(auto-fill, minmax(${minCardWidth}px, 1fr))`,
+            }}
+          >
             {searchResults.map((product) => {
               const inCart = cart.find(
                 (item) => item.producto_id === product.id,
@@ -864,6 +956,7 @@ function POSView() {
                   lastQty={lastQty}
                   ultimaCantidad={ultimaCantidad}
                   disabled={atStockLimit}
+                  saleConfirmed={cartMode === "confirmed"}
                   onAdd={() => addToCart(product)}
                 />
               );
