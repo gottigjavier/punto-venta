@@ -14,11 +14,13 @@ import {
   Store,
   ShieldCheck,
   BookOpen,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const navItems = [
   { href: "/ventas", label: "Ventas", icon: ShoppingCart },
@@ -42,6 +44,21 @@ export function DashboardLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Collapsed state (desktop only) persisted across reloads.
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("pv-sidebar-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("pv-sidebar-collapsed", collapsed ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [collapsed]);
 
   const allowed = ALLOWED_SECTIONS_BY_ROLE[user?.rol ?? ""];
   const visibleNavItems = (
@@ -63,16 +80,38 @@ export function DashboardLayout() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-200 lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200 lg:static lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
+          collapsed && "lg:w-16",
         )}
       >
         {/* Logo */}
-        <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-6">
-          <Store className="h-6 w-6 text-sidebar-primary" />
-          <span className="font-bold text-sidebar-foreground">
-            Punto de Venta
-          </span>
+        <div className="flex h-14 items-center justify-between gap-2 border-b border-sidebar-border px-4 lg:px-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Store className="h-6 w-6 shrink-0 text-sidebar-primary" />
+            <span
+              className={cn(
+                "font-bold text-sidebar-foreground",
+                collapsed && "lg:hidden",
+              )}
+            >
+              Punto de Venta
+            </span>
+          </div>
+          {/* Desktop collapse toggle (hidden on mobile drawer) */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
+            className="hidden h-8 w-8 shrink-0 text-sidebar-foreground/70 hover:text-sidebar-foreground lg:inline-flex"
+          >
+            {collapsed ? (
+              <ChevronsRight className="h-4 w-4" />
+            ) : (
+              <ChevronsLeft className="h-4 w-4" />
+            )}
+          </Button>
         </div>
 
         {/* Nav */}
@@ -87,42 +126,60 @@ export function DashboardLayout() {
                 key={item.href}
                 to={item.href}
                 onClick={() => setSidebarOpen(false)}
+                title={collapsed ? item.label : undefined}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  collapsed && "lg:justify-center lg:gap-0 lg:px-2",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 )}
               >
-                <Icon className="h-4 w-4" />
-                {item.label}
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className={cn(collapsed && "lg:hidden")}>
+                  {item.label}
+                </span>
               </Link>
             );
           })}
         </nav>
 
         {/* User footer */}
-        <div className="border-t border-sidebar-border p-4">
+        <div
+          className={cn(
+            "border-t border-sidebar-border p-4",
+            collapsed && "lg:px-2",
+          )}
+        >
           <Link
             to="/manual-usuario"
             onClick={() => setSidebarOpen(false)}
+            title={collapsed ? "Manual de Usuario" : undefined}
             className={cn(
               "mb-3 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              collapsed && "lg:justify-center lg:gap-0 lg:px-2",
               location.pathname === "/manual-usuario"
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             )}
           >
-            <BookOpen className="h-4 w-4" />
-            Manual de Usuario
+            <BookOpen className="h-4 w-4 shrink-0" />
+            <span className={cn(collapsed && "lg:hidden")}>
+              Manual de Usuario
+            </span>
           </Link>
-          <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
+          <div
+            className={cn(
+              "flex items-center gap-3",
+              collapsed && "lg:flex-col lg:gap-2 lg:items-center",
+            )}
+          >
+            <Avatar className="h-8 w-8 shrink-0">
               <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
                 {user?.nik_usuario?.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1 min-w-0">
+            <div className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
               <p className="text-sm font-medium text-sidebar-foreground truncate">
                 {user?.nik_usuario}
               </p>
@@ -130,12 +187,20 @@ export function DashboardLayout() {
                 {user?.rol}
               </p>
             </div>
-            <ThemeToggle className="h-8 w-8 text-sidebar-foreground" />
+            <ThemeToggle
+              className={cn(
+                "h-8 w-8 text-sidebar-foreground",
+                collapsed && "lg:flex-1",
+              )}
+            />
             <Button
               variant="ghost"
               size="icon"
               onClick={() => void logout()}
-              className="text-sidebar-foreground/50 hover:text-sidebar-foreground"
+              className={cn(
+                "text-sidebar-foreground/50 hover:text-sidebar-foreground",
+                collapsed && "lg:flex-1",
+              )}
             >
               <LogOut className="h-4 w-4" />
             </Button>

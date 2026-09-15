@@ -704,18 +704,37 @@ function POSView() {
     <div className="flex flex-col sm:flex-row gap-6">
       {/* Left: Search + Products */}
       <div className="flex-1 space-y-4 order-2 sm:order-1">
-        {/* Search bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            ref={searchInputRef}
-            placeholder="Buscar producto (min. 3 caracteres)..."
-            value={searchQuery}
-            onChange={(e) => void handleSearch(e.target.value)}
-            className="pl-9 text-lg h-12"
-          />
-          {searching && (
-            <RefreshCw className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+        {/* Search bar + Rubro selector: misma fila >=760px, apiladas <760px */}
+        <div className="flex flex-col gap-3 min-[760px]:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              placeholder="Buscar producto (min. 3 caracteres)..."
+              value={searchQuery}
+              onChange={(e) => void handleSearch(e.target.value)}
+              className="pl-9 text-lg h-12"
+            />
+            {searching && (
+              <RefreshCw className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
+          </div>
+
+          {/* Rubro selector (hidden when search is active) */}
+          {searchQuery.length < 3 && (
+            <Select value={activeRubroTab} onValueChange={setActiveRubroTab}>
+              <SelectTrigger className="w-full h-12 min-[760px]:w-52 min-[760px]:shrink-0">
+                <SelectValue placeholder="Seleccionar rubro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {rubros.map((rubro) => (
+                  <SelectItem key={rubro.id} value={rubro.id}>
+                    {rubro.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
         </div>
 
@@ -735,28 +754,54 @@ function POSView() {
           </div>
         )}
 
-        {/* Rubro tabs (hidden when search is active) */}
+        {/* Product grid (hidden when search is active) */}
         {searchQuery.length < 3 && (
-          <Tabs value={activeRubroTab} onValueChange={setActiveRubroTab}>
-            <TabsList className="w-full justify-start flex-wrap h-auto gap-1 p-1">
-              <TabsTrigger value="todos">Todos</TabsTrigger>
-              {rubros.map((rubro) => (
-                <TabsTrigger key={rubro.id} value={rubro.id}>
-                  {rubro.nombre}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
+          <div className="space-y-3">
             {loadingProducts ? (
               <div className="flex items-center justify-center py-8 text-muted-foreground">
                 <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                 Cargando productos...
               </div>
+            ) : activeRubroTab === "todos" ? (
+              <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+                {allProducts.map((product) => {
+                  const inCart = cart.find(
+                    (item) => item.producto_id === product.id,
+                  );
+                  const atStockLimit = inCart
+                    ? inCart.cantidad >= product.stock_actual
+                    : product.stock_actual <= 0;
+                  const lastQty = lastQuantities.get(product.id) ?? 1;
+                  const ultimaCantidad =
+                    ultimasVentasMap.get(product.id)?.ultima_cantidad ?? null;
+
+                  return (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      inCart={inCart}
+                      lastQty={lastQty}
+                      ultimaCantidad={ultimaCantidad}
+                      disabled={atStockLimit}
+                      onAdd={() => addToCart(product)}
+                    />
+                  );
+                })}
+              </div>
             ) : (
-              <>
-                <TabsContent value="todos">
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {allProducts.map((product) => {
+              (() => {
+                const products = productsByRubro.get(activeRubroTab) ?? [];
+                if (products.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                      <Package className="mb-2 h-8 w-8" />
+                      <p className="text-sm">No hay productos en este rubro</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+                    {products.map((product) => {
                       const inCart = cart.find(
                         (item) => item.producto_id === product.id,
                       );
@@ -781,53 +826,10 @@ function POSView() {
                       );
                     })}
                   </div>
-                </TabsContent>
-
-                {rubros.map((rubro) => {
-                  const products = productsByRubro.get(rubro.id) ?? [];
-                  return (
-                    <TabsContent key={rubro.id} value={rubro.id}>
-                      {products.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                          <Package className="mb-2 h-8 w-8" />
-                          <p className="text-sm">
-                            No hay productos en este rubro
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="grid gap-2 md:grid-cols-2">
-                          {products.map((product) => {
-                            const inCart = cart.find(
-                              (item) => item.producto_id === product.id,
-                            );
-                            const atStockLimit = inCart
-                              ? inCart.cantidad >= product.stock_actual
-                              : product.stock_actual <= 0;
-                            const lastQty = lastQuantities.get(product.id) ?? 1;
-                            const ultimaCantidad =
-                              ultimasVentasMap.get(product.id)
-                                ?.ultima_cantidad ?? null;
-
-                            return (
-                              <ProductCard
-                                key={product.id}
-                                product={product}
-                                inCart={inCart}
-                                lastQty={lastQty}
-                                ultimaCantidad={ultimaCantidad}
-                                disabled={atStockLimit}
-                                onAdd={() => addToCart(product)}
-                              />
-                            );
-                          })}
-                        </div>
-                      )}
-                    </TabsContent>
-                  );
-                })}
-              </>
+                );
+              })()
             )}
-          </Tabs>
+          </div>
         )}
 
         {/* Product results */}
@@ -842,7 +844,7 @@ function POSView() {
           )}
 
         {searchResults.length > 0 && (
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
             {searchResults.map((product) => {
               const inCart = cart.find(
                 (item) => item.producto_id === product.id,
