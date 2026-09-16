@@ -14,11 +14,16 @@ services:
     environment:
       POSTGRES_DB: punto_venta
       POSTGRES_USER: ${POSTGRES_USER:-pv_user}
+      # Password de la DB tomada del secret montado en /run/secrets/db_password.
+      # SOS: el primer arranque del contenedor de Postgres inicializa el rol y
+      # la password desde estas variables. En un volumen persistido, el secret
+      # SOLO se usa en la primera inicialización; si la cambiás, la URL del API
+      # queda desincronizada hasta recrear el volumen.
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     secrets:
       - db_password
     volumes:
       - pv-postgres-data:/var/lib/postgresql/data
-      - ./scripts/backup-init.sh:/docker-entrypoint-initdb.d/01-backup-setup.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pv_user} -d punto_venta"]
       interval: 10s
@@ -50,18 +55,27 @@ services:
     restart: unless-stopped
     ports:
       - "${API_PORT:-3001}:3001"
+    # Construye DATABASE_URL en runtime leyendo la password del secret montado
+    # en /run/secrets/db_password. La imagen del api NO expone la password en
+    # vars de entorno: el entrypoint la inyecta solo en la URL de conexión.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        export DATABASE_URL="postgresql://${POSTGRES_USER:-pv_user}:$(cat /run/secrets/db_password)@db:5432/punto_venta"
+        && exec node dist/main.js
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-pv_user}:@db:5432/punto_venta
+      # DATABASE_URL NO se define acá: la construye el entrypoint desde el
+      # secret db_password para no exponer la password en vars de entorno.
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - API_PORT=3001
       - FRONTEND_URL=${FRONTEND_URL:-https://localhost}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-3600000}
-      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-10}
       - LOGIN_RATE_LIMIT_MAX=${LOGIN_RATE_LIMIT_MAX:-5}
       - LOGIN_RATE_LIMIT_WINDOW_MS=${LOGIN_RATE_LIMIT_WINDOW_MS:-60000}
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-3600000}
+      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-10}
       # API expuesta directa aquí (sin proxy delante): trustProxy deshabilitado.
       # En otro despliegue detrás de un proxy de confianza, setear los hops reales.
       - TRUST_PROXY_HOPS=${TRUST_PROXY_HOPS:-0}

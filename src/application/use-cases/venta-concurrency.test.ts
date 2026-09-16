@@ -12,15 +12,15 @@
 // Necesita una Postgres dev con el esquema migrado y DATABASE_URL apuntando a ella
 // (cargada por test/setup.ts desde .env.development). Si la base no está disponible,
 // estos tests se omiten (no rompen suites CI sin DB).
-import { describe, it, afterAll, expect } from "vitest";
-import { prisma } from "../../infrastructure/database/prisma/client.js";
-import { createVenta } from "./venta.use-case.js";
+import { describe, it, afterAll, expect } from 'vitest';
+import { prisma } from '../../infrastructure/database/prisma/client.js';
+import { createVenta } from './venta.use-case.js';
 
 // Convierte Decimal/DTOs de Prisma a number para las afirmaciones del test.
 function toNumber(val: unknown): number {
-  if (typeof val === "number") return val;
-  if (typeof val === "string") return parseFloat(val);
-  if (val && typeof val === "object" && "toNumber" in val) {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') return parseFloat(val);
+  if (val && typeof val === 'object' && 'toNumber' in val) {
     return (val as { toNumber: () => number }).toNumber();
   }
   return 0;
@@ -35,7 +35,7 @@ async function pingDb(): Promise<boolean> {
     return true;
   } catch (e) {
     console.error(
-      "[venta-concurrency] ping DB FAILED:",
+      '[venta-concurrency] ping DB FAILED:',
       e instanceof Error ? e.message : String(e),
     );
     return false;
@@ -44,9 +44,16 @@ async function pingDb(): Promise<boolean> {
 const dbUp = await pingDb();
 if (!dbUp) {
   console.warn(
-    "[venta-concurrency] DB no disponible; tests omitidos. Arranca Postgres (podman compose up -d db) para ejecutarlos.",
+    '[venta-concurrency] DB no disponible; tests omitidos. Arranca Postgres (podman compose up -d db) para ejecutarlos.',
   );
 }
+
+// CI (TS1): cuando REQUIRE_INTEGRATION_DB=1, la ausencia de Postgres NO debe
+// dejar la suite verde en silencio. Un test de prerequisito explícito falla si
+// la DB no está disponible, garantizando que el job de integración en CI corre
+// los invariantes de concurrencia o revienta.
+const requireIntegrationDb = process.env['REQUIRE_INTEGRATION_DB'] === '1';
+const skipIntegration = !dbUp && !requireIntegrationDb;
 
 // Roll de usuario requerido por la FK de Venta. Usuario de prueba.
 interface Fixture {
@@ -74,7 +81,7 @@ async function createFixture(): Promise<Fixture> {
       precio_venta: 10,
       rubro_id: rubro.id,
       proveedor_id: proveedor.id,
-      unidad_medida: "unidad",
+      unidad_medida: 'unidad',
       cantidad_aviso: 0,
       activo: true,
       vencimiento_preaviso_dias: 30,
@@ -89,7 +96,7 @@ async function createFixture(): Promise<Fixture> {
       fecha_compra: new Date(),
       fecha_vencimiento: null,
       precio_compra: 5,
-      estado: "activo",
+      estado: 'activo',
     },
   });
   const username = `user_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -97,23 +104,33 @@ async function createFixture(): Promise<Fixture> {
     data: {
       nombre_usuario: username,
       nik_usuario: username,
-      password_hash: "x",
+      password_hash: 'x',
       email: `${username}@test.local`,
-      rol: "despachador",
+      rol: 'despachador',
       activo: true,
     },
   });
   return { usuarioId: usuario.id, productoId: producto.id, loteId: lote.id };
 }
 
-describe("createVenta — concurrencia de stock", () => {
+describe('createVenta — concurrencia de stock', () => {
+  // Prerequisito: en CI (REQUIRE_INTEGRATION_DB=1) la DB debe estar disponible.
+  if (requireIntegrationDb) {
+    it('[prereq] Postgres disponible para integración', () => {
+      expect(
+        dbUp,
+        'REQUIRE_INTEGRATION_DB=1 pero no hay Postgres. El job de CI debe levantar la DB o este test revienta.',
+      ).toBe(true);
+    });
+  }
+
   afterAll(async () => {
     // Cleanup global (si algunos fixtures quedaron huérfanos en bars de tests con DB).
     await prisma.$disconnect();
   });
 
-  it.skipIf(!dbUp)(
-    "rechaza la segunda venta concurrente y nunca deja stock negativo",
+  it.skipIf(skipIntegration)(
+    'rechaza la segunda venta concurrente y nunca deja stock negativo',
     async () => {
       const f = await createFixture();
       try {
@@ -134,7 +151,7 @@ describe("createVenta — concurrencia de stock", () => {
         const insuficientCount = [resA, resB].filter(
           (r) =>
             r.isErr() &&
-            (r.error as { code?: string }).code === "STOCK_INSUFFICIENT",
+            (r.error as { code?: string }).code === 'STOCK_INSUFFICIENT',
         ).length;
 
         // Invariante central: NUNCA pueden triunfar dos ventas sobre el mismo stock.

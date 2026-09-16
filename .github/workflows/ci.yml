@@ -95,6 +95,10 @@ jobs:
         run: npm run test:run
         env:
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/punto_venta_test
+          # TS1: obliga a que la integración DB (venta-cierre-concurrency) corra o
+          # reviente. Sin esto, los tests de concurrencia se omitirían en silencio
+          # si la DB no está disponible y la suite pasaría verde sin probarlos.
+          REQUIRE_INTEGRATION_DB: "1"
           JWT_SECRET: test-jwt-secret-minimum-32-characters-long
           JWT_REFRESH_SECRET: test-jwt-refresh-secret-minimum-32-chars
           REDIS_URL: redis://localhost:6379
