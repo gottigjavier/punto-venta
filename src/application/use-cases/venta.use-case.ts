@@ -75,11 +75,15 @@ export async function createVenta(
   usuarioId: string,
 ): Promise<AppResult<VentaWithDetalles>> {
   try {
-    // 1. Verify all products exist
+    // 1. Verify all products exist Y tomar el precio de venta del CATÁLOGO.
+    //    SE2: el precio de cada línea se resuelve desde Producto.precio_venta
+    //    (fuente de verdad). El cliente ya no puede fijar el precio unitario
+    //    de una venta — eso congelaba en DetalleVenta / cierres cualquier
+    //    valor arbitrario del request (0, negativo, precios de otro producto).
     const productIds = input.productos.map((p) => p.producto_id);
     const productos = await prisma.producto.findMany({
       where: { id: { in: productIds } },
-      select: { id: true },
+      select: { id: true, precio_venta: true },
     });
 
     if (productos.length !== productIds.length) {
@@ -88,18 +92,18 @@ export async function createVenta(
       return err(notFoundError("Producto", missingId));
     }
 
+    // Mapa producto→precio de venta del catálogo (Decimal → number).
+    const precioPorProducto = new Map<string, number>();
+    for (const p of productos) {
+      precioPorProducto.set(p.id, toNumber(p.precio_venta));
+    }
+
     // 2. Execute atomic transaction
     const result = await prisma.$transaction(async (tx) => {
       // Agrupar líneas por producto_id (una línea puede venir repetida)
-      const agrupadas = new Map<
-        string,
-        { cantidad: number; precio_unitario: number }
-      >();
+      const agrupadas = new Map<string, { cantidad: number }>();
       for (const item of input.productos) {
-        const curr = agrupadas.get(item.producto_id) ?? {
-          cantidad: 0,
-          precio_unitario: item.precio_unitario,
-        };
+        const curr = agrupadas.get(item.producto_id) ?? { cantidad: 0 };
         curr.cantidad += item.cantidad;
         agrupadas.set(item.producto_id, curr);
       }
@@ -216,15 +220,16 @@ export async function createVenta(
             },
           });
 
-          // (5) UN DetalleVenta por lote
-          const subtotal = round2(take * linea.precio_unitario);
+          // (5) UN DetalleVenta por lote — precio SIEMPRE del catálogo (SE2)
+          const precioUnitario = precioPorProducto.get(productoId) ?? 0;
+          const subtotal = round2(take * precioUnitario);
           const detalle = await tx.detalleVenta.create({
             data: {
               venta_id: venta.id,
               producto_id: productoId,
               lote_id: lote.id,
               cantidad: take,
-              precio_unitario: linea.precio_unitario,
+              precio_unitario: precioUnitario,
               subtotal,
             },
           });

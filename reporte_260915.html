@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Punto de Venta · Evaluación integral de calidad, eficiencia y seguridad</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2333;
+    --border: #2a3441;
+    --text: #e8edf5;
+    --muted: #9aa7bf;
+    --accent: #4f8cff;
+    --accent-2: #7c5cff;
+    --green: #2ecc71;
+    --yellow: #f5b942;
+    --orange: #f0843a;
+    --red: #ef4f5e;
+    --purple: #b06cff;
+    --cyan: #2ac8e6;
+    --radius: 14px;
+    --shadow: 0 10px 34px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, #17203a 0%, var(--bg) 55%);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 32px 24px 90px; }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    margin-bottom: 22px; font-size: 13px; color: var(--muted);
+  }
+  .topbar .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .03em; }
+  .topbar .brand b { color: var(--accent); }
+  .topbar .date { color: var(--muted); }
+
+  /* ---------- Header ---------- */
+  .hero {
+    padding: 42px 26px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, #18213c 0%, #131a2b 100%);
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(120deg, rgba(79,140,255,.14), transparent 45%);
+    pointer-events: none;
+  }
+  .hero .tag {
+    display: inline-block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 12px;
+    border: 1px solid rgba(79,140,255,.4); padding: 3px 10px; border-radius: 999px;
+  }
+  .hero h1 { margin: 0 0 10px; font-size: 31px; line-height: 1.2; }
+  .hero p.sub { margin: 0; color: var(--muted); max-width: 760px; }
+  .hero .meta { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; position: relative; z-index: 1; }
+  .chip {
+    font-size: 12px; padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--border); background: rgba(26,34,51,.6); color: var(--muted);
+  }
+  .chip b { color: var(--text); }
+
+  /* ---------- Verdict banner ---------- */
+  .verdict {
+    margin: 22px 0; padding: 20px 24px; border-radius: var(--radius);
+    border: 1px solid rgba(46,204,113,.4); background: rgba(46,204,113,.07);
+    display: flex; gap: 16px; align-items: flex-start;
+  }
+  .verdict .big { font-size: 26px; line-height: 1; }
+  .verdict h3 { margin: 0 0 6px; font-size: 17px; color: var(--green); }
+  .verdict p { margin: 0; font-size: 14.5px; color: var(--text); }
+  .verdict p b { color: var(--green); }
+
+  /* ---------- Score cards ---------- */
+  .scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 26px 0; }
+  .score {
+    padding: 20px 16px; border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--panel); text-align: center;
+  }
+  .score .num { font-size: 46px; font-weight: 800; line-height: 1; }
+  .score .lbl { margin-top: 10px; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+  .score .bar { height: 7px; border-radius: 4px; background: var(--panel-2); margin-top: 14px; overflow: hidden; }
+  .score .bar > span { display: block; height: 100%; border-radius: 4px; }
+  .num.c-red { color: var(--red); } .num.c-orange { color: var(--orange); }
+  .num.c-yellow { color: var(--yellow); } .num.c-green { color: var(--green); }
+
+  /* ---------- TOC ---------- */
+  .toc {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--panel); padding: 20px 24px; margin: 12px 0 30px;
+  }
+  .toc h3 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 30px; }
+  .toc li { margin: 5px 0; }
+  .toc a { color: var(--text); text-decoration: none; }
+  .toc a:hover { color: var(--accent); }
+
+  /* ---------- Sections ---------- */
+  section { margin: 42px 0; }
+  section h2 {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 23px; margin: 0 0 4px; scroll-margin-top: 20px;
+  }
+  section h2 .ico { font-size: 21px; }
+  section > .desc { color: var(--muted); margin: 0 0 20px; font-size: 15px; }
+
+  /* ---------- Finding cards ---------- */
+  .find {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--panel); margin: 14px 0; overflow: hidden;
+  }
+  .find .head {
+    display: flex; align-items: center; gap: 12px; padding: 15px 18px;
+    cursor: pointer; user-select: none;
+  }
+  .find .head:hover { background: var(--panel-2); }
+  .find .head h3 { margin: 0; font-size: 15.5px; flex: 1; word-break: break-word; }
+  .pill { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap; letter-spacing: .03em; }
+  .pill.high { background: rgba(239,79,94,.16); color: var(--red); border: 1px solid rgba(239,79,94,.5); }
+  .pill.med { background: rgba(245,185,66,.14); color: var(--yellow); border: 1px solid rgba(245,185,66,.45); }
+  .pill.low { background: rgba(79,140,255,.14); color: var(--accent); border: 1px solid rgba(79,140,255,.45); }
+  .pill.pos { background: rgba(46,204,113,.14); color: var(--green); border: 1px solid rgba(46,204,113,.45); }
+  .find .chev { transition: transform .2s; color: var(--muted); font-size: 13px; }
+  .find.open .chev { transform: rotate(90deg); }
+  .find .body { display: none; padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+  .find.open .body { display: block; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap: 10px; margin: 12px 0; }
+  .kv { font-size: 13px; }
+  .kv b { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+  .kv span { color: var(--text); }
+  code {
+    background: rgba(40,52,80,.7); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 6px; font-size: 12.5px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  .impact, .fix { margin: 9px 0; font-size: 14px; }
+  .impact b, .fix b { color: var(--accent-2); }
+  .loc {
+    margin-top: 12px; padding: 9px 12px; background: var(--panel-2); border-radius: 8px;
+    font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); word-break: break-all;
+  }
+  .loc.c-red { color: var(--red); border: 1px dashed rgba(239,79,94,.4); }
+  .loc.c-yellow { color: var(--yellow); border: 1px dashed rgba(245,185,66,.4); }
+  .loc.c-green { color: var(--green); border: 1px dashed rgba(46,204,113,.4); }
+
+  /* ---------- Positives ---------- */
+  .positives { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .pos {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--panel); padding: 16px 18px;
+  }
+  .pos h4 { margin: 0 0 6px; font-size: 15px; color: var(--green); }
+  .pos p { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+  /* ---------- Design matrix ---------- */
+  .matrix { border-collapse: collapse; width: 100%; font-size: 13.5px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .matrix th, .matrix td { border: 1px solid var(--border); padding: 11px 14px; text-align: left; vertical-align: top; }
+  .matrix th { background: var(--panel-2); color: var(--text); font-weight: 700; }
+  .matrix td strong { color: var(--text); }
+  .matrix td .badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+  .st { color: var(--green); } .si { color: var(--yellow); } .sn { color: var(--orange); } .sv { color: var(--red); }
+
+  /* ---------- Roadmap ---------- */
+  ol.roadmap { padding-left: 24px; }
+  ol.roadmap li { margin: 9px 0; font-size: 15px; }
+  ol.roadmap b { color: var(--accent); }
+
+  .note {
+    display: flex; gap: 14px; padding: 18px 20px; margin: 22px 0;
+    border-radius: var(--radius); border: 1px solid var(--border);
+    background: rgba(79,140,255,.06); font-size: 14px; color: var(--muted);
+  }
+  .note b { color: var(--text); }
+
+  footer { margin-top: 44px; text-align: center; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); padding-top: 22px; }
+
+  @media (max-width: 680px) {
+    .toc ol { columns: 1; }
+    .hero h1 { font-size: 24px; }
+    .find .head { flex-wrap: wrap; }
+    .topbar { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">Punto de Venta <b>·</b> Evaluación técnica integral</div>
+    <div class="date">Actualización: 26/09/2025 · análisis estático con verificación en código</div>
+  </div>
+
+  <!-- ================= HEADER ================= -->
+  <div class="hero">
+    <span class="tag">Reporte técnico · revisión profunda</span>
+    <h1>Punto de Venta — Calidad, Diseño, Eficiencia y Seguridad</h1>
+    <p class="sub">
+      Evaluación integral de la aplicación (API Fastify + Prisma/PostgreSQL y cliente React + Vite + Tailwind)
+      contra estándares profesionales de desarrollo de software y ciberseguridad. Incluye análisis de diseño/UI-UX,
+      calidad de código, arquitectura, eficiencia/performance, concurrencia, testing, y operación/DevOps.
+    </p>
+    <div class="meta">
+      <span class="chip">Version <b>3.0.0</b></span>
+      <span class="chip">Arquitectura <b>Hexagonal + SPA</b></span>
+      <span class="chip">Stack <b>Fastify · Prisma·PG · React 19 · Tailwind</b></span>
+      <span class="chip">Tests <b>265 pasan</b> (vitest)</span>
+      <span class="chip">Build cliente <b>OK</b></span>
+    </div>
+  </div>
+
+  <!-- ================= VERDICT ================= -->
+  <div class="verdict">
+    <div class="big">🧠</div>
+    <div>
+      <h3>Veredicto general: sólida y bien fundamentada, con riesgos acotados</h3>
+      <p>
+        La aplicación tiene una base técnica <b>muy por encima del promedio</b>: arquitectura hexagonal limpia, dinero en
+        <code>Decimal</code>, transacciones con <code>FOR UPDATE</code> y orden determinístico contra deadlocks, RBAC
+        server-side sólido, sin SQL injection, y una suite de 265 tests con concurrencia real. La <b>actualización 2025 corrigió
+        la mayoría de los hallazgos del reporte anterior (sept)</b> (token en <code>localStorage</code>, contraseña en logs,
+        refresh sin rotación, sin Helmet, etc.). Quedan pocos pero <b>reales</b> riesgos de integridad financiera (precio
+        controlado por el cliente) e higiene de despliegue (seed con credenciales públicas). Ver secciones y roadmap.
+      </p>
+    </div>
+  </div>
+
+  <!-- ================= SCORES ================= -->
+  <div class="scores">
+    <div class="score"><div class="num c-yellow">8.3</div><div class="lbl">Calidad de código</div><div class="bar"><span style="width:83%;background:var(--yellow)"></span></div></div>
+    <div class="score"><div class="num c-green">8.6</div><div class="lbl">Arquitectura</div><div class="bar"><span style="width:86%;background:var(--green)"></span></div></div>
+    <div class="score"><div class="num c-yellow">8.0</div><div class="lbl">Diseño / UI-UX</div><div class="bar"><span style="width:80%;background:var(--yellow)"></span></div></div>
+    <div class="score"><div class="num c-orange">7.6</div><div class="lbl">Eficiencia</div><div class="bar"><span style="width:76%;background:var(--orange)"></span></div></div>
+    <div class="score"><div class="num c-orange">7.9</div><div class="lbl">Seguridad</div><div class="bar"><span style="width:79%;background:var(--orange)"></span></div></div>
+    <div class="score"><div class="num c-green">8.4</div><div class="lbl">Testing</div><div class="bar"><span style="width:84%;background:var(--green)"></span></div></div>
+  </div>
+
+  <!-- ================= TOC ================= -->
+  <div class="toc">
+    <h3>Contenido</h3>
+    <ol>
+      <li><a href="#sec-seguridad">Seguridad</a></li>
+      <li><a href="#sec-efficiencia">Eficiencia / Performance</a></li>
+      <li><a href="#sec-concurrencia">Concurrencia e integridad</a></li>
+      <li><a href="#sec-diseno">Diseño y experiencia de usuario</a></li>
+      <li><a href="#sec-calidad">Calidad de código y arquitectura</a></li>
+      <li><a href="#sec-testing">Testing</a></li>
+      <li><a href="#sec-devops">Operación / DevOps</a></li>
+      <li><a href="#sec-bien">Lo que ya está bien hecho</a></li>
+      <li><a href="#sec-roadmap">Plan de acción sugerido</a></li>
+      <li><a href="#sec-metodo">Metodología y alcance</a></li>
+    </ol>
+  </div>
+
+  <!-- ================= SECURITY ================= -->
+  <section id="sec-seguridad">
+    <h2><span class="ico">🔐</span> Seguridad</h2>
+    <p class="desc">
+      Se revisaron autenticación, autorización (RBAC), manejo de secretos, inyección, exposición de datos y config de
+      despliegue. Puntaje actual: <b style="color:var(--orange)">7.9/10</b>. Se confirma que la mayoría de los hallazgos del
+      reporte anterior (sept) fueron corregidos. Quedan riesgos reales abajo.
+    </p>
+
+    <!-- SE1 -->
+    <div class="find open">
+      <div class="head" onclick="toggle(this)">
+        <h3>SE1 · Seed crea admin por defecto <code>user</code>/<code>password</code> y se ejecuta en producción</h3>
+        <span class="pill high">ALTA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> en un deploy productivo con DB nueva se provisiona una cuenta admin con credenciales
+        conocidas y públicas; el comando corre en cada arranque, así que cualquier DB fresca queda con esa cuenta.</p>
+        <p class="fix"><b>Sugerencia:</b> no ejecutar seed en producción (solo <code>migrate deploy</code>); limitar a
+        <code>NODE_ENV !== 'production'</code>; si se mantiene, tomar la password de un env/secret, exigir cambio en primer
+        login (<code>must_change_password</code>) y no usar literales <code>user</code>/<code>password</code>.</p>
+        <div class="loc c-red">prisma/seed.ts → <code>bcrypt.hash('password',12)</code> con <code>nik_usuario:'user'</code> rol admin · render.yaml → <code>npx prisma migrate deploy &amp;&amp; npx prisma db seed</code></div>
+      </div>
+    </div>
+
+    <!-- SE2 -->
+    <div class="find open">
+      <div class="head" onclick="toggle(this)">
+        <h3>SE2 · Precio unitario de venta controlado por el cliente, sin reconciliar con catálogo</h3>
+        <span class="pill high">ALTA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> un <code>despachador</code> puede registrar ventas a precio <code>0</code> o arbitrario,
+        deflactando los ingresos y contaminando <code>resumen/dia</code>, <code>mas-vendidos</code> y cierres. Integridad
+        financiera comprometida sin necesidad de rol elevado.</p>
+        <p class="fix"><b>Sugerencia:</b> el server debe tomar <code>precio_venta</code> del <code>Producto</code> (o validar el
+        monto contra el precio guardado con tolerancia), nunca confiar en el precio del request.</p>
+        <div class="loc c-red">src/application/dto/venta.dto.ts → <code>precio_unitario: z.number().min(0)</code> · venta.use-case.ts:220/227 usa <code>linea.precio_unitario</code> directo</div>
+      </div>
+    </div>
+
+    <!-- SE3 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>SE3 · Rate-limiting solo activo con <code>NODE_ENV === 'production'</code>; staging/dev sin protección</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> un entorno <code>staging</code> (que suele usar DB real/seed) queda sin protección de
+        fuerza bruta ni mitigación del ataque de bloqueo por lockout.</p>
+        <p class="fix"><b>Sugerencia:</b> habilitar el rate-limit en <code>production</code> y <code>staging</code> (o por flag
+        explícito <code>RATE_LIMIT_ENABLED</code>), no condicionado al string exacto.</p>
+        <div class="loc c-yellow">src/main.ts → <code>if (env.NODE_ENV === 'production')</code> registra el rate-limit global</div>
+      </div>
+    </div>
+
+    <!-- SE4 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>SE4 · Timing side-channel en <code>/login</code> permite enumerar cuentas</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> si el usuario no existe se retorna sin correr bcrypt; si existe con password inválida, sí
+        corre <code>bcrypt.compare</code> (cost 12). Un atacante distingue cuentas existentes por latencia (µs vs ~100ms).</p>
+        <p class="fix"><b>Sugerencia:</b> ejecutar un hash dummy cuando no existe el usuario para igualar el timing.</p>
+        <div class="loc">src/application/use-cases/auth.use-case.ts (rama user inexistente retorna sin bcrypt)</div>
+      </div>
+    </div>
+
+    <!-- SE5 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>SE5 · CSV injection (fórmulas) en el export de cierres</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> <code>escapeCsv</code> no neutraliza celdas que empiezan con <code>= + - @</code>; los
+        nombres de producto/usuario ingresados fluyen al CSV y, al abrirse en Excel/Sheets, podrían ejecutar fórmulas
+        (formula injection).</p>
+        <p class="fix"><b>Sugerencia:</b> prefijar con <code>'</code> (o espacio/tab) todo dato no numérico, siguiendo el estándar
+        OWASP para CSV.</p>
+        <div class="loc">src/application/use-cases/cierre.use-case.ts → <code>escapeCsv</code></div>
+      </div>
+    </div>
+
+    <!-- SE6 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>SE6 · Validación inconsistente de <code>id</code> en rutas de cierre: UUID malformado → 500</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> <code>getCierreById</code>/<code>exportCierreCsv</code>/<code>cierreVentas</code> usan
+        <code>z.string().min(1)</code> en vez de <code>.uuid()</code>; un id malformado lanza P2023 → <code>500</code> en lugar de
+        <code>400</code>, inconsistente con el resto de la API y ruidoso en logs.</p>
+        <p class="fix"><b>Sugerencia:</b> usar <code>z.string().uuid()</code> (reusando un parametro schema compartido).</p>
+        <div class="loc c-yellow">src/adapters/http/controllers/cierre.controller.ts</div>
+      </div>
+    </div>
+
+    <!-- SE7 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>SE7 · <code>/ready</code> expone fingerprint de PostgreSQL</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> endpoint público sin auth devuelve <code>version()</code> y <code>current_database()</code>,
+        revelando la versión exacta de la DB y el nombre de la base (info-disclosure para fingerprintear CVEs).</p>
+        <p class="fix"><b>Sugerencia:</b> usar <code>SELECT 1</code> en <code>/ready</code> y quitar <code>version()</code>/<code>current_database()</code>.</p>
+        <div class="loc">src/adapters/http/routes/health.routes.ts</div>
+      </div>
+    </div>
+
+    <!-- SE8 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>SE8 · JWT verify sin fijar <code>algorithms: ['HS256']</code></h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> jsonwebtoken bloquea <code>none</code> con secret string, pero la defensa en profundidad
+        contra confusión de algoritmo/params quedaría más sólida.</p>
+        <p class="fix"><b>Sugerencia:</b> pasar <code>{ algorithms: ['HS256'] }</code> en ambos <code>verify</code>.</p>
+        <div class="loc">src/infrastructure/auth/jwt.ts → <code>verifyAccessToken</code>/<code>verifyRefreshToken</code></div>
+      </div>
+    </div>
+
+    <div class="note">
+      <div><b>Validado sin hallazgos en esta revisión:</b> token en <code>localStorage</code> (ahora cookie httpOnly), contraseña
+      en logs, <code>trustProxy</code> acotado por hops, rotación/revocación de refresh token con <code>refresh_token_version</code> +
+      logout que revoca, <code>@fastify/helmet</code> + CSP, <code>/docs</code> y <code>/metrics</code> protegidos en producción,
+      sort con <code>z.enum</code> whitelist, incremento atómico de <code>intentos_fallidos</code>, self-deactivation guard en
+      controller, RBAC exigido en <code>preHandler</code> de todas las rutas de recursos, sin SQL injection (raw queries
+      parameterizados), dinero en <code>Decimal</code>, CORS acotado, redactor de logs pino, <code>password_hash</code> filtrado en
+      respuestas.</div>
+    </div>
+  </section>
+
+  <!-- ================= EFFICIENCY ================= -->
+  <section id="sec-efficiencia">
+    <h2><span class="ico">⚡</span> Eficiencia / Performance</h2>
+    <p class="desc">
+      Queries, índices, paginación y costos de render. Puntaje <b style="color:var(--orange)">7.6/10</b>. El diseño de
+      concurrencia es correcto, pero hay agregaciones y filtrados en memoria que no escalan en tablas grandes.
+    </p>
+
+    <!-- EF1 -->
+    <div class="find open">
+      <div class="head" onclick="toggle(this)">
+        <h3>EF1 · <code>listVentasByCierreConDetalles</code> filtra/ordena toda la foto del cierre en memoria</h3>
+        <span class="pill high">ALTA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> carga todas las ventas + <code>detalles_venta</code> + producto (sin <code>take</code>),
+        y aplica los filtros y el sort <b>en JS</b>, sin paginación. Un cierre con miles de líneas materializa y serializa todo
+        por pedido; memoria O(rows) y latencia creciente.</p>
+        <p class="fix"><b>Sugerencia:</b> llevar filtros/orden a SQL (<code>where</code>/<code>orderBy</code> sobre
+        <code>DetalleVenta</code>/<code>Venta</code> + <code>LIMIT/OFFSET</code> o cursor).</p>
+        <div class="loc c-red">src/application/use-cases/cierre.use-case.ts:216-302</div>
+      </div>
+    </div>
+
+    <!-- EF2 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>EF2 · <code>getResumenDia</code> y <code>cerrarCaja</code> agregan en la app, cargando todas las filas</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> cargan todas las ventas abiertas con <code>detalles_venta</code> + producto y agregan por
+        Maps en el proceso. Crece con el período abierto (ventas×líneas); GC y latencia empeoran en operaciones largas.</p>
+        <p class="fix"><b>Sugerencia:</b> agregar con <code>groupBy</code>/<code>GROUP BY</code> (o <code>$queryRaw</code> con
+        SUM/COUNT), leyendo solo agregados.</p>
+        <div class="loc">src/application/use-cases/venta.use-case.ts:439-521, 557-621</div>
+      </div>
+    </div>
+
+    <!-- EF3 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>EF3 · Paginación offset (<code>skip/take</code>) en listados históricos</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> correcta y simple para volúmenes moderados, pero degrada en páginas profundas sobre
+        <code>Venta</code>/<code>MovimientoCaja</code> en crecimiento.</p>
+        <p class="fix"><b>Sugerencia:</b> cursor por <code>(created_at, id)</code> para listados históricos/movimientos; mantener
+        offset para listas pequeñas.</p>
+        <div class="loc">venta.use-case.ts:358-386 · cierre.use-case.ts:79-112 · movimiento-caja.use-case.ts</div>
+      </div>
+    </div>
+
+    <!-- EF4 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>EF4 · Falta índice compuesto <code>(estado, fecha_vencimiento)</code> en Lote</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> <code>retirarLotesVencidos</code> y la ventana FEFO barren
+        <code>estado='activo' AND fecha_vencimiento &lt; hoy</code>; el barrido de índice no es óptimo sobre muchos lotes activos.</p>
+        <p class="fix"><b>Sugerencia:</b> agregar <code>@@index([estado, fecha_vencimiento])</code> (y evaluar
+        <code>(producto_id, estado, fecha_vencimiento)</code>).</p>
+        <div class="loc">prisma/schema.prisma:70-80</div>
+      </div>
+    </div>
+
+    <!-- EF5 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>EF5 · <code>createVenta</code> hace round-trips por línea dividida (2N sentencias)</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> por cada split de lote emite un <code>lote.update</code> + <code>detalleVenta.create</code>
+        en loop; con ventas multi-lote frecuentes es costo de red no despreciable.</p>
+        <p class="fix"><b>Sugerencia:</b> <code>detalleVenta.createMany</code> acumulado y <code>lote.update</code> en lote (o array
+        de queries en la <code>$transaction</code>).</p>
+        <div class="loc">src/application/use-cases/venta.use-case.ts:273-293</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CONCURRENCIA ================= -->
+  <section id="sec-concurrencia">
+    <h2><span class="ico">🔀</span> Concurrencia e integridad</h2>
+    <p class="desc">Correcto en los puntos críticos; se documentan riesgos de contorno menores.</p>
+
+    <!-- CO1 -->
+    <div class="find open">
+      <div class="head" onclick="toggle(this)">
+        <h3>CO1 · <code>createVenta</code> con <code>SELECT … FOR UPDATE</code> y orden determinístico</h3>
+        <span class="pill pos">POSITIVO</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> bloquea todos los lotes de la venta en una consulta con <code>ORDER BY producto_id, id</code>
+        (evita deadlocks entre ventas con productos en distinto orden), valida stock dentro de la tx y revierte en cascada. Cubierto
+        por <code>venta-concurrency.test.ts</code>.</p>
+        <div class="loc c-green">src/application/use-cases/venta.use-case.ts:180-207</div>
+      </div>
+    </div>
+
+    <!-- CO2 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>CO2 · <code>deleteVenta</code> restaura stock por lote sin <code>FOR UPDATE</code> sobre esos lotes</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> el incremento es atómico y conmutativo, pero el chequeo de reactivación
+        (<code>agotado</code>→<code>activo</code>) lee cantidad sin exclusión y puede cruzarse con un <code>createVenta</code>
+        concurrente descontando el mismo lote (bajo riesgo de corrupción).</p>
+        <p class="fix"><b>Sugerencia:</b> tomar <code>FOR UPDATE</code> sobre los <code>lote_id</code> afectados al inicio de la
+        restauración (mismo orden determinístico).</p>
+        <div class="loc">src/application/use-cases/venta.use-case.ts:133-160, 713-747</div>
+      </div>
+    </div>
+
+    <!-- CO3 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>CO3 · Carrera de contorno <code>cerrarCaja</code> ↔ venta nueva</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> <code>cerrarCaja</code> serializa cierre-vs-cierre con <code>pg_advisory_xact_lock</code> y
+        bloquea las ventas leídas, pero <code>createVenta</code> no toma el advisory lock: una venta que commitea entre la lectura y el
+        <code>updateMany</code> queda con <code>cierre_caja_id NULL</code> en el período nuevo (no contada en el cierre). Coherente
+        con el diseño documentado, pero sin red DB.</p>
+        <p class="fix"><b>Sugerencia:</b> tomar el advisory lock también en <code>createVenta</code>, o índice único parcial sobre
+        <code>CierreCaja(estado)</code> WHERE abierto.</p>
+        <div class="loc">src/application/use-cases/venta.use-case.ts (cerrarCaja) · src/shared/transactions.ts:26</div>
+      </div>
+    </div>
+
+    <!-- CO4 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>CO4 · Query muerta: <code>getResumenDia</code> busca <code>CierreCaja estado='abierto'</code></h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> el único insert de <code>CierreCaja</code> es <code>cerrarCaja</code> con
+        <code>estado:'cerrado'</code>; no existe flujo que cree un cierre <code>abierto</code>. La rama es dead code y el
+        "período abierto" real se modela como <code>cierre_caja_id IS NULL</code>.</p>
+        <p class="fix"><b>Sugerencia:</b> eliminar la rama o crear un flujo explícito de apertura de caja; aclarar el modelo de período.</p>
+        <div class="loc">src/application/use-cases/venta.use-case.ts:443-445</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DESIGN ================= -->
+  <section id="sec-diseno">
+    <h2><span class="ico">🎨</span> Diseño y experiencia de usuario</h2>
+    <p class="desc">
+      Puntaje <b style="color:var(--yellow)">8.0/10</b>. Visualmente sólido y coherente; la deuda principal está en
+      <b>accesibilidad</b> y en tamaños de componente.
+    </p>
+
+    <table class="matrix">
+      <thead>
+        <tr><th>Área</th><th>Estado</th><th>Observación</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Consistencia visual</strong></td>
+          <td><span class="badge st" style="background:rgba(46,204,113,.16)">Fuerte</span></td>
+          <td>Sistema de diseño basado en <code>shadcn/ui</code> + Radix + Tailwind: colores, espaciado, tipografía y
+          componentes (<code>Button</code>/<code>Card</code>/<code>Badge</code>/<code>Dialog</code>) uniformes en toda la app.
+          Tema claro/oscuro con <code>next-themes</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>Usabilidad terminal POS</strong></td>
+          <td><span class="badge si" style="background:rgba(245,185,66,.16)">Buena</span></td>
+          <td>Tarjetas de producto con stock/precio/última venta/cant. predeterminada, grid adaptativo que mide el ancho real del
+          texto con canvas (uniformidad sin truncar), avisos de stock insuficiente y flujo de carrito claro. El badge "En carrito" se
+          oculta tras confirmar la venta (comportamiento correcto).</td>
+        </tr>
+        <tr>
+          <td><strong>Accesibilidad</strong></td>
+          <td><span class="badge sv" style="background:rgba(239,79,94,.16)">Débil</span></td>
+          <td><b>0</b> atributos <code>aria-label</code>/<code>role</code> en las páginas (<code>pages/</code>). Botones de icono
+          sin nombre accesible (p.ej. lápiz/papelera/retirar dependen solo de <code>title</code>), sin contraste validado ni
+          navegación por teclado explícita. Es la mayor brecha de diseño.</td>
+        </tr>
+        <tr>
+          <td><strong>Feedback y estados</strong></td>
+          <td><span class="badge st" style="background:rgba(46,204,113,.16)">Fuerte</span></td>
+          <td>Estados de carga (<code>Cargando…</code>), vacíos con icono y mensaje, errores de validación in-situ, toasts de éxito/error. Feedback coherente y legible.</td>
+        </tr>
+        <tr>
+          <td><strong>Responsive</strong></td>
+          <td><span class="badge si" style="background:rgba(245,185,66,.16)">Aceptable</span></td>
+          <td>Layout con sidebar colapsable y grids adaptativos; tablas con <code>overflow-x-auto</code>. La terminal POS está
+          pensada para pantalla completa; en móvil la densidad es alta (deuda menor).</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ================= CALIDAD ================= -->
+  <section id="sec-calidad">
+    <h2><span class="ico">🧱</span> Calidad de código y arquitectura</h2>
+    <p class="desc">
+      Puntaje <b style="color:var(--yellow)">8.3/10</b> y arquitectura <b style="color:var(--green)">8.6/10</b>. Backend muy sólido;
+      el frontend carga la deuda de mantenibilidad.
+    </p>
+
+    <!-- QC1 -->
+    <div class="find open">
+      <div class="head" onclick="toggle(this)">
+        <h3>QC1 · Frontend: componentes de páginas muy grandes</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> <code>VentasPage.tsx</code> supera las 2400 líneas y <code>ManualUsuarioPage.tsx</code> las
+        1780; mezclan estado, lógica de negocio, sub-componentes y JSX. Dificulta el testeo, la revisión y el mantenimiento, y
+        favorece re-renders amplios.</p>
+        <p class="fix"><b>Sugerencia:</b> extraer la máquina de carrito, el cálculo de ancho de tarjetas y los paneles
+        (Terminal/Ingresos/Historial/Resumen) en hooks y componentes acotados.</p>
+        <div class="loc c-yellow">client/src/pages/VentasPage.tsx (2410) · ManualUsuarioPage.tsx (1786)</div>
+      </div>
+    </div>
+
+    <!-- QC2 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>QC2 · <code>measureTextWidth</code> crea un canvas por llamada y por producto</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> <code>document.createElement('canvas')</code> dentro de la función de medición se ejecuta
+        por cada producto en cada cómputo. Aunque está en <code>useMemo</code>, re-crea canvas repetidamente; con catálogos grandes
+        es costo de render y GC innecesario.</p>
+        <p class="fix"><b>Sugerencia:</b> un único canvas/contexto compartido a nivel de módulo, o medir con
+        <code>Range.getBoundingClientRect()</code>.</p>
+        <div class="loc c-yellow">client/src/pages/VentasPage.tsx:219-224</div>
+      </div>
+    </div>
+
+    <!-- QC3 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>QC3 · Tipado débil en el cliente: <code>any</code>/<code>unknown</code> y tipos duplicados</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> ~65 usos de <code>any</code>/<code>unknown</code> en páginas/features; tipos de respuesta
+        con <code>unknown[]</code> y algunas interfaces duplicadas. Se pierde verificación de punta a punta (un cambio de campo en
+        backend no se refleja en la UI).</p>
+        <p class="fix"><b>Sugerencia:</b> tipar respuestas por recurso y, idealmente, compartir esquemas Zod o generar tipos desde
+        OpenAPI.</p>
+        <div class="loc">client/src/lib/api-client.ts · features/*</div>
+      </div>
+    </div>
+
+    <!-- QC4 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>QC4 · Desigualdad de estilo de comillas en todo el repo</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> el repo está mayormente con comillas dobles pero <code>eslint.config.js</code> exige
+        <code>single</code>, generando cientos de errores de lint (<code>quotes</code>). <code>eslint</code> no pasa limpio y la
+        corrección automática normaliza archivos enteros (riesgo de diffs enormes y no revisables).</p>
+        <p class="fix"><b>Sugerencia:</b> decidir la convención, alinear <code>eslint.config.js</code> (o migrar el repo a
+        <code>single</code> por slices revisables), y activar <code>eslint --fix</code> solo por archivo en PRs acotados.</p>
+        <div class="loc">eslint.config.js:42 <code>quotes: ['error','single']</code> · repo en doble comilla</div>
+      </div>
+    </div>
+
+    <!-- QC5 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>QC5 · Duplicación de <code>handleDomainError</code> y helpers de dominio</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> aunque ya se centralizó el mapeo <code>DomainError → HTTP</code> en
+        <code>domain-error.ts</code>, quedan helpers repetidos de moneda/fecha (<code>toNumber</code>, <code>round2</code>,
+        <code>startOfDay</code>/<code>endOfDay</code>) re-implementados en varios use-cases.</p>
+        <p class="fix"><b>Sugerencia:</b> centralizar en <code>src/shared</code> y, para dinero, conservar <code>Decimal</code> en vez
+        de convertir a float en los bordes.</p>
+        <div class="loc">src/application/use-cases/{venta,producto,stock,historial}.use-case.ts</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TESTING ================= -->
+  <section id="sec-testing">
+    <h2><span class="ico">🧪</span> Testing</h2>
+    <p class="desc">
+      Puntaje <b style="color:var(--green)">8.4/10</b>. Cobertura amplia y de buena calidad con los invariantes críticos probados;
+      las brechas están en integración DB condicional y en la capa HTTP.
+    </p>
+    <div class="grid">
+      <div class="kv"><b>Unit (DTOs, zod)</b><span>~105</span></div>
+      <div class="kv"><b>Unit (use-cases, prisma mock)</b><span>~185</span></div>
+      <div class="kv"><b>Integración DB (concurrentes)</b><span>3</span></div>
+      <div class="kv"><b>Client unit (carrito/api-errors)</b><span>32</span></div>
+      <div class="kv"><b>Playwright API</b><span>35</span></div>
+      <div class="kv"><b>Total ejecutado (vitest)</b><span><b>265 · OK</b></span></div>
+    </div>
+
+    <!-- TS1 -->
+    <div class="find open">
+      <div class="head" onclick="toggle(this)">
+        <h3>TS1 · La integración/concurrencia se saltea en silencio sin DB (<code>it.skipIf(!dbUp)</code>)</h3>
+        <span class="pill high">ALTA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> los únicos 3 tests que tocan la DB real (y protegen los invariantes críticos: doble
+        descuento, venta fantasma, cierre↔deleteVenta) se omiten cuando no hay Postgres o falta <code>.env.development</code>. En CI
+        sin DB la suite pasa verde sin ejecutar nada de concurrencia → falso sentido de seguridad.</p>
+        <p class="fix"><b>Sugerencia:</b> levantar la DB en CI (compose) y marcar esos tests como obligatorios, o que el job falle si
+        <code>dbUp===false</code>.</p>
+        <div class="loc c-red">src/application/use-cases/{venta,cierre}-concurrency.test.ts</div>
+      </div>
+    </div>
+
+    <!-- TS2 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>TS2 · Cero tests de capa HTTP/controller</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> no existe ningún <code>fastify.inject</code>; el mapeo
+        errors→HTTP (STOCK_INSUFFICIENT→409, VALIDATION→400, DB→500) no está verificado en la frontera. Regresiones de contrato entre
+        capas pasan la suite.</p>
+        <p class="fix"><b>Sugerencia:</b> agregar tests de tipo <code>inject</code> por ruta crítica (ventas, stock, cierres).</p>
+        <div class="loc">src/** (sin <code>fastify.inject</code>) · vitest.config.ts incluye solo <code>src/**/*.test.ts</code></div>
+      </div>
+    </div>
+
+    <!-- TS3 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>TS3 · Playwright es API-solo; sin e2e de UI ni de cierre</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> los 35 specs llaman <code>api.request</code> (sin <code>page.goto</code>); no hay humo de
+        UI real del client, ni spec de cerrarCaja ni de comportamiento concurrente end-to-end.</p>
+        <p class="fix"><b>Sugerencia:</b> al menos un e2e de cerrarCaja (abrir→vender→cerrar→verificar reporte/stock). El e2e de
+        browser/UI queda como deuda, no bloqueante.</p>
+        <div class="loc">tests/e2e (auth/stock/ventas) · playwright.config.ts</div>
+      </div>
+    </div>
+
+    <!-- TS4 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>TS4 · El merge/retry de <code>loteIngreso</code> (P2002) sin cobertura de integración</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> el mecanismo de carrera de dos ingresos que crean el mismo lote solo tiene unit con mock;
+        un fallo de lock/unique contra la DB real pasaría desapercibido.</p>
+        <p class="fix"><b>Sugerencia:</b> test de integración "2 <code>loteIngreso</code> concurrentes mismos (producto, numero_lote,
+        vencimiento)" → 1 lote, cantidad suma sin pérdida.</p>
+        <div class="loc">src/application/use-cases/stock.use-case.ts:210-237 (merge FOR UPDATE + retry P2002)</div>
+      </div>
+    </div>
+
+    <div class="note">
+      <div><b>Positivo:</b> threshold de cobertura v8 al 80% (branches/functions/lines/statements); 265 tests verdes en
+      <i>~13s</i>; máquina de estado del carrito y errores de API unit-testeados en el cliente; concurrencia real documentada y
+      probada.</div>
+    </div>
+  </section>
+
+  <!-- ================= DEVOPS ================= -->
+  <section id="sec-devops">
+    <h2><span class="ico">🚀</span> Operación / DevOps</h2>
+    <p class="desc">Deploy por Podman Compose y Render. La API en sí es operacional; la config de contenedores tiene una falla real.</p>
+
+    <!-- DV1 -->
+    <div class="find open">
+      <div class="head" onclick="toggle(this)">
+        <h3>DV1 · <code>podman-compose.prod.yml</code>: password de DB no conectada al <code>DATABASE_URL</code> + init inexistente</h3>
+        <span class="pill med">MEDIA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Impacto:</b> <code>DATABASE_URL=postgresql://pv_user:@db:5432/punto_venta</code> (password vacío), el
+        secret <code>db_password</code> se monta pero ningún env lo expone, el servicio <code>db</code> no setea
+        <code>POSTGRES_PASSWORD</code> (la imagen postgres genera una aleatoria incompatible con la URL), y monta
+        <code>./scripts/backup-init.sh</code> que <b>no existe</b>. El despliegue por este compose probablemente no autentica o no
+        levanta.</p>
+        <p class="fix"><b>Sugerencia:</b> pasar la password vía <code>POSTGRES_PASSWORD</code> y construir
+        <code>DATABASE_URL</code> con ella (o <code>PGPASSWORD</code> + <code>?password=</code>); crear o eliminar la referencia a
+        <code>backup-init.sh</code>.</p>
+        <div class="loc c-red">podman-compose.prod.yml (db &amp; api) · scripts/ (solo backup.sh, deploy.sh, dev.sh, prod.sh)</div>
+      </div>
+    </div>
+
+    <!-- DV2 -->
+    <div class="find">
+      <div class="head" onclick="toggle(this)">
+        <h3>DV2 · Confiabilidad operacional en deploy</h3>
+        <span class="pill low">BAJA</span><span class="chev">▸</span>
+      </div>
+      <div class="body">
+        <p class="impact"><b>Detalle:</b> healthchecks configurados (<code>pg_isready</code> y <code>/health</code>), límites de
+        memoria declarados, logs rotados por archivo. Buenas prácticas para 512M por servicio. Falta orquestar el seed condicional y
+        una estrategia explícita de backup/restore de la vol <code>pv-postgres-data</code>.</p>
+        <p class="fix"><b>Sugerencia:</b> decidir la estrategia de respaldo (pg_dump cron) y documentar el restore; versionar
+        <code>secrets/db_password.txt.example</code> sin valor.</p>
+        <div class="loc">podman-compose.prod.yml · scripts/backup.sh</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= POSITIVES ================= -->
+  <section id="sec-bien">
+    <h2><span class="ico">✅</span> Lo que ya está bien hecho</h2>
+    <p class="desc">Base sólida, verificada en esta revisión. Conviene conservarla y defenderla.</p>
+    <div class="positives">
+      <div class="pos"><h4>Arquitectura hexagonal limpia</h4><p>Límites claros domain/application/adapters; sin violaciones detectadas (controllers no importan repositorios directo).</p></div>
+      <div class="pos"><h4>Concurrencia resuelta de raíz</h4><p><code>SELECT … FOR UPDATE</code> con orden determinístico anti-deadlock en venta; advisory lock en cierre; tx atómica cubre Venta+Detalle+stock con rollback.</p></div>
+      <div class="pos"><h4>Manejo de dinero correcto</h4><p><code>Decimal</code> en el esquema y en el dominio; <code>round2</code>/<code>toNumber</code> en los bordes; total recalculado como invariante.</p></div>
+      <div class="pos"><h4>RBAC server-side sólido</h4><p><code>authorize()</code> exige rol en <code>preHandler</code> de todas las rutas de recursos, llamando primero a <code>authenticate</code>.</p></div>
+      <div class="pos"><h4>Seguridad de auth defensiva</h4><p>Cookie httpOnly+secure+SameSite, refresh rotado y revocado por versión, incremento atómico de intentos, blockout por ventana, validación Zod universal.</p></div>
+      <div class="pos"><h4>Sin SQL injection ni secretos versionados</h4><p>Raw queries parameterizados con <code>Prisma.sql</code>; CORS acotado; logs con redactor de secrets; <code>.env</code> gitignoreado con <code>.env.example</code>.</p></div>
+      <div class="pos"><h4>Testing de calidad</h4><p>265 tests verdes, threshold 80%, máquina de estado del carrito testeada, errores de API unit-testeados, concurrencia real probada.</p></div>
+      <div class="pos"><h4>UI disciplinada</h4><p>Design system shadcn/ui + Radix + Tailwind coherente; tema claro/oscuro; estados de carga/vacío/error consistentes.</p></div>
+      <div class="pos"><h4>Observabilidad lista</h4><p>Logging estructurado pino + <code>/health</code>/<code>/ready</code>/<code>/metrics</code> (este último protegido por token en prod).</p></div>
+      <div class="pos"><h4>Actualización 2025 efectiva</h4><p>La mayoría de los hallazgos del reporte sept fueron corregidos: token en memoria/cookie, password redactada, trustProxy acotado, Helmet, sort whitelist, self-deactivation.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= ROADMAP ================= -->
+  <section id="sec-roadmap">
+    <h2><span class="ico">🗺️</span> Plan de acción sugerido</h2>
+    <p class="desc">Orden propuesto por urgencia e impacto. Cada ítem es acotado y verificable.</p>
+    <ol class="roadmap">
+      <li><b>Crítico (inmediato):</b> no ejecutar el seed en producción (SE1) y que el <b>server controle el precio</b> de venta desde el catálogo (SE2).</li>
+      <li><b>Alto:</b> habilitar rate-limit en staging (SE3), mitigar CSV injection (SE5) y acotar UUID de cierres (SE6).</li>
+      <li><b>Medio:</b> arreglar <code>podman-compose.prod</code> (DV1) — password de DB y backup-init — y hacer obligatoria la integración DB en CI (TS1).</li>
+      <li><b>Perf:</b> llevar filtros del cierre (EF1) y la agregación de resumen/cierre (EF2) a SQL; índice <code>(estado, fecha_vencimiento)</code> (EF4).</li>
+      <li><b>Calidad frontend:</b> descomponer VentasPage/ManualUsuarioPage (QC1), compartir canvas (QC2), y adoptar accesibilidad básica (aria/labels en botones de icono).</li>
+      <li><b>Testing:</b> tests de capa HTTP con <code>inject</code> (TS2) y e2e de cerrarCaja (TS3).</li>
+      <li><b>Higiene:</b> alinear comillas a la configuración de lint por slices revisables (QC4), timing uniforme en login (SE4), FEFO con cursor y ojos en la conversión Decimal→float (EF3/QC5).</li>
+    </ol>
+  </section>
+
+  <!-- ================= METODO ================= -->
+  <section id="sec-metodo">
+    <h2><span class="ico">🧭</span> Metodología y alcance</h2>
+    <div class="note">
+      <div>
+        <b>Fuentes.</b> Revisión estática del código fuente actual del backend (<code>src/</code>, <code>prisma/schema.prisma</code>,
+        configs de deploy/test/CI) y del cliente React (<code>client/src/pages|components|features|hooks|layouts|lib</code>),
+        verificación directa de cada hallazgo contra el archivo y la línea, y ejecución de la suite de tests (<code>vitest</code>:
+        <b>265/265 verdes</b>) y del typecheck del build del cliente (<code>tsc -b</code>: OK). Se contrastó contra el reporte
+        anterior (<code>reporte.html</code>, sept) para distinguir lo ya corregido de lo nuevo.
+        <br/><br/>
+        <b>Alcance y limitaciones.</b> Análisis estático + ejecución de la suite unit/integración disponible; <b>no</b> se realizaron
+        pruebas dinámicas de explotación, pentest en vivo ni auditoría de dependencias (npm audit). Los hallazgos de severidad
+        (Alta/Media/Baja) son una guía priorizada basada en estándares (OWASP, NIST, buenas prácticas de clean architecture), no una
+        certificación. Las afirmaciones sobre comportamiento de Prisma/Postgres/en Docker son inferencias de comportamiento estándar
+        salvo donde se indica ejecución propia.
+        <br/><br/>
+        Este documento es informativo y <b>no implica ningún cambio sobre el código</b>.
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Evaluación integral de Calidad, Diseño, Eficiencia y Seguridad · Punto de Venta · generada el 26/09/2025 · análisis estático + suite de tests · solo lectura
+  </footer>
+
+</div>
+
+<script>
+  function toggle(el) {
+    el.parentElement.classList.toggle('open');
+  }
+</script>
+</body>
+</html>

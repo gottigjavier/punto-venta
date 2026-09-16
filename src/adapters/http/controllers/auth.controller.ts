@@ -4,12 +4,15 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import {
   LoginRequestSchema,
   UnlockUserRequestSchema,
+  BootstrapSchema,
 } from "../../../application/dto/auth.dto.js";
 import {
   loginUseCase,
   refreshTokenUseCase,
   unlockUserUseCase,
   logoutUseCase,
+  bootstrapStatusUseCase,
+  bootstrapUseCase,
 } from "../../../application/use-cases/auth.use-case.js";
 import { env } from "../../../infrastructure/config/env.js";
 import { sendDomainError } from "../utils/domain-error.js";
@@ -129,6 +132,70 @@ export async function logoutHandler(
   reply.send({
     success: true,
     data: { message: "Sesión cerrada exitosamente" },
+  });
+}
+
+// POST /api/v1/auth/bootstrap-status — indica si hace falta el setup inicial
+// (es cierto solo si no existe ningún usuario).
+export async function bootstrapStatusHandler(
+  _request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  const result = await bootstrapStatusUseCase();
+  if (result.isErr()) {
+    return sendDomainError(reply, result.error);
+  }
+  reply.send({ success: true, data: result.value });
+}
+
+// POST /api/v1/auth/bootstrap — crea el primer administrador y loguea
+// automáticamente (mismos tokens + cookie que /login). Solo funciona si no
+// hay ningún usuario; si ya existen, el use-case devuelve CONFLICT.
+export async function bootstrapHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  const parsed = BootstrapSchema.safeParse(request.body);
+
+  if (!parsed.success) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
+        details: parsed.error.flatten().fieldErrors,
+      },
+    });
+  }
+
+  const result = await bootstrapUseCase(parsed.data);
+
+  if (result.isErr()) {
+    return sendDomainError(reply, result.error);
+  }
+
+  const { tokens, user } = result.value;
+
+  reply.setCookie("refreshToken", tokens.refreshToken, {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/v1/auth",
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  });
+
+  reply.send({
+    success: true,
+    data: {
+      accessToken: tokens.accessToken,
+      user: {
+        id: user.id,
+        nombre_usuario: user.nombre_usuario,
+        nik_usuario: user.nik_usuario,
+        email: user.email,
+        rol: user.rol,
+      },
+    },
   });
 }
 

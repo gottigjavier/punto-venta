@@ -202,7 +202,9 @@ describe("Venta Use Cases (modelo Lote)", () => {
     it(
       "FEFO: consume L2(7) luego L3(3), L1 intacto; 2 detalles con lote_id; total=500",
       withFakeNow(async () => {
-        mockPrisma.producto.findMany.mockResolvedValue([{ id: PRODUCTO_ID }]);
+        mockPrisma.producto.findMany.mockResolvedValue([
+          { id: PRODUCTO_ID, precio_venta: 50 },
+        ]);
         const { tx, spies } = buildTx();
         spies.loteQueryRaw.mockResolvedValue([L1, L2, L3]);
         spies.loteUpdate.mockResolvedValue({});
@@ -224,11 +226,19 @@ describe("Venta Use Cases (modelo Lote)", () => {
 
         const result = await createVenta(
           {
-            productos: [
-              { producto_id: PRODUCTO_ID, cantidad: 10, precio_unitario: 50 },
-            ],
+            productos: [{ producto_id: PRODUCTO_ID, cantidad: 10 }],
           },
           "user-1",
+        );
+
+        // SE2: el precio de cada detalle sale del catálogo (precio_venta=50),
+        // nunca del cliente. El input ya no lleva precio_unitario.
+        expect(spies.detalleVentaCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              precio_unitario: 50,
+            }),
+          }),
         );
 
         expect(result.isOk()).toBe(true);
@@ -246,7 +256,9 @@ describe("Venta Use Cases (modelo Lote)", () => {
     it(
       "cascada saltando lote agotado (L1 agotado, L4 qty4 → solo L4)",
       withFakeNow(async () => {
-        mockPrisma.producto.findMany.mockResolvedValue([{ id: PRODUCTO_ID }]);
+        mockPrisma.producto.findMany.mockResolvedValue([
+          { id: PRODUCTO_ID, precio_venta: 50 },
+        ]);
         const L1Agotado = mockLoteDb({
           id: "L1A",
           cantidad_disponible: 0,
@@ -299,9 +311,7 @@ describe("Venta Use Cases (modelo Lote)", () => {
 
         const result = await createVenta(
           {
-            productos: [
-              { producto_id: PRODUCTO_ID, cantidad: 3, precio_unitario: 50 },
-            ],
+            productos: [{ producto_id: PRODUCTO_ID, cantidad: 3 }],
           },
           "user-1",
         );
@@ -317,9 +327,79 @@ describe("Venta Use Cases (modelo Lote)", () => {
     );
 
     it(
+      "SE2: usa SIEMPRE el precio del catálogo; el cliente no puede fijar el precio",
+      withFakeNow(async () => {
+        // Catálogo: precio_venta = 100 (fuente de verdad).
+        mockPrisma.producto.findMany.mockResolvedValue([
+          { id: PRODUCTO_ID, precio_venta: 100 },
+        ]);
+        const { tx, spies } = buildTx();
+        spies.loteQueryRaw.mockResolvedValue([L1, L2, L3]);
+        spies.loteUpdate.mockResolvedValue({});
+        spies.detalleVentaCreate.mockResolvedValue({});
+        spies.ventaCreate.mockResolvedValue({
+          id: "venta-1",
+          usuario_id: "user-1",
+          total: 0,
+          estado: "completada",
+          created_at: new Date(),
+        });
+        spies.ventaUpdate.mockResolvedValue({});
+        (tx as any).venta.findUnique.mockResolvedValue(
+          mockVentaDb({
+            total: 300, // 3*100 (catálogo), no 3*1 (precio "atacante")
+            detalles_venta: [
+              {
+                id: "det-1",
+                venta_id: "venta-1",
+                producto_id: PRODUCTO_ID,
+                lote_id: "L2",
+                cantidad: 3,
+                precio_unitario: 100,
+                subtotal: 300,
+                producto: {
+                  id: PRODUCTO_ID,
+                  nombre: "Pan integral",
+                  codigo: "PAN-001",
+                },
+              },
+            ],
+          }),
+        );
+        mockPrisma.$transaction.mockImplementation(
+          async (fn: (tx: unknown) => Promise<unknown>) => fn(tx),
+        );
+
+        // El input de línea NO contiene precio_unitario (el schema lo descarta).
+        const result = await createVenta(
+          {
+            productos: [{ producto_id: PRODUCTO_ID, cantidad: 3 }],
+          },
+          "user-1",
+        );
+
+        expect(result.isOk()).toBe(true);
+        // El detalle se persiste con el precio del catálogo (100), nunca con un
+        // valor enviado por el cliente.
+        expect(spies.detalleVentaCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              precio_unitario: 100,
+            }),
+          }),
+        );
+        if (result.isOk()) {
+          expect(result.value.total).toBe(300);
+        }
+      }),
+    );
+
+    it(
       "lote venc NULL va al final del FEFO",
       withFakeNow(async () => {
-        mockPrisma.producto.findMany.mockResolvedValue([{ id: PRODUCTO_ID }]);
+        mockPrisma.producto.findMany.mockResolvedValue([
+          { id: PRODUCTO_ID, precio_venta: 50 },
+        ]);
         const L6 = mockLoteDb({
           id: "L6",
           cantidad_disponible: 3,
@@ -389,9 +469,7 @@ describe("Venta Use Cases (modelo Lote)", () => {
 
         const result = await createVenta(
           {
-            productos: [
-              { producto_id: PRODUCTO_ID, cantidad: 4, precio_unitario: 50 },
-            ],
+            productos: [{ producto_id: PRODUCTO_ID, cantidad: 4 }],
           },
           "user-1",
         );
@@ -410,7 +488,9 @@ describe("Venta Use Cases (modelo Lote)", () => {
     it(
       "STOCK_INSUFFICIENT: disponible < solicitado → no crea venta ni descuenta",
       withFakeNow(async () => {
-        mockPrisma.producto.findMany.mockResolvedValue([{ id: PRODUCTO_ID }]);
+        mockPrisma.producto.findMany.mockResolvedValue([
+          { id: PRODUCTO_ID, precio_venta: 50 },
+        ]);
         const LxBajo = mockLoteDb({
           id: "Lx",
           cantidad_disponible: 3,
@@ -425,9 +505,7 @@ describe("Venta Use Cases (modelo Lote)", () => {
 
         const result = await createVenta(
           {
-            productos: [
-              { producto_id: PRODUCTO_ID, cantidad: 10, precio_unitario: 50 },
-            ],
+            productos: [{ producto_id: PRODUCTO_ID, cantidad: 10 }],
           },
           "user-1",
         );
@@ -447,7 +525,9 @@ describe("Venta Use Cases (modelo Lote)", () => {
     it(
       "lote vencido jamás se descuenta",
       withFakeNow(async () => {
-        mockPrisma.producto.findMany.mockResolvedValue([{ id: PRODUCTO_ID }]);
+        mockPrisma.producto.findMany.mockResolvedValue([
+          { id: PRODUCTO_ID, precio_venta: 50 },
+        ]);
         const loteVencido = mockLoteDb({
           id: "LV",
           cantidad_disponible: 8,
@@ -499,9 +579,7 @@ describe("Venta Use Cases (modelo Lote)", () => {
 
         const result = await createVenta(
           {
-            productos: [
-              { producto_id: PRODUCTO_ID, cantidad: 2, precio_unitario: 50 },
-            ],
+            productos: [{ producto_id: PRODUCTO_ID, cantidad: 2 }],
           },
           "user-1",
         );
@@ -518,7 +596,9 @@ describe("Venta Use Cases (modelo Lote)", () => {
     it(
       "lote a 0 → estado agotado",
       withFakeNow(async () => {
-        mockPrisma.producto.findMany.mockResolvedValue([{ id: PRODUCTO_ID }]);
+        mockPrisma.producto.findMany.mockResolvedValue([
+          { id: PRODUCTO_ID, precio_venta: 50 },
+        ]);
         const LExacto = mockLoteDb({
           id: "LE",
           cantidad_disponible: 2,
@@ -564,9 +644,7 @@ describe("Venta Use Cases (modelo Lote)", () => {
 
         const result = await createVenta(
           {
-            productos: [
-              { producto_id: PRODUCTO_ID, cantidad: 2, precio_unitario: 50 },
-            ],
+            productos: [{ producto_id: PRODUCTO_ID, cantidad: 2 }],
           },
           "user-1",
         );
@@ -589,9 +667,7 @@ describe("Venta Use Cases (modelo Lote)", () => {
       mockPrisma.producto.findMany.mockResolvedValue([]);
       const result = await createVenta(
         {
-          productos: [
-            { producto_id: "no-existe", cantidad: 1, precio_unitario: 50 },
-          ],
+          productos: [{ producto_id: "no-existe", cantidad: 1 }],
         },
         "user-1",
       );
@@ -600,15 +676,15 @@ describe("Venta Use Cases (modelo Lote)", () => {
     });
 
     it("transaction fails → DATABASE_ERROR", async () => {
-      mockPrisma.producto.findMany.mockResolvedValue([{ id: PRODUCTO_ID }]);
+      mockPrisma.producto.findMany.mockResolvedValue([
+        { id: PRODUCTO_ID, precio_venta: 50 },
+      ]);
       mockPrisma.$transaction.mockRejectedValue(
         new Error("Transaction failed"),
       );
       const result = await createVenta(
         {
-          productos: [
-            { producto_id: PRODUCTO_ID, cantidad: 1, precio_unitario: 50 },
-          ],
+          productos: [{ producto_id: PRODUCTO_ID, cantidad: 1 }],
         },
         "user-1",
       );

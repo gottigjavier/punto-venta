@@ -356,16 +356,18 @@ export function ManualUsuarioPage() {
               </li>
               <li>
                 El <span className="font-medium">stock disponible</span>:
-                "Stock: 12 unidad" (o en la unidad que sea).
+                "Stock: 12 U" (la "U" significa "unidad"; si el producto es por
+                peso o volumen, se muestra kg, g, l o ml).
               </li>
               <li>
                 El <span className="font-medium">precio de venta</span>, en
                 negrita, a la derecha.
               </li>
               <li>
-                Si ese producto ya se vendió alguna vez, una línea en azul:
-                "Última venta: 2 unidad". Es la cantidad que se vendió en la
-                última oportunidad y la que se va a cargar en el carrito.
+                Si ese producto ya se vendió alguna vez, una línea en azul que
+                recuerda la cantidad vendida: por ejemplo "Última venta: 2 U".
+                Esa es la cantidad que se vendió en la última oportunidad y la
+                que se va a cargar en el carrito.
               </li>
               <li>
                 Si en esta sesión ya usaste una cantidad distinta de 1 para ese
@@ -811,8 +813,8 @@ export function ManualUsuarioPage() {
 
           <h3 className="text-base font-semibold">La lista de productos</h3>
           <p>
-            Cada fila muestra: Código, Nombre, Rubro, Proveedor, P. Compra, P.
-            Venta, Stock, Estado y Acciones.
+            Cada fila muestra: Código, Nombre, Rubro, Proveedor, P. Venta,
+            Stock, Estado y Acciones.
           </p>
           <ul className="ml-5 list-disc space-y-1">
             <li>
@@ -825,9 +827,8 @@ export function ManualUsuarioPage() {
               proveedor asignados.
             </li>
             <li>
-              <span className="font-medium">P. Compra</span> y{" "}
-              <span className="font-medium">P. Venta</span> — cuánto te costó y
-              a cuánto lo vendés.
+              <span className="font-medium">P. Venta</span> — a cuánto lo
+              vendés.
             </li>
             <li>
               <span className="font-medium">Stock</span> — la cantidad
@@ -884,17 +885,8 @@ export function ManualUsuarioPage() {
               producto, único para identificarlo.
             </li>
             <li>
-              <span className="font-medium">Precio Compra *</span> — lo que te
-              costó a vos. Acepta decimales (0,01).
-            </li>
-            <li>
               <span className="font-medium">Precio Venta *</span> — lo que
               cobrás al cliente. Es el precio que muestra la terminal.
-            </li>
-            <li>
-              <span className="font-medium">Cantidad en Stock *</span> — cuánto
-              hay disponible hoy. Acepta decimales: si son productos por peso,
-              podés cargar 1,5 (kg) o 250 (g).
             </li>
             <li>
               <span className="font-medium">Rubro *</span> — de qué categoría
@@ -923,21 +915,13 @@ export function ManualUsuarioPage() {
               Pan (vence pronto): 3. Rango: 0–365. Si es 0, nunca marca "Por
               vencer" (solo "OK" o "Vencido").
             </li>
-            <li>
-              <span className="font-medium">Fecha Compra</span> — cuándo
-              compraste ese lote (opcional).
-            </li>
-            <li>
-              <span className="font-medium">Fecha Vencimiento</span> — cuándo
-              vence (opcional). Si lo cargás, el producto aparece como "Por
-              vencer" o "Vencido" en el módulo Stock cuando corresponde.
-            </li>
-            <li>
-              <span className="font-medium">N° de Lote</span> — se asigna al
-              ingresar stock (crear un lote) en el módulo Stock; identifica la
-              entrega o remesa (opcional, para control de tráficos).
-            </li>
           </ul>
+          <p>
+            Ojo: acá solo definís los datos del <em>producto</em>. El precio de
+            compra, la cantidad en stock y las fechas de compra/vencimiento no
+            se cargan en este formulario: se manejan por <em>lotes</em> en el
+            módulo <span className="font-medium">Stock</span> (ver sección 7).
+          </p>
 
           <h3 className="text-base font-semibold">Editar y eliminar</h3>
           <p>
@@ -974,11 +958,12 @@ export function ManualUsuarioPage() {
           <Ejemplo title="Ejemplo de alta">
             <p>
               Llega un cargamento de cajones de manzanas. Creás el producto:
-              Nombre "Manzana Roja", Código "MANZ-01", Precio Compra $900,
-              Precio Venta $1.200, Cantidad en Stock 30, Rubro "Frutas",
-              Proveedor "Huerquia", Unidad de Medida "kg", Cantidad Aviso 5,
-              Fecha Compra hoy. Cuando el stock baje de 5 kg, el número de stock
-              se pintará en azul y vas a saber que hay que reponer.
+              Nombre "Manzana Roja", Código "MANZ-01", Precio Venta $1.200,
+              Rubro "Frutas", Proveedor "Huerquia", Unidad de Medida "kg",
+              Cantidad Aviso 5. Cuando el stock baje de 5 kg, el número de stock
+              se pintará en azul y vas a saber que hay que reponer. Las unidades
+              en sí (30 kg, por ejemplo) las vas a cargar después en el módulo{" "}
+              <span className="font-medium">Stock</span> con "Ingreso de Stock".
             </p>
           </Ejemplo>
         </CardContent>
@@ -1255,27 +1240,66 @@ export function ManualUsuarioPage() {
         </CardHeader>
         <CardContent className="space-y-4 text-sm leading-relaxed">
           <p>
-            El módulo Stock es la{" "}
-            <span className="font-medium">consulta del inventario</span>: un
-            solo lugar para ver todos los productos con su stock, su precio y su
-            vencimiento.
+            El módulo Stock gestiona el inventario por <em>lotes</em>: cada vez
+            que entra mercadería se crea (o se suma a) un lote que tiene su
+            propia cantidad, fecha de compra, fecha de vencimiento y precio de
+            compra. La vista principal muestra solo los lotes activos; lo que se
+            agota, vence o descarta pasa a{" "}
+            <span className="font-medium">Archivados</span>.
           </p>
 
-          <h3 className="text-base font-semibold">Filtros y orden</h3>
-          <p>Arriba de la tabla tenés muchas herramientas:</p>
+          <h3 className="text-base font-semibold">Cargar stock</h3>
+          <p>
+            Para <span className="font-medium">cargar o sumar stock</span>, tocá
+            el botón <span className="font-medium">Ingreso de Stock</span>. Ahí
+            elegís el <span className="font-medium">Producto *</span> y
+            completás:
+          </p>
           <ul className="ml-5 list-disc space-y-1">
             <li>
-              <span className="font-medium">Búsqueda</span> por nombre o código.
+              <span className="font-medium">N° de Lote</span> — opcional;
+              identifica la entrega o remesa.
+            </li>
+            <li>
+              <span className="font-medium">Cantidad *</span> — cuántas unidades
+              entran. Acepta decimales (1,5 kg o 250 g).
+            </li>
+            <li>
+              <span className="font-medium">Fecha Compra</span> — cuándo entró
+              (opcional).
+            </li>
+            <li>
+              <span className="font-medium">Fecha Vencimiento</span> — cuándo
+              vence (opcional). Si la cargás, el lote se marca "Por vencer" o
+              "Vencido" cuando corresponde.
+            </li>
+            <li>
+              <span className="font-medium">Precio Compra *</span> — lo que te
+              costó a vos. Acepta decimales.
+            </li>
+          </ul>
+          <p>
+            Si ya existe un lote con el mismo producto, mismo N° de Lote y misma
+            fecha de vencimiento, el sistema <em>suma</em> las unidades; si no,
+            crea un lote nuevo.
+          </p>
+
+          <h3 className="text-base font-semibold">Filtros, búsqueda y orden</h3>
+          <p>Arriba de la tabla tenés:</p>
+          <ul className="ml-5 list-disc space-y-1">
+            <li>
+              <span className="font-medium">Búsqueda</span> por nombre, código o
+              N° de Lote.
             </li>
             <li>
               Selector de <span className="font-medium">Rubro</span> ("Todos los
               rubros" o uno particular).
             </li>
             <li>
-              El botón <span className="font-medium">Archivados</span>: al
-              activarlo cambia la vista y deja ver solo los lotes archivados
-              (agotados, vencidos o descartados). En esa vista no se puede
-              retirar un lote. Se resalta cuando está activo.
+              El botón <span className="font-medium">Archivados</span>: cambia
+              la vista para ver solo los lotes archivados (agotados, vencidos o
+              descartados). En esa vista no se puede retirar un lote. Se resalta
+              cuando está activo.
             </li>
             <li>
               Botón de <span className="font-medium">actualizar</span> y el
@@ -1286,41 +1310,60 @@ export function ManualUsuarioPage() {
             Para <span className="font-medium">ordenar</span>, tocá el
             encabezado de una columna: la flechita te muestra en qué columna
             estás ordenando y hacia dónde (sube o baja). Tocando de nuevo,
-            invertís el orden. Podés ordenar por código, nombre, stock
-            disponible, cantidad de aviso, precio de venta o vencimiento. Por
-            defecto viene ordenado por fecha de carga, de lo más nuevo a lo más
-            antiguo.
-          </p>
-          <p>
-            La tabla muestra: Código, Nombre, Rubro, Proveedor, Stock
-            Disponible, Cant. Aviso, P. Venta, Vencimiento, Estado y Acciones.
-            Abajo tenés la paginación con números de página (con puntos
-            suspensivos cuando son muchas).
+            invertís el orden. Podés ordenar por N° de Lote, producto, cantidad
+            disponible, vencimiento o precio de compra. Por defecto viene
+            ordenado por fecha de carga, de lo más nuevo a lo más antiguo.
           </p>
 
-          <h3 className="text-base font-semibold">
-            Cómo leer los estados y avisos
-          </h3>
+          <h3 className="text-base font-semibold">La tabla de lotes</h3>
+          <p>
+            Cada fila es un lote y muestra: N° de Lote, Producto (con su código
+            debajo), Rubro, Proveedor, Cant. Disponible, Fecha Compra,
+            Vencimiento, P. Compra, Estado Lote, Vencimiento y Acciones.
+          </p>
+          <p className="font-medium">Estado Lote</p>
           <ul className="ml-5 list-disc space-y-1">
             <li>
-              <span className="font-medium">Stock bajo (número en azul)</span> —
-              el producto está por debajo de su aviso de stock. Conviene
-              reponerlo.
+              <Badge variant="success" className="align-middle">
+                Activo
+              </Badge>{" "}
+              — tiene unidades disponibles.
             </li>
+            <li>
+              <Badge variant="outline" className="align-middle">
+                Agotado
+              </Badge>{" "}
+              — quedó en 0.
+            </li>
+            <li>
+              <Badge variant="destructive" className="align-middle">
+                Vencido
+              </Badge>{" "}
+              — pasó su fecha de vencimiento.
+            </li>
+            <li>
+              <Badge variant="secondary" className="align-middle">
+                Descartado
+              </Badge>{" "}
+              — lo retiraste (lo marcaste para no venderlo).
+            </li>
+          </ul>
+          <p className="font-medium">Vencimiento</p>
+          <ul className="ml-5 list-disc space-y-1">
             <li>
               <Badge variant="success" className="align-middle">
                 OK
               </Badge>{" "}
-              — el producto está bien: no está vencido ni por vencer.
+              — lejos de vencer.
             </li>
             <li>
               <Badge variant="outline" className="align-middle">
                 Por vencer
               </Badge>{" "}
-              — se acerca la fecha de vencimiento (según los{" "}
-              <span className="font-medium">Días Preaviso Vencimiento</span>
-              configurados en cada producto: default 30, aceite 60, pan 3,
-              etc.). Vendelo o fijate qué vas a hacer con él.
+              — se acerca la fecha (según los{" "}
+              <span className="font-medium">Días Preaviso Vencimiento</span> del
+              producto: default 30, aceite 60, pan 3). Vendelo o fijate qué vas
+              a hacer con él.
             </li>
             <li>
               <Badge variant="destructive" className="align-middle">
@@ -1330,14 +1373,17 @@ export function ManualUsuarioPage() {
             </li>
           </ul>
           <p>
-            Para{" "}
-            <span className="font-medium">
-              cargar stock o corregir cantidades
-            </span>
-            , se edita el producto desde el módulo{" "}
-            <span className="font-medium">Productos</span> (campo "Cantidad en
-            Stock"). Este módulo Stock es de lectura y análisis; el botón de
-            lápiz de la última columna todavía no tiene función cargada.
+            La <span className="font-medium">Cant. Disponible</span> se pinta en
+            azul cuando el lote está por debajo del aviso de stock del producto
+            (conviene reponer).
+          </p>
+          <p>
+            En <span className="font-medium">Acciones</span> hay tres botones:
+            el lápiz para <em>editar el lote</em> (solo sus metadatos: N° de
+            Lote, fechas y precio de compra; el stock no se altera ahí), el
+            botón <span className="font-medium">Retirar</span> para marcarlo
+            como descartado, y la papelera roja para <em>eliminarlo</em> (si ya
+            tiene ventas, no te deja).
           </p>
         </CardContent>
       </Card>

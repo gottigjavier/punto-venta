@@ -118,14 +118,10 @@ describe("createVenta — concurrencia de stock", () => {
       const f = await createFixture();
       try {
         const casoA: CreateVentaLike = {
-          productos: [
-            { producto_id: f.productoId, cantidad: 60, precio_unitario: 10 },
-          ],
+          productos: [{ producto_id: f.productoId, cantidad: 60 }],
         };
         const casoB: CreateVentaLike = {
-          productos: [
-            { producto_id: f.productoId, cantidad: 50, precio_unitario: 10 },
-          ],
+          productos: [{ producto_id: f.productoId, cantidad: 50 }],
         };
 
         // Lanzar ambas ventas concurrentemente. Una debe serializarse por FOR UPDATE.
@@ -185,10 +181,10 @@ describe("createVenta — concurrencia de stock", () => {
 });
 
 // Tipo mínimo del input para no depender del schema zod en el test de concurrencia.
+// SE2: el precio NO viaja en el input (el server lo toma del catálogo).
 interface CreateVentaLike {
   productos: Array<{
     producto_id: string;
     cantidad: number;
-    precio_unitario: number;
   }>;
 }

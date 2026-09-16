@@ -141,6 +141,20 @@ export const authApi = {
       { withCredentials: true },
     ),
   logout: () => api.post<ApiResponse<{ message: string }>>("/auth/logout"),
+  // Bootstrap (primer administrador)
+  bootstrapStatus: () =>
+    api.get<ApiResponse<{ needsBootstrap: boolean }>>("/auth/bootstrap-status"),
+  bootstrap: (data: {
+    nombre_usuario: string;
+    nik_usuario: string;
+    email: string;
+    password: string;
+    telefono?: string;
+  }) =>
+    api.post<ApiResponse<{ accessToken: string; user: UsuarioSafe }>>(
+      "/auth/bootstrap",
+      data,
+    ),
 };
 
 // Productos

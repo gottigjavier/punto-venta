@@ -124,9 +124,7 @@ describe("cerrarCaja ↔ deleteVenta — concurrencia", () => {
         // Venta completada abierta (stock del lote consumido).
         const resVenta = await createVenta(
           {
-            productos: [
-              { producto_id: f.productoId, cantidad: 2, precio_unitario: 10 },
-            ],
+            productos: [{ producto_id: f.productoId, cantidad: 2 }],
           } as never,
           f.usuarioId,
         );
@@ -187,9 +185,7 @@ describe("cerrarCaja ↔ deleteVenta — concurrencia", () => {
         try {
           const resVenta = await createVenta(
             {
-              productos: [
-                { producto_id: f.productoId, cantidad: 1, precio_unitario: 10 },
-              ],
+              productos: [{ producto_id: f.productoId, cantidad: 1 }],
             } as never,
             f.usuarioId,
           );

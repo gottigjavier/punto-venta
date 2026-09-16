@@ -709,10 +709,12 @@ function POSView() {
 
     try {
       const payload = {
+        // SE2: el server toma el precio de Producto.precio_venta (catálogo).
+        // El payload ya no envía precio_unitario — el cliente no puede fijar
+        // precios en una venta.
         productos: cart.map((item) => ({
           producto_id: item.producto_id,
           cantidad: item.cantidad,
-          precio_unitario: item.precio_venta,
         })),
       };
 

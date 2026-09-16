@@ -18,6 +18,12 @@ interface AuthContextType {
   login: (nik_usuario: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  // Permite a flujos ajenos al login (p. ej. el setup del primer admin) fijar
+  // la sesión desde un accessToken ya emitido por el servidor.
+  setUser: (user: User | null) => void;
+  // Indica si el sistema está en el estado de "primer uso" (sin ningún usuario),
+  // lo que fuerza a mostrar el asistente de setup en lugar del login.
+  needsBootstrap: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -54,8 +60,13 @@ function parseJwt(token: string): User | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // Primer uso: sin ningún usuario en el sistema (nunca se configuró). Fuerza
+  // el asistente de setup en lugar de la pantalla de login.
+  const [needsBootstrap, setNeedsBootstrap] = useState(false);
+
+  const setUser = useCallback((next: User | null) => setUserState(next), []);
 
   useEffect(() => {
     // Restaurar la sesión al cargar la SPA: el access token vive en memoria y no
@@ -70,7 +81,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAccessToken(token);
         if (active) setUser(parseJwt(token));
       } catch {
-        if (active) setUser(null);
+        // Sin sesión. Verificamos si el sistema está sin ningún usuario: en ese
+        // caso hay que mostrar el asistente de setup inicial (SE1) y no el login.
+        if (active) {
+          try {
+            const status = await authApi.bootstrapStatus();
+            if (active && status.data.data.needsBootstrap) {
+              setNeedsBootstrap(true);
+            }
+          } catch {
+            // Si no se puede consultar el estado (backend caído, red), seguimos
+            // el camino por defecto → login. En el peor caso el usuario ve la
+            // pantalla de login en vez del setup; no rompe el flujo normal.
+          }
+          setUser(null);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -79,14 +104,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [setUser]);
 
-  const login = useCallback(async (nik_usuario: string, password: string) => {
-    const { data } = await authApi.login(nik_usuario, password);
-    const token = data.data.accessToken;
-    setAccessToken(token);
-    setUser(parseJwt(token));
-  }, []);
+  const login = useCallback(
+    async (nik_usuario: string, password: string) => {
+      const { data } = await authApi.login(nik_usuario, password);
+      const token = data.data.accessToken;
+      setAccessToken(token);
+      setUser(parseJwt(token));
+    },
+    [setUser],
+  );
 
   const logout = useCallback(async () => {
     // Llamar al servidor para invalidar/borrar la cookie httpOnly del refresh
@@ -99,11 +127,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(null);
     setUser(null);
     redirectToLogin();
-  }, []);
+  }, [setUser]);
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, logout, isAuthenticated: !!user }}
+      value={{
+        user,
+        loading,
+        login,
+        logout,
+        isAuthenticated: !!user,
+        setUser,
+        needsBootstrap,
+      }}
     >
       {children}
     </AuthContext.Provider>
