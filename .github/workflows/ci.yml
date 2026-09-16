@@ -14,6 +14,12 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+# SC: mínimos permisos por defecto. Cada job hereda read-only y solo el job
+# `build` sobreescribe con lo que realmente necesita (packages: write para
+# push de imágenes, contents: write para crear la release).
+permissions:
+  contents: read
+
 jobs:
   # ──────────────────────────────────────────────
   # Job 1: Lint & Type Check
@@ -22,10 +28,12 @@ jobs:
     name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
           cache: 'npm'
@@ -72,10 +80,12 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
           cache: 'npm'
@@ -114,7 +124,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Install Podman
         run: |
@@ -159,12 +171,13 @@ jobs:
 
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-logs
           path: |
             api-logs.txt
             db-logs.txt
+          if-no-files-found: error
           retention-days: 5
 
       - name: Shutdown services
@@ -183,7 +196,9 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Install Podman
         run: |
@@ -191,41 +206,49 @@ jobs:
           sudo apt-get install -y podman
 
       - name: Login to GitHub Container Registry
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+        # Sin template-injection: el token via env (no echo a stdout) y el actor
+        # desde $GITHUB_ACTOR (automática), nunca ${{ github.actor }} en shell.
+        run: podman login ghcr.io -u "$GITHUB_ACTOR" --password-stdin <<< "$GITHUB_TOKEN"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract version from package.json
         id: version
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          SHORT_SHA=${GITHUB_SHA:0:7}
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Build API image
+        # Sólo se interpolan valores NO controlables por un atacante. REGISTRY e
+        # IMAGE_NAME vienen del entorno del workflow (no de un input/PR); la
+        # versión y el sha salen del paso `version`, no del trigger. Se pasan
+        # como env del paso y se referencian con $VAR para evitar template-injection.
+        env:
+          IMAGE_VERSION: ${{ steps.version.outputs.version }}
+          IMAGE_SHORT_SHA: ${{ steps.version.outputs.short_sha }}
         run: |
           podman build \
             --file api/Containerfile \
-            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api:${{ steps.version.outputs.version }} \
-            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api:latest \
-            --label "version=${{ steps.version.outputs.version }}" \
-            --label "git-sha=${{ steps.version.outputs.short_sha }}" \
+            --tag "$REGISTRY/$IMAGE_NAME/api:$IMAGE_VERSION" \
+            --tag "$REGISTRY/$IMAGE_NAME/api:latest" \
+            --label "version=$IMAGE_VERSION" \
+            --label "git-sha=$IMAGE_SHORT_SHA" \
             --label "build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             .
 
       - name: Push API image (versioned)
-        run: |
-          podman push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api:${{ steps.version.outputs.version }}
+        env:
+          IMAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: podman push "$REGISTRY/$IMAGE_NAME/api:$IMAGE_VERSION"
 
       - name: Push API image (latest)
-        run: |
-          podman push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api:latest
+        run: podman push "$REGISTRY/$IMAGE_NAME/api:latest"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Release v${{ steps.version.outputs.version }}
-          generate_release_notes: true
+        # gh release es la CLI nativa del runner (sin acción de terceros).
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: gh release create "v$IMAGE_VERSION" --title "Release v$IMAGE_VERSION" --generate-notes

@@ -13,9 +13,9 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-log()  { echo -e "${GREEN}[DEPLOY]${NC} $*"; }
+log() { echo -e "${GREEN}[DEPLOY]${NC} $*"; }
 warn() { echo -e "${YELLOW}[DEPLOY]${NC} $*"; }
-err()  { echo -e "${RED}[DEPLOY]${NC} $*" >&2; }
+err() { echo -e "${RED}[DEPLOY]${NC} $*" >&2; }
 
 # ─── Pre-deploy checks ────────────────────────
 log "=== Punto de Venta - Deployment ==="
@@ -34,10 +34,10 @@ fi
 
 # ─── Step 1: Pull latest changes ──────────────
 log "Step 1/5: Pulling latest changes..."
-if command -v jj &> /dev/null; then
+if command -v jj &>/dev/null; then
   jj pull 2>/dev/null || warn "jj pull failed — working with current state"
   jj update 2>/dev/null || warn "jj update failed"
-elif command -v git &> /dev/null; then
+elif command -v git &>/dev/null; then
   git pull --rebase 2>/dev/null || warn "git pull failed — working with current state"
 else
   warn "No VCS found — skipping pull"
@@ -58,7 +58,7 @@ podman compose -f "$COMPOSE_FILE" build --no-cache
 # ─── Step 4: Run migrations ───────────────────
 log "Step 4/5: Running database migrations..."
 podman compose -f "$COMPOSE_FILE" up -d db redis
-sleep 5  # Wait for DB to be ready
+sleep 5 # Wait for DB to be ready
 
 podman compose -f "$COMPOSE_FILE" exec -T api npx prisma migrate deploy 2>/dev/null || {
   warn "Migrations may need the API to be running. Attempting restart..."
@@ -67,11 +67,12 @@ podman compose -f "$COMPOSE_FILE" exec -T api npx prisma migrate deploy 2>/dev/n
   podman compose -f "$COMPOSE_FILE" exec -T api npx prisma migrate deploy || err "Migration failed — check logs."
 }
 
-# Seed: crea el usuario admin (upsert idempotente) para el primer ingreso.
-# Sin esto, la DB queda sin usuarios y el primer login falla con 401.
-log "Running database seed (idempotente)..."
-podman compose -f "$COMPOSE_FILE" exec -T api npx prisma db seed 2>/dev/null || \
-  warn "Seed falló — el primer usuario admin podría no existir. Corré 'npx prisma db seed' manualmente."
+# DV2 (seed condicional): NO se corre `prisma db seed` en producción. El seed
+# ya aborta solo cuando NODE_ENV=production y, sobre todo, el primer
+# administrador ya no se crea por seed: se crea con el asistente de setup
+# (POST /auth/bootstrap) que la app redirige en el primer arranque, sin
+# credenciales por defecto. Correr el seed acá sería ruido / riesgo de
+# re-seedear datos de ejemplo en prod.
 
 # ─── Step 5: Deploy with rolling restart ──────
 log "Step 5/5: Deploying services..."

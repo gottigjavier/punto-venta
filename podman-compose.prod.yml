@@ -23,7 +23,7 @@ services:
     secrets:
       - db_password
     volumes:
-      - pv-postgres-data:/var/lib/postgresql/data
+      - pv-postgres-data-prod:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pv_user} -d punto_venta"]
       interval: 10s
@@ -110,7 +110,7 @@ services:
 # Volumes
 # ──────────────────────────────────────────────
 volumes:
-  pv-postgres-data:
+  pv-postgres-data-prod:
     driver: local
 
 # ──────────────────────────────────────────────

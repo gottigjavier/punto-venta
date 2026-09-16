@@ -14,7 +14,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: punto_venta_dev
     volumes:
-      - pv-postgres-data:/var/lib/postgresql/data
+      - pv-postgres-data-dev:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -75,5 +75,5 @@ services:
       - ./client/vite.config.ts:/app/vite.config.ts:ro
 
 volumes:
-  pv-postgres-data:
+  pv-postgres-data-dev:
     driver: local

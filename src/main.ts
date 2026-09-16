@@ -1,22 +1,25 @@
 // src/main.ts
 // Application entry point - Phase 5: Operations
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import cookie from '@fastify/cookie';
-import helmet from '@fastify/helmet';
-import rateLimit from '@fastify/rate-limit';
-import { env, APP_VERSION } from './infrastructure/config/env.js';
-import { logger } from './infrastructure/logging/logger.js';
-import { registerSwagger } from './infrastructure/swagger/swagger.js';
-import { authRoutes } from './adapters/http/routes/auth.routes.js';
-import { healthRoutes } from './adapters/http/routes/health.routes.js';
-import { productoRoutes } from './adapters/http/routes/producto.routes.js';
-import { proveedorRoutes } from './adapters/http/routes/proveedor.routes.js';
-import { rubroRoutes } from './adapters/http/routes/rubro.routes.js';
-import { usuarioRoutes } from './adapters/http/routes/usuario.routes.js';
-import { stockRoutes } from './adapters/http/routes/stock.routes.js';
-import { loteRoutes } from './adapters/http/routes/lotes.routes.js';
-import { ventaRoutes } from './adapters/http/routes/venta.routes.js';
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
+import { env, APP_VERSION } from "./infrastructure/config/env.js";
+import { logger } from "./infrastructure/logging/logger.js";
+import {
+  registerSchemas,
+  registerSwagger,
+} from "./infrastructure/swagger/swagger.js";
+import { authRoutes } from "./adapters/http/routes/auth.routes.js";
+import { healthRoutes } from "./adapters/http/routes/health.routes.js";
+import { productoRoutes } from "./adapters/http/routes/producto.routes.js";
+import { proveedorRoutes } from "./adapters/http/routes/proveedor.routes.js";
+import { rubroRoutes } from "./adapters/http/routes/rubro.routes.js";
+import { usuarioRoutes } from "./adapters/http/routes/usuario.routes.js";
+import { stockRoutes } from "./adapters/http/routes/stock.routes.js";
+import { loteRoutes } from "./adapters/http/routes/lotes.routes.js";
+import { ventaRoutes } from "./adapters/http/routes/venta.routes.js";
 
 // Performance metrics in memory
 const metrics = {
@@ -41,8 +44,8 @@ async function bootstrap(): Promise<void> {
   });
 
   // ===== Performance: Request timing hook =====
-  fastify.addHook('onResponse', (request, reply, done) => {
-    const responseTime = Number(reply.getHeader('x-response-time')) || 0;
+  fastify.addHook("onResponse", (request, reply, done) => {
+    const responseTime = Number(reply.getHeader("x-response-time")) || 0;
     metrics.requestCount++;
     metrics.totalResponseTime += responseTime;
 
@@ -56,18 +59,18 @@ async function bootstrap(): Promise<void> {
       url: request.url,
       statusCode: reply.statusCode,
       responseTime: `${responseTime}ms`,
-      userAgent: request.headers['user-agent'],
+      userAgent: request.headers["user-agent"],
       ip: request.ip,
     };
 
     if (reply.statusCode >= 500) {
-      logger.error(logData, 'Request completed with server error');
+      logger.error(logData, "Request completed with server error");
     } else if (reply.statusCode >= 400) {
-      logger.warn(logData, 'Request completed with client error');
+      logger.warn(logData, "Request completed with client error");
     } else if (responseTime > 200) {
-      logger.warn(logData, 'Slow request detected');
+      logger.warn(logData, "Slow request detected");
     } else {
-      logger.info(logData, 'Request completed');
+      logger.info(logData, "Request completed");
     }
 
     done();
@@ -84,14 +87,14 @@ async function bootstrap(): Promise<void> {
   // });
 
   // Rate limiting global (deshabilitado en desarrollo para facilitar testing)
-  if (env.NODE_ENV === 'production') {
+  if (env.NODE_ENV === "production") {
     await fastify.register(rateLimit, {
       max: env.RATE_LIMIT_MAX_REQUESTS * 10,
       timeWindow: env.RATE_LIMIT_WINDOW_MS,
       errorResponseBuilder: (_request, context) => ({
         success: false,
         error: {
-          code: 'RATE_LIMIT_EXCEEDED',
+          code: "RATE_LIMIT_EXCEEDED",
           message: `Demasiadas peticiones. Intenta de nuevo en ${Math.ceil(context.ttl / 1000)}s`,
           details: {
             limit: context.max,
@@ -100,7 +103,7 @@ async function bootstrap(): Promise<void> {
         },
       }),
       keyGenerator: (request) => {
-        return request.ip ?? request.socket.remoteAddress ?? 'unknown';
+        return request.ip ?? request.socket.remoteAddress ?? "unknown";
       },
     });
   }
@@ -121,22 +124,30 @@ async function bootstrap(): Promise<void> {
     contentSecurityPolicy: false,
   });
 
+  // Schemas compartidos (los routes los referencian por `$ref`, ej.
+  // "LoginResponse") — DEBEN registrarse en todos los entornos, incluido
+  // producción, o la serialización de rutas como /login explota con
+  // FST_ERR_SCH_SERIALIZATION_BUILD. Es independiente de exponer Swagger.
+  registerSchemas(fastify);
+
   // Swagger/OpenAPI documentation — NO se expone en producción (S7): la doc
   // interactiva en prod filtra el contrato y habilita pruebas no deseadas.
-  if (env.NODE_ENV !== 'production') {
+  if (env.NODE_ENV !== "production") {
     await registerSwagger(fastify);
   }
 
   // ===== Plugin de métricas =====
-  fastify.get('/metrics', async (request, reply) => {
+  fastify.get("/metrics", async (request, reply) => {
     // S7: /metrics protegido — requiere Bearer token si METRICS_TOKEN está
     // configurado; sin token y en producción, no se expone (403).
     if (env.METRICS_TOKEN) {
       if (request.headers.authorization !== `Bearer ${env.METRICS_TOKEN}`) {
-        return reply.status(401).send({ error: 'Unauthorized' });
+        return reply.status(401).send({ error: "Unauthorized" });
       }
-    } else if (env.NODE_ENV === 'production') {
-      return reply.status(403).send({ error: 'Metrics not enabled in production' });
+    } else if (env.NODE_ENV === "production") {
+      return reply
+        .status(403)
+        .send({ error: "Metrics not enabled in production" });
     }
 
     const uptime = Math.floor((Date.now() - metrics.startTime) / 1000);
@@ -152,7 +163,7 @@ async function bootstrap(): Promise<void> {
       error_rate:
         metrics.requestCount > 0
           ? `${((metrics.errorCount / metrics.requestCount) * 100).toFixed(2)}%`
-          : '0%',
+          : "0%",
       avg_response_time_ms: avgResponseTime,
       timestamp: new Date().toISOString(),
     };
@@ -160,24 +171,24 @@ async function bootstrap(): Promise<void> {
 
   // ===== Register routes =====
   await fastify.register(healthRoutes);
-  await fastify.register(authRoutes, { prefix: '/api/v1/auth' });
-  await fastify.register(productoRoutes, { prefix: '/api/v1/productos' });
-  await fastify.register(proveedorRoutes, { prefix: '/api/v1/proveedores' });
-  await fastify.register(rubroRoutes, { prefix: '/api/v1/rubros' });
-  await fastify.register(usuarioRoutes, { prefix: '/api/v1/usuarios' });
-  await fastify.register(stockRoutes, { prefix: '/api/v1/stock' });
-  await fastify.register(loteRoutes, { prefix: '/api/v1/lotes' });
-  await fastify.register(ventaRoutes, { prefix: '/api/v1/ventas' });
+  await fastify.register(authRoutes, { prefix: "/api/v1/auth" });
+  await fastify.register(productoRoutes, { prefix: "/api/v1/productos" });
+  await fastify.register(proveedorRoutes, { prefix: "/api/v1/proveedores" });
+  await fastify.register(rubroRoutes, { prefix: "/api/v1/rubros" });
+  await fastify.register(usuarioRoutes, { prefix: "/api/v1/usuarios" });
+  await fastify.register(stockRoutes, { prefix: "/api/v1/stock" });
+  await fastify.register(loteRoutes, { prefix: "/api/v1/lotes" });
+  await fastify.register(ventaRoutes, { prefix: "/api/v1/ventas" });
 
   // ===== Start server =====
   try {
     const port = env.PORT ?? env.API_PORT ?? 3001;
-    await fastify.listen({ port, host: '0.0.0.0' });
+    await fastify.listen({ port, host: "0.0.0.0" });
     logger.info(`🚀 Server running on port ${port} (v${APP_VERSION})`);
     logger.info(`📊 Health: http://localhost:${port}/health`);
     logger.info(`🔍 Readiness: http://localhost:${port}/ready`);
     logger.info(`📈 Metrics: http://localhost:${port}/metrics`);
-    if (env.NODE_ENV !== 'production') {
+    if (env.NODE_ENV !== "production") {
       logger.info(`📚 API Docs: http://localhost:${port}/docs`);
     }
     logger.info(`🔑 Auth: http://localhost:${port}/api/v1/auth/login`);
@@ -189,7 +200,7 @@ async function bootstrap(): Promise<void> {
     logger.info(`📦 Lotes: http://localhost:${port}/api/v1/lotes`);
     logger.info(`💰 Ventas: http://localhost:${port}/api/v1/ventas`);
   } catch (error) {
-    logger.error(error, 'Error starting server');
+    logger.error(error, "Error starting server");
     process.exit(1);
   }
 }

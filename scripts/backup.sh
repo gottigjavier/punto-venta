@@ -19,12 +19,12 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-log_info()  { echo -e "${GREEN}[INFO]${NC}  $(date '+%Y-%m-%d %H:%M:%S') $*"; }
-log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $(date '+%Y-%m-%d %H:%M:%S') $*"; }
+log_info() { echo -e "${GREEN}[INFO]${NC}  $(date '+%Y-%m-%d %H:%M:%S') $*"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC}  $(date '+%Y-%m-%d %H:%M:%S') $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $(date '+%Y-%m-%d %H:%M:%S') $*" >&2; }
 
 # ─── Pre-flight checks ────────────────────────
-if ! command -v podman &> /dev/null; then
+if ! command -v podman &>/dev/null; then
   log_error "podman not found. Install podman first."
   exit 1
 fi
@@ -36,6 +36,14 @@ if ! podman ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
   exit 1
 fi
 
+# Password: leer del secret montado en prod (/run/secrets/db_password). Si no
+# está disponible, PGPASSWORD queda vacía y pg_dump usa trust auth del socket
+# unix dentro del contenedor (comportamiento por defecto del camino local).
+DB_PASSWORD=""
+if [ -r /run/secrets/db_password ]; then
+  DB_PASSWORD="$(cat /run/secrets/db_password)"
+fi
+
 # ─── Create backup directory ───────────────────
 mkdir -p "$BACKUP_DIR"
 
@@ -44,12 +52,12 @@ BACKUP_FILE="${BACKUP_DIR}/backup_${TIMESTAMP}.sql.gz"
 
 log_info "Starting backup of '${DB_NAME}' from container '${CONTAINER_NAME}'..."
 
-if podman exec "$CONTAINER_NAME" \
+if podman exec -e PGPASSWORD="$DB_PASSWORD" "$CONTAINER_NAME" \
   pg_dump -U "$DB_USER" -d "$DB_NAME" \
   --format=custom \
   --compress=9 \
-  --verbose 2>/dev/null \
-  | gzip > "$BACKUP_FILE"; then
+  --verbose 2>/dev/null |
+  gzip >"$BACKUP_FILE"; then
 
   BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
   log_info "Backup completed: ${BACKUP_FILE} (${BACKUP_SIZE})"
@@ -86,8 +94,8 @@ log_info "  Retention:  ${RETENTION_DAYS} days"
 log_info "  Next:       $(date -d '+1 day' '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'N/A')"
 
 # ─── Verify backup with pg_restore (dry run) ───
-if command -v pg_restore &> /dev/null; then
-  if pg_restore --list "$BACKUP_FILE" &> /dev/null; then
+if command -v pg_restore &>/dev/null; then
+  if pg_restore --list "$BACKUP_FILE" &>/dev/null; then
     log_info "pg_restore verification: OK"
   else
     log_warn "pg_restore verification: FAILED (backup may still be valid)"

@@ -3,7 +3,7 @@
 ## 1. Stack Overview
 
 | Component | Technology | Port | Health Check |
-|-----------|-----------|------|-------------|
+| ----------- | ----------- | ------ | ------------- |
 | API | Fastify + Node 20 | 3001 | `GET /health` |
 | Database | PostgreSQL 16 Alpine | 5432 (dev only) | `pg_isready` |
 | Cache | Redis 7 Alpine | 6379 (dev only) | `redis-cli ping` |
@@ -64,11 +64,12 @@ echo "your-db-password" > secrets/db_password.txt
 ```
 
 **Services will be available at:**
-- API: http://localhost:3001
-- Swagger docs: http://localhost:3001/docs
-- Health: http://localhost:3001/health
-- Readiness: http://localhost:3001/ready
-- Metrics: http://localhost:3001/metrics
+
+- API: <http://localhost:3001>
+- Swagger docs: <http://localhost:3001/docs>
+- Health: <http://localhost:3001/health>
+- Readiness: <http://localhost:3001/ready>
+- Metrics: <http://localhost:3001/metrics>
 - PostgreSQL: localhost:5432
 - Redis: localhost:6379
 
@@ -158,7 +159,7 @@ podman compose -f podman-compose.prod.yml up -d
 ### Production Differences from Development
 
 | Feature | Development | Production |
-|---------|------------|------------|
+| --------- | ------------ | ------------ |
 | Port exposure | All services exposed | Only API exposed |
 | Swagger docs | Enabled | Disabled |
 | Log level | debug | info (configurable) |
@@ -175,7 +176,7 @@ podman compose -f podman-compose.prod.yml up -d
 ### Endpoints
 
 | Endpoint | Method | Purpose | Expected |
-|----------|--------|---------|----------|
+| ---------- | -------- | --------- | ---------- |
 | `/health` | GET | Liveness probe — is the process alive? | Always 200 |
 | `/ready` | GET | Readiness probe — can it serve traffic? | 200 (OK) or 503 (not ready) |
 | `/metrics` | GET | Performance metrics | Always 200 |
@@ -232,7 +233,55 @@ podman stats --no-stream
 
 ## 6. Backup & Restore
 
-### Automated Backups
+> Hay **dos caminos de producción**. No los mezcles: la estrategia de
+> backup/restore es diferente para cada uno.
+>
+> - **Cloud (recomendado / el que está activo)**: frontend → Vercel, backend →
+>   Render, DB → **Neon**. El backup de la base lo provee Neon (PITR + branch);
+>   NO corras un `pg_dump` en crontab contra Neon (es redundante con Neon).
+> - **Self-host**: `podman-compose.prod.yml` + `scripts/backup.sh` /
+>   `scripts/restore.sh` contra el contenedor `pv-db-prod`. Sirve para quien
+>   prefiere salir de los proveedores y alojar la DB en su propio Podman.
+
+### 6.1 Cloud path (Neon) — primary
+
+La DB de producción vive en **Neon**. El backup **no lo hacés vos**: Neon ofrece
+punto de recuperación en el tiempo (PITR), branches y snapshots de
+almacenamiento. Esta es tu ALTA disponibilidad y tu recovery primario.
+
+- **PITR**: restaurar la DB a cualquier segundo dentro de la ventana de
+  retención de tu plan. Es el mecanismo de recovery ante un borrado o corrupción.
+- **Branches**: creá una branch a partir de un timestamp sin tocar producción;
+  ideal para probar una migración o reproducir un bug.
+
+```bash
+# List branches / TIMELINE
+neonctl branches list
+
+# Crear una branch a partir de un punto en el tiempo (rollback a un snapshot)
+neonctl branches create \
+  --name rollback-$(date +%Y%m%d) \
+  --parent <main-branch-id> \
+  --parent-timestamp "2026-09-15 10:00:00"
+
+# Promover la branch a nueva principal (o apuntar la conexión a la branch)
+neonctl branches promote --name rollback-$(date +%Y%m%d)
+```
+
+Recomendaciones:
+
+1. **Verificá la retención de PITR** de tu plan de Neon y ajustala a tu RPO
+   objetivo (los planes free tienen una ventana corta).
+2. **Copia fuera del proveedor (defensa en profundidad, opcional)**: si querés
+   que el backup sobreviva a un borrado accidental del proyecto de Neon, exportá
+   un `pg_dump` a un bucket (S3/Backblaze) con baja frecuencia. No es el respaldo
+   primario; es un seguro.
+
+### 6.2 Self-host path (Podman) — alternativa
+
+Aplica cuando la DB corre en un contenedor `pv-db-prod` bajo `podman-compose.prod.yml`.
+
+#### Automated Backups
 
 ```bash
 # Manual backup
@@ -249,7 +298,11 @@ podman stats --no-stream
 0 */6 * * * /path/to/scripts/backup.sh >> /var/log/punto-venta-backup.log 2>&1
 ```
 
-### Backup Details
+`backup.sh` detecta la password de la DB desde el secret montado
+(`/run/secrets/db_password`). Si no está montado, cae a trust-auth por socket
+(unix) dentro del contenedor.
+
+#### Backup Details
 
 - **Format**: Custom PostgreSQL format (compressed with gzip level 9)
 - **Location**: `/backups/punto-venta/` (configurable)
@@ -258,20 +311,29 @@ podman stats --no-stream
 - **Integrity**: Verified with `gzip -t` after creation
 - **Verification**: `pg_restore --list` (if pg_restore is available)
 
-### Restore
+#### Restore
 
 ```bash
 # List available backups
 ls -la /backups/punto-venta/
 
-# Restore from backup (WARNING: this overwrites current data!)
-gunzip -c /backups/punto-venta/backup_20260714_020000.sql.gz | \
-  podman exec -i pv-db-prod pg_restore -U pv_user -d punto_venta --clean --if-exists
+# Inspect a backup's TOC without touching the DB
+./scripts/restore.sh --list /backups/punto-venta/backup_20260714_020000.sql.gz
 
-# Or using pg_dump custom format
-podman exec -i pv-db-prod pg_restore -U pv_user -d punto_venta \
-  --clean --if-exists < /backups/punto-venta/backup_20260714_020000.sql.gz
+# Validate a backup without restoring
+./scripts/restore.sh --dry-run /backups/punto-venta/backup_20260714_020000.sql.gz
+
+# Restore (WARNING: overwrites current data, prompts for confirmation)
+./scripts/restore.sh /backups/punto-venta/backup_20260714_020000.sql.gz
+
+# With custom container
+./scripts/restore.sh /backups/punto-venta/backup_20260714_020000.sql.gz pv-db-prod
 ```
+
+`restore.sh` hace un drop/recreate del schema `public` antes de restaurar (limpieza
+completa), lee la password del secret si está disponible y pide confirmación
+antes de sobrescribir. Usa `--no-owner --role=<db_user>` para evitar problemas
+de ownership al restaurar con un rol distinto.
 
 ### Backup Monitoring
 
@@ -376,7 +438,7 @@ podman compose logs api 2>&1 | jq -r '.statusCode' | sort | uniq -c
 ## 8. Environment Variables Reference
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| ---------- | --------- | ------------- |
 | `DATABASE_URL` | — | PostgreSQL connection string (required) |
 | `JWT_SECRET` | — | Access token secret, min 32 chars (required) |
 | `JWT_REFRESH_SECRET` | — | Refresh token secret, min 32 chars (required) |

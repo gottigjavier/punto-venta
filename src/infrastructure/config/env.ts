@@ -1,7 +1,7 @@
 // src/infrastructure/config/env.ts
 // Environment configuration with validation
-import { z } from 'zod';
-import dotenv from 'dotenv';
+import { z } from "zod";
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -14,7 +14,9 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
 
   // Server
-  NODE_ENV: z.enum(['development', 'staging', 'production', 'test']).default('development'),
+  NODE_ENV: z
+    .enum(["development", "staging", "production", "test"])
+    .default("development"),
   PORT: z.coerce.number().optional(),
   API_PORT: z.coerce.number().default(3001),
 
@@ -41,7 +43,9 @@ const envSchema = z.object({
   LOCKOUT_DURATION_MINUTES: z.coerce.number().default(30),
 
   // Logging
-  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  LOG_LEVEL: z
+    .enum(["error", "warn", "info", "debug", "trace"])
+    .default("info"),
 
   // Metrics: token de scrape para proteger /metrics (S7). Si se configura,
   // /metrics exige `Authorization: Bearer <token>`. Sin token y en producción,
@@ -52,14 +56,17 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error('❌ Variables de entorno inválidas:', parsed.error.flatten().fieldErrors);
+  console.error(
+    "❌ Variables de entorno inválidas:",
+    parsed.error.flatten().fieldErrors,
+  );
   process.exit(1);
 }
 
 export const env = parsed.data;
 
 // Derived constants
-export const JWT_EXPIRES_IN = '15m';
-export const JWT_REFRESH_EXPIRES_IN = '7d';
+export const JWT_EXPIRES_IN = "15m";
+export const JWT_REFRESH_EXPIRES_IN = "7d";
 export const BCRYPT_SALT_ROUNDS = 12;
-export const APP_VERSION = '3.0.0';
+export const APP_VERSION = "3.0.0";

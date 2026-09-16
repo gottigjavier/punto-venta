@@ -14,10 +14,10 @@
 //
 // Necesita Postgres dev migrada (DATABASE_URL desde test/setup.ts). Sin DB,
 // los tests se omiten.
-import { describe, it, afterAll, expect } from 'vitest';
-import { prisma } from '../../infrastructure/database/prisma/client.js';
-import { hashPassword } from '../../infrastructure/auth/password.js';
-import { cerrarCaja, createVenta, deleteVenta } from './venta.use-case.js';
+import { describe, it, afterAll, expect } from "vitest";
+import { prisma } from "../../infrastructure/database/prisma/client.js";
+import { hashPassword } from "../../infrastructure/auth/password.js";
+import { cerrarCaja, createVenta, deleteVenta } from "./venta.use-case.js";
 
 async function pingDb(): Promise<boolean> {
   try {
@@ -25,7 +25,7 @@ async function pingDb(): Promise<boolean> {
     return true;
   } catch (e) {
     console.error(
-      '[cierre-concurrency] ping DB FAILED:',
+      "[cierre-concurrency] ping DB FAILED:",
       e instanceof Error ? e.message : String(e),
     );
     return false;
@@ -34,14 +34,14 @@ async function pingDb(): Promise<boolean> {
 const dbUp = await pingDb();
 if (!dbUp) {
   console.warn(
-    '[cierre-concurrency] DB no disponible; tests omitidos. Arranca Postgres (podman compose up -d db) para ejecutarlos.',
+    "[cierre-concurrency] DB no disponible; tests omitidos. Arranca Postgres (podman compose up -d db) para ejecutarlos.",
   );
 }
 
 // CI (TS1): REQUIRE_INTEGRATION_DB=1 fuerza que la DB esté disponible; si no lo
 // está, revienta en vez de omitir en silencio. Garantiza que el job de CI corre
 // los invariantes de concurrencia o falla.
-const requireIntegrationDb = process.env['REQUIRE_INTEGRATION_DB'] === '1';
+const requireIntegrationDb = process.env["REQUIRE_INTEGRATION_DB"] === "1";
 const skipIntegration = !dbUp && !requireIntegrationDb;
 
 interface Fixture {
@@ -70,7 +70,7 @@ async function createFixture(): Promise<Fixture> {
       precio_venta: 10,
       rubro_id: rubro.id,
       proveedor_id: proveedor.id,
-      unidad_medida: 'unidad',
+      unidad_medida: "unidad",
       cantidad_aviso: 0,
       activo: true,
       vencimiento_preaviso_dias: 30,
@@ -84,18 +84,18 @@ async function createFixture(): Promise<Fixture> {
       fecha_compra: new Date(),
       fecha_vencimiento: null,
       precio_compra: 5,
-      estado: 'activo',
+      estado: "activo",
     },
   });
   const username = `user_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  const password = 'caja-segura-123';
+  const password = "caja-segura-123";
   const usuario = await prisma.usuario.create({
     data: {
       nombre_usuario: username,
       nik_usuario: username,
       password_hash: await hashPassword(password),
       email: `${username}@test.local`,
-      rol: 'gerente',
+      rol: "gerente",
       activo: true,
     },
   });
@@ -114,13 +114,13 @@ async function deleteCierres(ids: string[]): Promise<void> {
   }
 }
 
-describe('cerrarCaja ↔ deleteVenta — concurrencia', () => {
+describe("cerrarCaja ↔ deleteVenta — concurrencia", () => {
   // Prerequisito: en CI (REQUIRE_INTEGRATION_DB=1) la DB debe estar disponible.
   if (requireIntegrationDb) {
-    it('[prereq] Postgres disponible para integración', () => {
+    it("[prereq] Postgres disponible para integración", () => {
       expect(
         dbUp,
-        'REQUIRE_INTEGRATION_DB=1 pero no hay Postgres. El job de CI debe levantar la DB o este test revienta.',
+        "REQUIRE_INTEGRATION_DB=1 pero no hay Postgres. El job de CI debe levantar la DB o este test revienta.",
       ).toBe(true);
     });
   }
@@ -133,7 +133,7 @@ describe('cerrarCaja ↔ deleteVenta — concurrencia', () => {
   });
 
   it.skipIf(skipIntegration)(
-    'deleteVenta lateral al cierre aún abierto: si el cierre archiva primero, deleteVenta responde CONFLICT',
+    "deleteVenta lateral al cierre aún abierto: si el cierre archiva primero, deleteVenta responde CONFLICT",
     async () => {
       const f = await createFixture();
       try {
@@ -163,7 +163,7 @@ describe('cerrarCaja ↔ deleteVenta — concurrencia', () => {
           expect(venta).not.toBeNull();
           expect(venta!.cierre_caja_id).not.toBeNull();
           expect(resDelete.isErr()).toBe(true);
-          expect(resDelete._unsafeUnwrapErr().code).toBe('CONFLICT');
+          expect(resDelete._unsafeUnwrapErr().code).toBe("CONFLICT");
         } else {
           // El delete ganó: la venta ya no existe y el cierre no la archivó.
           // (el cierre falla con NO_OPEN_SALES o bien ya no cuenta esta venta).
@@ -179,7 +179,7 @@ describe('cerrarCaja ↔ deleteVenta — concurrencia', () => {
             // en ese caso el delete no debió triunfar). Este branch es imposible
             // por el lock de fila; si aparece, es un bug de blindaje.
             expect.unreachable(
-              'cierre y delete no pueden triunfar ambos sobre la misma venta',
+              "cierre y delete no pueden triunfar ambos sobre la misma venta",
             );
           }
         }
@@ -194,7 +194,7 @@ describe('cerrarCaja ↔ deleteVenta — concurrencia', () => {
   );
 
   it.skipIf(skipIntegration)(
-    '8 carreras: nunca un cierre cuenta una venta borrada',
+    "8 carreras: nunca un cierre cuenta una venta borrada",
     async () => {
       for (let i = 0; i < 8; i++) {
         const f = await createFixture();
