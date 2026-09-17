@@ -974,24 +974,17 @@ describe("Venta Use Cases (modelo Lote)", () => {
       }
     });
 
-    it("fecha = apertura del cierre activo en UTC-3", async () => {
-      mockPrisma.cierreCaja.findFirst.mockResolvedValue({
-        fecha_apertura: new Date("2026-07-15T03:00:00Z"),
-      }); // 00:00 UTC-3
+    it("CO4: no consulta CierreCaja 'abierto' y fecha queda vacía", async () => {
       mockPrisma.$queryRaw
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
-      expect(mockPrisma.cierreCaja.findFirst).not.toHaveBeenCalled();
       const result = await getResumenDia();
-      expect(mockPrisma.cierreCaja.findFirst).toHaveBeenCalledWith({
-        where: { estado: "abierto" },
-        select: { fecha_apertura: true },
-      });
+      expect(mockPrisma.cierreCaja.findFirst).not.toHaveBeenCalled();
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
-        expect(result.value.fecha).toBe("2026-07-15");
+        expect(result.value.fecha).toBe("");
       }
     });
 

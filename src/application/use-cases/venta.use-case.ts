@@ -453,12 +453,6 @@ export async function listVentas(query: VentaQueryInput): Promise<
 // Get daily sales summary — scoped to the active cash period, not calendar day
 export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
   try {
-    // Find the active (open) cash closing — estado 'abierto' means not yet closed
-    const cierreActivo = await prisma.cierreCaja.findFirst({
-      where: { estado: "abierto" },
-      select: { fecha_apertura: true },
-    });
-
     // EF2 (reporte 26/09): la agregación baja a SQL (COUNT/SUM + GROUP BY) en
     // vez de materializar todas las ventas abiertas con detalle_venta + producto
     // y agregar por Maps en el proceso. Se leen solo agregados sobre el mismo
@@ -529,14 +523,11 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
     // Total de caja = ventas + ingresos - egresos
     const monto_total = monto_ventas + ingresos - egresos;
 
-    // fecha = opening date of active cierre (UTC-3), or empty if no active cierre
-    let fecha = "";
-    if (cierreActivo?.fecha_apertura) {
-      const aperturaLocal = new Date(
-        cierreActivo.fecha_apertura.getTime() + 3 * 3600 * 1000,
-      );
-      fecha = aperturaLocal.toISOString().split("T")[0] ?? "";
-    }
+    // CO4: no existe flujo que cree un CierreCaja con estado 'abierto' — el único
+    // insert (cerrarCaja) crea con estado 'cerrado'. El período abierto real se
+    // modela con cierre_caja_id IS NULL y no registra fecha_apertura, así que la
+    // fecha del resumen queda siempre vacía.
+    const fecha = "";
 
     const response: ResumenDia = {
       fecha,
