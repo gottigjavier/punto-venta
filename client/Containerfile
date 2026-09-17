@@ -9,7 +9,7 @@ WORKDIR /app
 
 # Install dependencies (deterministic: npm ci uses the package-lock.json)
 COPY package.json package-lock.json ./
-RUN npm config set fetch-retries 3 && npm config set fetch-retry-mintimeout 10000 && npm config set fetch-retry-maxtimeout 60000 && npm ci
+RUN for i in 1 2 3; do npm ci --fetch-retries=3 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000 && break || sleep 10; done
 
 # Copy source
 COPY . .

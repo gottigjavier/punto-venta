@@ -18,7 +18,7 @@ WORKDIR /app
 
 # Install ALL dependencies (dev + prod) so tsc can compile.
 COPY package*.json ./
-RUN npm config set fetch-retries 3 && npm config set fetch-retry-mintimeout 10000 && npm config set fetch-retry-maxtimeout 60000 && npm ci && npm cache clean --force
+RUN for i in 1 2 3; do npm ci --fetch-retries=3 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000 && break || sleep 10; done && npm cache clean --force
 
 # Prisma client (needs the schema + engines before building TS).
 COPY prisma ./prisma/
