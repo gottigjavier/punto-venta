@@ -1,5 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
-import { productosApi, rubrosApi, proveedoresApi } from "@/lib/api-client";
+import {
+  productosApi,
+  rubrosApi,
+  proveedoresApi,
+  type CreateProductoInput,
+  type Producto,
+  type ProductoQueryParams,
+  type Proveedor,
+  type Rubro,
+  type UnidadMedida,
+} from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,31 +49,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getApiErrorMessage, parseRestoreSuggestion } from "@/lib/api-errors";
-
-interface Producto {
-  id: string;
-  nombre: string;
-  codigo?: string;
-  precio_venta?: string | number;
-  stock_actual?: string | number;
-  cantidad_aviso?: number;
-  vencimiento_preaviso_dias?: number;
-  activo: boolean;
-  rubro?: { id: string; nombre: string };
-  proveedor?: { id: string; razon_social: string };
-  unidad_medida?: string;
-}
-
-interface Rubro {
-  id: string;
-  nombre: string;
-  activo: boolean;
-}
-
-interface Proveedor {
-  id: string;
-  razon_social: string;
-}
 
 const UNIDADES = ["kg", "g", "l", "ml", "unidad"] as const;
 
@@ -112,11 +97,11 @@ export function ProductsPage() {
   const fetchProductos = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = { limit: 50 };
+      const params: ProductoQueryParams = { limit: 50 };
       if (search) params.search = search;
       if (verInactivos) params.activo = "false";
       const { data } = await productosApi.list(params);
-      setProductos(data.data as Producto[]);
+      setProductos(data.data);
     } catch (e) {
       console.error("Error cargando productos:", e);
       setError("No se pudieron cargar los productos.");
@@ -134,7 +119,7 @@ export function ProductsPage() {
     rubrosApi
       .list()
       .then(({ data }) => {
-        setRubros((data.data as Rubro[]).filter((r) => r.activo));
+        setRubros(data.data.filter((r) => r.activo));
       })
       .catch((e) => {
         console.error("Error cargando rubros:", e);
@@ -142,7 +127,7 @@ export function ProductsPage() {
     proveedoresApi
       .list({ limit: 100 })
       .then(({ data }) => {
-        setProveedores(data.data as Proveedor[]);
+        setProveedores(data.data);
       })
       .catch((e) => {
         console.error("Error cargando proveedores:", e);
@@ -197,13 +182,13 @@ export function ProductsPage() {
       setError(null);
       setFormError(null);
       setRestoreCandidate(null);
-      const payload: Record<string, unknown> = {
+      const payload: CreateProductoInput = {
         nombre: form.nombre.trim(),
         codigo: form.codigo.trim(),
         precio_venta: Number(form.precio_venta),
         rubro_id: form.rubro_id,
         proveedor_id: form.proveedor_id,
-        unidad_medida: form.unidad_medida,
+        unidad_medida: form.unidad_medida as UnidadMedida,
       };
       const cantAviso = Number(form.cantidad_aviso);
       if (!isNaN(cantAviso) && cantAviso >= 0)

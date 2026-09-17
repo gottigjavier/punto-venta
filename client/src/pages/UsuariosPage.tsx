@@ -1,5 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
-import { usuariosApi } from "@/lib/api-client";
+import {
+  usuariosApi,
+  type CreateUsuarioInput,
+  type UpdateUsuarioInput,
+  type Usuario,
+  type UsuarioQueryParams,
+} from "@/lib/api-client";
+import type { Pagination } from "@/features/ventas/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,24 +47,6 @@ import {
   Shield,
   UserCheck,
 } from "lucide-react";
-
-interface Usuario {
-  id: string;
-  nombre_usuario: string;
-  nik_usuario: string;
-  email: string;
-  telefono?: string | null;
-  rol: "admin" | "gerente" | "despachador";
-  activo: boolean;
-  created_at: string;
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
 
 type RolFilter = "todos" | "admin" | "gerente" | "despachador";
 type ActivoFilter = "todos" | "activos" | "inactivos";
@@ -124,7 +113,7 @@ export function UsuariosPage() {
     async (page = 1) => {
       setLoading(true);
       try {
-        const params: Record<string, unknown> = {
+        const params: UsuarioQueryParams = {
           page,
           limit: pagination.limit,
           sort: "created_at",
@@ -135,7 +124,7 @@ export function UsuariosPage() {
         if (activoFilter !== "todos")
           params.activo = activoFilter === "activos";
         const { data } = await usuariosApi.list(params);
-        setUsuarios(data.data as Usuario[]);
+        setUsuarios(data.data);
         if (data.pagination) {
           setPagination(data.pagination);
         }
@@ -217,19 +206,29 @@ export function UsuariosPage() {
 
     setSubmitting(true);
     try {
-      const payload: Record<string, unknown> = {
-        nombre_usuario: form.nombre_usuario.trim(),
-        nik_usuario: form.nik_usuario.trim(),
-        email: form.email.trim(),
-        rol: form.rol,
-        activo: form.activo,
-      };
-      if (form.password) payload.password = form.password;
-      if (form.telefono.trim()) payload.telefono = form.telefono.trim();
-
       if (editing) {
+        const payload: UpdateUsuarioInput = {
+          nombre_usuario: form.nombre_usuario.trim(),
+          nik_usuario: form.nik_usuario.trim(),
+          email: form.email.trim(),
+          rol: form.rol,
+          activo: form.activo,
+        };
+        // password solo se envía si el usuario la cambia (server: opcional en update).
+        if (form.password) payload.password = form.password;
+        if (form.telefono.trim()) payload.telefono = form.telefono.trim();
         await usuariosApi.update(editing.id, payload);
       } else {
+        // validate() exige password en el flujo de creación.
+        const payload: CreateUsuarioInput = {
+          nombre_usuario: form.nombre_usuario.trim(),
+          nik_usuario: form.nik_usuario.trim(),
+          email: form.email.trim(),
+          rol: form.rol,
+          activo: form.activo,
+          password: form.password,
+        };
+        if (form.telefono.trim()) payload.telefono = form.telefono.trim();
         await usuariosApi.create(payload);
       }
       setFormOpen(false);

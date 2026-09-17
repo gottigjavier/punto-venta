@@ -1,5 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
-import { proveedoresApi } from "@/lib/api-client";
+import {
+  proveedoresApi,
+  type CreateProveedorInput,
+  type Proveedor,
+  type ProveedorQueryParams,
+} from "@/lib/api-client";
+import type { Pagination } from "@/features/ventas/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,24 +37,6 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
-
-interface Proveedor {
-  id: string;
-  razon_social: string;
-  representante?: string | null;
-  cuit?: string | null;
-  direccion_postal?: string | null;
-  email?: string | null;
-  telefonos?: string[] | null;
-  created_at: string;
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
 
 const INITIAL_FORM = {
   razon_social: "",
@@ -97,7 +85,7 @@ export function ProveedoresPage() {
     async (page = 1) => {
       setLoading(true);
       try {
-        const params: Record<string, unknown> = {
+        const params: ProveedorQueryParams = {
           page,
           limit: pagination.limit,
           sort: "razon_social",
@@ -105,7 +93,7 @@ export function ProveedoresPage() {
         };
         if (search) params.search = search;
         const { data } = await proveedoresApi.list(params);
-        setProveedores(data.data as Proveedor[]);
+        setProveedores(data.data);
         if (data.pagination) {
           setPagination(data.pagination);
         }
@@ -196,7 +184,7 @@ export function ProveedoresPage() {
 
     setSubmitting(true);
     try {
-      const payload: Record<string, unknown> = {
+      const payload: CreateProveedorInput = {
         razon_social: form.razon_social.trim(),
       };
       if (form.representante.trim())

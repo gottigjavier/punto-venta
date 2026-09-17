@@ -62,7 +62,7 @@ export function ResumenDiaView({
     setError("");
     try {
       const { data } = await ventasApi.resumenDia();
-      setResumen(data.data as ResumenDia);
+      setResumen(data.data);
     } catch {
       setError("Error al cargar el resumen del dia");
     } finally {

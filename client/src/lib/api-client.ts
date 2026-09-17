@@ -1,5 +1,12 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
-import type { UsuarioSafe } from "./types";
+import type { Rol, UsuarioSafe } from "./types";
+import type {
+  Pagination,
+  ResumenDia,
+  Rubro,
+  UltimaVenta,
+  VentaWithDetails,
+} from "@/features/ventas/types";
 
 const API_BASE = "/api/v1";
 
@@ -119,12 +126,237 @@ api.interceptors.response.use(
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
-  pagination?: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
+  pagination?: Pagination;
+}
+
+// ===== Tipos canónicos del wire (espejo de src/application/dto/response.dto.ts) ====
+// El client NO comparte tipos con el server (no puede importarlos); estos tipos
+// se mantienen alineados a mano con los Zod schemas del wire. Convenciones del
+// server: Decimal -> number, Timestamptz/Date -> string ISO, columna nullable ->
+// `| null`, campo ausente en algunos endpoints -> opcional.
+// Los tipos que ya viven en features/ventas/types.ts (Rubro, Pagination,
+// ResumenDia, UltimaVenta, VentaWithDetails, ProductSearchResult) se REUTILIZAN
+// (import arriba), no se redefinen.
+
+export type UnidadMedida = "unidad" | "kg" | "g" | "l" | "ml";
+
+/** Lote anidado dentro de Producto (plain, sin relaciones). Espejo de LoteSchema. */
+export interface LoteResumen {
+  id: string;
+  producto_id: string;
+  numero_lote: string | null;
+  cantidad_disponible: number;
+  fecha_compra: string | null;
+  fecha_vencimiento: string | null;
+  precio_compra: number;
+  estado: "activo" | "agotado" | "vencido" | "descartado";
+  created_at: string;
+}
+
+/** Producto completo (list/get/create/update/restore/search/autocomplete). Espejo de ProductoSchema. */
+export interface Producto {
+  id: string;
+  nombre: string;
+  codigo: string;
+  cantidad_aviso: number;
+  precio_venta: number;
+  rubro_id: string;
+  proveedor_id: string;
+  unidad_medida: UnidadMedida;
+  activo: boolean;
+  vencimiento_preaviso_dias?: number;
+  stock_actual: number;
+  lotes: LoteResumen[];
+  rubro?: { id: string; nombre: string };
+  proveedor?: { id: string; razon_social: string };
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** Proveedor. Espejo de ProveedorSchema. */
+export interface Proveedor {
+  id: string;
+  razon_social: string;
+  representante: string | null;
+  cuit: string | null;
+  direccion_postal: string | null;
+  email: string | null;
+  telefonos: string[] | null;
+  _count?: { productos: number };
+  created_at: string;
+  updated_at: string | null;
+}
+
+/**
+ * Usuario de gestión (GET /usuarios, CRUD admin). Espejo de UsuarioSchema
+ * (sin password_hash). Difiere de `Usuario` de features/ventas/types.ts
+ * ({ id, nombre_usuario }), que es solo la forma para filtros.
+ */
+export interface Usuario {
+  id: string;
+  nombre_usuario: string;
+  nik_usuario: string;
+  email: string;
+  telefono: string | null;
+  rol: Rol;
+  activo: boolean;
+  intentos_fallidos: number;
+  bloqueado_hasta: string | null;
+  refresh_token_version: number;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** Fila de listado de ventas (aplanada). Espejo de VentaListItemSchema. */
+export interface VentaListItem {
+  id: string;
+  usuario_id: string;
+  usuario_nombre: string;
+  total: number;
+  estado: "pendiente" | "completada" | "cancelada";
+  cantidad_items: number;
+  created_at: string;
+}
+
+/** Producto más vendido (GET /ventas/mas-vendidos). Espejo de ProductoMasVendidoSchema. */
+export interface ProductoMasVendido {
+  producto_id: string;
+  veces_vendido: number;
+  monto_total: number;
+}
+
+/** Data de POST /ventas/cierre-caja (devolución del use-case cerrarCaja). */
+export interface CierreCajaResult {
+  id: string;
+  monto_total: number;
+  cantidad_ventas: number;
+  fecha_cierre: string;
+}
+
+// ===== Payloads (inputs) — espejo de los schemas de validación del server =====
+// (producto.dto.ts, proveedor.dto.ts, rubro.dto.ts, usuario.dto.ts,
+// stock.dto.ts, venta.dto.ts). Los campos opcionales van `.optional()`: el
+// server normaliza '' -> null donde corresponde.
+
+export interface CreateProductoInput {
+  nombre: string;
+  codigo: string;
+  cantidad_aviso?: number;
+  precio_venta: number;
+  rubro_id: string;
+  proveedor_id: string;
+  unidad_medida: UnidadMedida;
+  vencimiento_preaviso_dias?: number;
+}
+
+export type UpdateProductoInput = Partial<CreateProductoInput>;
+
+export interface CreateProveedorInput {
+  razon_social: string;
+  representante?: string;
+  cuit?: string;
+  direccion_postal?: string;
+  email?: string;
+  telefonos?: string[];
+}
+
+export type UpdateProveedorInput = Partial<CreateProveedorInput>;
+
+export interface CreateRubroInput {
+  nombre: string;
+  descripcion?: string;
+  activo?: boolean;
+}
+
+export type UpdateRubroInput = Partial<CreateRubroInput>;
+
+export interface CreateUsuarioInput {
+  nombre_usuario: string;
+  nik_usuario: string;
+  password: string;
+  email: string;
+  telefono?: string;
+  rol: Rol;
+  activo?: boolean;
+}
+
+export type UpdateUsuarioInput = Partial<Omit<CreateUsuarioInput, "password">> & {
+  password?: string;
+};
+
+export interface StockIngresoInput {
+  producto_id: string;
+  numero_lote?: string | null;
+  cantidad: number;
+  fecha_compra?: string | null;
+  fecha_vencimiento?: string | null;
+  precio_compra: number;
+  cantidad_aviso?: number;
+}
+
+export interface CreateVentaInput {
+  productos: Array<{
+    producto_id: string;
+    cantidad: number;
+  }>;
+}
+
+// ===== Query params (espejo de los QuerySchemas del server) =====
+export interface ProductoQueryParams {
+  search?: string;
+  rubro_id?: string;
+  proveedor_id?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  sort?: string;
+  order?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+  // El server valida 'true'|'false' (enum string); axios serializa boolean a "true".
+  activo?: boolean | "true" | "false";
+  cursor?: string;
+}
+
+export interface ProveedorQueryParams {
+  search?: string;
+  sort?: string;
+  order?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+}
+
+export interface UsuarioQueryParams {
+  search?: string;
+  rol?: Rol;
+  activo?: boolean;
+  sort?: string;
+  order?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+}
+
+export interface StockQueryParams {
+  search?: string;
+  rubro_id?: string;
+  archivados?: boolean | "true" | "false";
+  sort?: string;
+  order?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+}
+
+export interface VentaQueryParams {
+  search?: string;
+  usuario_id?: string;
+  estado?: "pendiente" | "completada" | "cancelada";
+  cierre_caja_id?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  sort?: string;
+  order?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+  cursor?: string;
 }
 
 // Auth
@@ -159,53 +391,60 @@ export const authApi = {
 
 // Productos
 export const productosApi = {
-  list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<unknown[]>>("/productos", { params }),
-  getById: (id: string) => api.get<ApiResponse<unknown>>(`/productos/${id}`),
-  create: (data: unknown) => api.post<ApiResponse<unknown>>("/productos", data),
-  update: (id: string, data: unknown) =>
-    api.put<ApiResponse<unknown>>(`/productos/${id}`, data),
-  delete: (id: string) => api.delete<ApiResponse<unknown>>(`/productos/${id}`),
+  list: (params?: ProductoQueryParams) =>
+    api.get<ApiResponse<Producto[]>>("/productos", { params }),
+  getById: (id: string) => api.get<ApiResponse<Producto>>(`/productos/${id}`),
+  create: (data: CreateProductoInput) =>
+    api.post<ApiResponse<Producto>>("/productos", data),
+  update: (id: string, data: UpdateProductoInput) =>
+    api.put<ApiResponse<Producto>>(`/productos/${id}`, data),
+  delete: (id: string) =>
+    api.delete<ApiResponse<{ success: boolean }>>(`/productos/${id}`),
   restore: (id: string) =>
-    api.post<ApiResponse<unknown>>(`/productos/${id}/restore`, {}),
-  search: (q: string, tipo?: string) =>
-    api.get<ApiResponse<unknown[]>>("/productos/search", {
+    api.post<ApiResponse<Producto>>(`/productos/${id}/restore`, {}),
+  search: (q: string, tipo?: "nombre" | "codigo") =>
+    api.get<ApiResponse<Producto[]>>("/productos/search", {
       params: { q, tipo },
     }),
 };
 
 // Proveedores
 export const proveedoresApi = {
-  list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<unknown[]>>("/proveedores", { params }),
-  getById: (id: string) => api.get<ApiResponse<unknown>>(`/proveedores/${id}`),
-  create: (data: unknown) =>
-    api.post<ApiResponse<unknown>>("/proveedores", data),
-  update: (id: string, data: unknown) =>
-    api.put<ApiResponse<unknown>>(`/proveedores/${id}`, data),
+  list: (params?: ProveedorQueryParams) =>
+    api.get<ApiResponse<Proveedor[]>>("/proveedores", { params }),
+  getById: (id: string) =>
+    api.get<ApiResponse<Proveedor>>(`/proveedores/${id}`),
+  create: (data: CreateProveedorInput) =>
+    api.post<ApiResponse<Proveedor>>("/proveedores", data),
+  update: (id: string, data: UpdateProveedorInput) =>
+    api.put<ApiResponse<Proveedor>>(`/proveedores/${id}`, data),
   delete: (id: string) =>
-    api.delete<ApiResponse<unknown>>(`/proveedores/${id}`),
+    api.delete<ApiResponse<{ message: string }>>(`/proveedores/${id}`),
 };
 
 // Rubros
 export const rubrosApi = {
-  list: () => api.get<ApiResponse<unknown[]>>("/rubros"),
-  getById: (id: string) => api.get<ApiResponse<unknown>>(`/rubros/${id}`),
-  create: (data: unknown) => api.post<ApiResponse<unknown>>("/rubros", data),
-  update: (id: string, data: unknown) =>
-    api.put<ApiResponse<unknown>>(`/rubros/${id}`, data),
-  delete: (id: string) => api.delete<ApiResponse<unknown>>(`/rubros/${id}`),
+  list: () => api.get<ApiResponse<Rubro[]>>("/rubros"),
+  getById: (id: string) => api.get<ApiResponse<Rubro>>(`/rubros/${id}`),
+  create: (data: CreateRubroInput) =>
+    api.post<ApiResponse<Rubro>>("/rubros", data),
+  update: (id: string, data: UpdateRubroInput) =>
+    api.put<ApiResponse<Rubro>>(`/rubros/${id}`, data),
+  delete: (id: string) =>
+    api.delete<ApiResponse<{ success: boolean }>>(`/rubros/${id}`),
 };
 
 // Usuarios
 export const usuariosApi = {
-  list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<unknown[]>>("/usuarios", { params }),
-  getById: (id: string) => api.get<ApiResponse<unknown>>(`/usuarios/${id}`),
-  create: (data: unknown) => api.post<ApiResponse<unknown>>("/usuarios", data),
-  update: (id: string, data: unknown) =>
-    api.put<ApiResponse<unknown>>(`/usuarios/${id}`, data),
-  delete: (id: string) => api.delete<ApiResponse<unknown>>(`/usuarios/${id}`),
+  list: (params?: UsuarioQueryParams) =>
+    api.get<ApiResponse<Usuario[]>>("/usuarios", { params }),
+  getById: (id: string) => api.get<ApiResponse<Usuario>>(`/usuarios/${id}`),
+  create: (data: CreateUsuarioInput) =>
+    api.post<ApiResponse<Usuario>>("/usuarios", data),
+  update: (id: string, data: UpdateUsuarioInput) =>
+    api.put<ApiResponse<Usuario>>(`/usuarios/${id}`, data),
+  delete: (id: string) =>
+    api.delete<ApiResponse<{ message: string }>>(`/usuarios/${id}`),
 };
 
 // Lotes (N° de Lote) — CRUD sobre el modelo Lote (el stock vive en Lote tras el split)
@@ -242,7 +481,7 @@ export interface EditarLotePayload {
 }
 
 export const lotesApi = {
-  list: (params?: Record<string, unknown>) =>
+  list: (params?: StockQueryParams) =>
     api.get<ApiResponse<LoteItem[]>>("/stock", { params }),
   update: (id: string, data: EditarLotePayload) =>
     api.put<ApiResponse<LoteItem>>(`/lotes/${id}`, data),
@@ -254,12 +493,12 @@ export const lotesApi = {
 
 // Stock
 export const stockApi = {
-  list: (params?: Record<string, unknown>) =>
+  list: (params?: StockQueryParams) =>
     api.get<ApiResponse<LoteItem[]>>("/stock", { params }),
-  ingreso: (data: unknown) =>
-    api.post<ApiResponse<unknown>>("/stock/ingreso", data),
-  autocomplete: (query: string, tipo?: string) =>
-    api.get<ApiResponse<unknown[]>>("/stock/autocomplete", {
+  ingreso: (data: StockIngresoInput) =>
+    api.post<ApiResponse<LoteItem>>("/stock/ingreso", data),
+  autocomplete: (query: string, tipo?: "nombre" | "codigo") =>
+    api.get<ApiResponse<Producto[]>>("/stock/autocomplete", {
       params: { query, tipo },
     }),
 };
@@ -422,23 +661,35 @@ export interface HistorialQueryParams {
 }
 
 export const ventasApi = {
-  resumenDia: () => api.get<ApiResponse<unknown>>("/ventas/resumen/dia"),
+  resumenDia: () => api.get<ApiResponse<ResumenDia>>("/ventas/resumen/dia"),
   ultimasVentas: () =>
-    api.get<ApiResponse<unknown[]>>("/ventas/ultimas-ventas"),
-  masVendidos: () => api.get<ApiResponse<unknown[]>>("/ventas/mas-vendidos"),
-  list: (params?: Record<string, unknown>) =>
-    api.get<ApiResponse<unknown[]>>("/ventas", { params }),
+    api.get<ApiResponse<UltimaVenta[]>>("/ventas/ultimas-ventas"),
+  masVendidos: () =>
+    api.get<ApiResponse<ProductoMasVendido[]>>("/ventas/mas-vendidos"),
+  list: (params?: VentaQueryParams) =>
+    api.get<ApiResponse<VentaListItem[]>>("/ventas", { params }),
   historial: (params?: HistorialQueryParams) =>
     api.get<ApiResponse<FilaHistorial[]>>("/ventas/historial", { params }),
-  getById: (id: string) => api.get<ApiResponse<unknown>>(`/ventas/${id}`),
-  create: (data: unknown) => api.post<ApiResponse<unknown>>("/ventas", data),
+  getById: (id: string) =>
+    api.get<ApiResponse<VentaWithDetails>>(`/ventas/${id}`),
+  create: (data: CreateVentaInput) =>
+    api.post<ApiResponse<VentaWithDetails>>("/ventas", data),
   cerrarCaja: (data: { password: string }) =>
-    api.post<ApiResponse<unknown>>("/ventas/cierre-caja", data),
-  delete: (id: string) => api.delete<ApiResponse<unknown>>(`/ventas/${id}`),
+    api.post<ApiResponse<CierreCajaResult>>("/ventas/cierre-caja", data),
+  delete: (id: string) =>
+    api.delete<ApiResponse<{ id: string }>>(`/ventas/${id}`),
 };
 
+export interface MovimientoQueryParams {
+  sort?: "created_at" | "monto";
+  order?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+  cursor?: string;
+}
+
 export const movimientosApi = {
-  list: (params?: Record<string, unknown>) =>
+  list: (params?: MovimientoQueryParams) =>
     api.get<
       ApiResponse<MovimientoCajaItem[]> & { resumen?: ResumenMovimientos }
     >("/ventas/movimientos", { params }),

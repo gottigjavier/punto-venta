@@ -6,7 +6,9 @@
 export interface Rubro {
   id: string;
   nombre: string;
+  descripcion?: string | null;
   activo: boolean;
+  _count?: { productos: number };
 }
 
 export interface ProductSearchResult {

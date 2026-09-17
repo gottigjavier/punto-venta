@@ -111,7 +111,7 @@ export function HistorialView({
     usuariosApi
       .list({ limit: 100 })
       .then(({ data }) => {
-        setUsuarios((data.data as Usuario[]) ?? []);
+        setUsuarios(data.data ?? []);
       })
       .catch(() => {});
   }, []);
@@ -164,7 +164,7 @@ export function HistorialView({
     setDetailOpen(true);
     try {
       const { data } = await ventasApi.getById(ventaId);
-      setDetailVenta(data.data as VentaWithDetails);
+      setDetailVenta(data.data);
     } catch {
       setDetailVenta(null);
     } finally {

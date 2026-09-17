@@ -49,7 +49,6 @@ import type {
   ProductSearchResult,
   Rubro,
   UltimaVenta,
-  VentaWithDetails,
 } from "./types";
 import { computeMinCardWidth } from "./cardWidth";
 import { ProductCard } from "./ProductCard";
@@ -124,14 +123,14 @@ export function POSView() {
     try {
       // Fetch rubros for tabs
       const { data: rubrosData } = await rubrosApi.list();
-      const rubrosList = (rubrosData.data as Rubro[]) ?? [];
+      const rubrosList = rubrosData.data ?? [];
 
       if (!mountedRef.current) return;
       setRubros(rubrosList);
 
       // Fetch ALL products in one call (decoupled from rubro assignment)
       const { data: prodData } = await productosApi.list({ limit: 1000 });
-      const products = (prodData.data as ProductSearchResult[]) ?? [];
+      const products = prodData.data ?? [];
 
       if (!mountedRef.current) return;
 
@@ -139,7 +138,7 @@ export function POSView() {
       let ultimasMap = new Map<string, UltimaVenta>();
       try {
         const { data: ultimasData } = await ventasApi.ultimasVentas();
-        const ultimasList = (ultimasData.data as UltimaVenta[]) ?? [];
+        const ultimasList = ultimasData.data ?? [];
         ultimasMap = new Map(ultimasList.map((u) => [u.producto_id, u]));
       } catch {
         // non-fatal: quantity suggestion falls back to 1
@@ -155,12 +154,7 @@ export function POSView() {
       >();
       try {
         const { data: vendidosData } = await ventasApi.masVendidos();
-        const vendidosList =
-          (vendidosData.data as Array<{
-            producto_id: string;
-            veces_vendido: number;
-            monto_total: number;
-          }>) ?? [];
+        const vendidosList = vendidosData.data ?? [];
         vendidosMap = new Map(
           vendidosList.map((v) => [
             v.producto_id,
@@ -237,7 +231,7 @@ export function POSView() {
     setSearching(true);
     try {
       const { data } = await stockApi.autocomplete(query, "nombre");
-      setSearchResults((data.data as ProductSearchResult[]) ?? []);
+      setSearchResults(data.data ?? []);
     } catch {
       setSearchError("Error al buscar productos");
     } finally {
@@ -421,7 +415,7 @@ export function POSView() {
 
       const { data } = await ventasApi.create(payload);
 
-      const venta = data.data as VentaWithDetails;
+      const venta = data.data;
       const saleResultValue = {
         type: "success" as const,
         message: `Venta #${venta.id.slice(0, 8)} registrada correctamente`,

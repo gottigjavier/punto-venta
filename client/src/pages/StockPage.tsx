@@ -5,6 +5,9 @@ import {
   productosApi,
   rubrosApi,
   type LoteItem,
+  type Producto,
+  type Rubro,
+  type StockQueryParams,
 } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -62,16 +65,6 @@ type SortField =
   | "created_at";
 type SortOrder = "asc" | "desc";
 
-interface Rubro {
-  id: string;
-  nombre: string;
-}
-interface ProductoOption {
-  id: string;
-  nombre: string;
-  codigo?: string;
-}
-
 // --- Helpers ---
 function formatCurrency(value: number): string {
   return `$${Number(value ?? 0).toFixed(2)}`;
@@ -123,7 +116,7 @@ export function StockPage() {
 
   // Dropdown data
   const [rubros, setRubros] = useState<Rubro[]>([]);
-  const [productos, setProductos] = useState<ProductoOption[]>([]);
+  const [productos, setProductos] = useState<Producto[]>([]);
 
   // Modal states
   const [loteModal, setLoteModal] = useState<null | "ingreso">(null);
@@ -162,7 +155,7 @@ export function StockPage() {
     rubrosApi
       .list()
       .then(({ data }) => {
-        setRubros((data.data as Rubro[]) ?? []);
+        setRubros(data.data ?? []);
       })
       .catch(() => {
         /* silent */
@@ -170,7 +163,7 @@ export function StockPage() {
     productosApi
       .list({ limit: 200, activo: true })
       .then(({ data }) => {
-        setProductos((data.data as ProductoOption[]) ?? []);
+        setProductos(data.data ?? []);
       })
       .catch(() => {
         /* silent */
@@ -182,7 +175,7 @@ export function StockPage() {
     async (page = 1) => {
       setLoading(true);
       try {
-        const params: Record<string, unknown> = {
+        const params: StockQueryParams = {
           page,
           limit: pagination.limit,
           sort: sortField,

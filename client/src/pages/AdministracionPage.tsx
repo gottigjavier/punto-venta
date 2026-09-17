@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { cierresApi, type CierreListItem } from "@/lib/api-client";
+import { cierresApi, type CierreListItem, type CierresQueryParams } from "@/lib/api-client";
+import type { Pagination } from "@/features/ventas/types";
 import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,17 +26,6 @@ import {
   ChevronRight,
   FileSpreadsheet,
 } from "lucide-react";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,7 +76,7 @@ export function AdministracionPage() {
       setLoading(true);
       setNetworkError("");
       try {
-        const params: Record<string, unknown> = {
+        const params: CierresQueryParams = {
           page,
           limit: pagination.limit,
           sort: "fecha_cierre",

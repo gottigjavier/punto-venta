@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { rubrosApi } from "@/lib/api-client";
+import { rubrosApi, type Rubro } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,13 +23,6 @@ import {
 } from "@/components/ui/dialog";
 import { Tags, Plus, Pencil, Trash2, Search, RefreshCw } from "lucide-react";
 
-interface Rubro {
-  id: string;
-  nombre: string;
-  descripcion?: string;
-  activo: boolean;
-}
-
 const INITIAL_FORM = { nombre: "", descripcion: "" };
 
 export function RubrosPage() {
@@ -50,7 +43,7 @@ export function RubrosPage() {
     setLoading(true);
     try {
       const { data } = await rubrosApi.list();
-      setRubros(data.data as Rubro[]);
+      setRubros(data.data);
     } catch (e) {
       console.error("Error fetching rubros:", e);
     } finally {
