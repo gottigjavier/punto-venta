@@ -114,6 +114,12 @@ function normalizeOpenApi(node: unknown): void {
 // producción), independientemente de que la documentación Swagger se exponga o no.
 export function registerSchemas(fastify: FastifyInstance): void {
   for (const [$id, schema] of COMPONENT_SCHEMAS) {
+    // Idempotente: si el `$id` ya está registrado (porque main llamó a
+    // registerSchemas y luego registerSwagger vuelve a llamarlo), no lo
+    // re-agrega, evitando FST_ERR_SCH_ALREADY_PRESENT en dev (donde ambos
+    // corren). Fastify 5 no expone hasSchema(); getSchema() devuelve undefined
+    // si el `$id` aún no está registrado.
+    if (fastify.getSchema($id)) continue;
     const converted = z.toJSONSchema(schema, {
       target: "openapi-3.0",
     });

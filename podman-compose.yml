@@ -22,6 +22,29 @@ services:
       retries: 5
       start_period: 10s
 
+  # Prisma migrations (one-shot). Corre `migrate deploy` contra el `db` y
+  # termina. El `api` espera a que este servicio complete con éxito
+  # (idempotente: no aplica nada si la DB ya está al día).
+  migrate:
+    build:
+      context: .
+      dockerfile: api/Containerfile.dev
+    container_name: pv-migrate
+    restart: "no"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/punto_venta_dev
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["npx", "prisma", "migrate", "deploy"]
+    volumes:
+      - ./prisma:/app/prisma:ro
+      # Prisma 7 CLI reads prisma.config.ts to resolve datasource.url.
+      # The Containerfile.dev does not COPY it (it lives at the repo root),
+      # so without this mount `migrate deploy` fails with
+      # "The datasource.url property is required in your Prisma config file".
+      - ./prisma.config.ts:/app/prisma.config.ts:ro
+
   # Fastify API
   api:
     build:
@@ -46,9 +69,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - ./src:/app/src:ro
       - ./prisma:/app/prisma:ro
+      # So `podman compose exec api npx prisma ...` (OPERATIONS.md) works too.
+      - ./prisma.config.ts:/app/prisma.config.ts:ro
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/health"]
       interval: 30s
