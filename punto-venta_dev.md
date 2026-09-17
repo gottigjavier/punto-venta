@@ -464,8 +464,7 @@ GET /api/v1/productos?search=pan&rubro=rubro-id&sort=precio_venta&order=asc&page
 podman-compose.yml
 ├── app          # Next.js (puerto 3000)
 ├── api          # Fastify (puerto 3001)
-├── db           # PostgreSQL (puerto 5432)
-└── redis        # Para rate limiting y sesiones (puerto 6379)
+└── db           # PostgreSQL (puerto 5432)
 ```
 
 ### 9.2 Containerfile (Backend)
@@ -628,7 +627,6 @@ jj tag list
 DATABASE_URL=postgresql://user:pass@localhost:5432/punto_venta
 JWT_SECRET=tu-secreto-aqui
 JWT_REFRESH_SECRET=tu-secreto-refresh
-REDIS_URL=redis://localhost:6379
 NODE_ENV=development
 API_PORT=3001
 FRONTEND_URL=http://localhost:3000

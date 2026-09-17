@@ -6,7 +6,6 @@
 | ----------- | ----------- | ------ | ------------- |
 | API | Fastify + Node 20 | 3001 | `GET /health` |
 | Database | PostgreSQL 16 Alpine | 5432 (dev only) | `pg_isready` |
-| Cache | Redis 7 Alpine | 6379 (dev only) | `redis-cli ping` |
 
 - **Containers**: Podman (rootless, daemonless)
 - **VCS**: Jujutsu (jj) — colocated with Git
@@ -68,7 +67,6 @@ echo "your-db-password" > secrets/db_password.txt
 - Readiness: <http://localhost:3001/ready>
 - Metrics: <http://localhost:3001/metrics>
 - PostgreSQL: localhost:5432
-- Redis: localhost:6379
 
 ---
 
@@ -161,7 +159,7 @@ podman compose -f podman-compose.prod.yml up -d
 | Log level | debug | info (configurable) |
 | Log format | pino-pretty (human) | JSON (machine) |
 | Health checks | 30s interval | 30s interval |
-| Resource limits | None | 512MB API, 512MB DB, 256MB Redis |
+| Resource limits | None | 512MB API, 512MB DB |
 | Log rotation | None | max-size + max-file |
 | Secrets | .env file | Podman secrets |
 
@@ -438,7 +436,7 @@ podman compose logs api 2>&1 | jq -r '.statusCode' | sort | uniq -c
 | `DATABASE_URL` | — | PostgreSQL connection string (required) |
 | `JWT_SECRET` | — | Access token secret, min 32 chars (required) |
 | `JWT_REFRESH_SECRET` | — | Refresh token secret, min 32 chars (required) |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection URL |
+
 | `NODE_ENV` | `development` | `development` / `staging` / `production` |
 | `API_PORT` | `3001` | API server port |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend URL for CORS |
@@ -485,7 +483,7 @@ gh run view <run-id> --log
 - **Secrets**: Never commit `secrets/` directory. Use `.gitignore` / `.jjignore`.
 - **Container user**: All containers run as non-root (`appuser:1001`).
 - **Network isolation**: Production services communicate via internal bridge network.
-- **No exposed ports**: Only API port is exposed in production (DB, Redis are internal).
+- **No exposed ports**: Only API port is exposed in production (database is internal).
 - **Log rotation**: All production containers have log rotation configured.
 - **Resource limits**: All production containers have memory limits.
 - **HTTPS**: Must be configured at the reverse proxy level (nginx, Traefik, etc.).

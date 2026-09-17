@@ -69,16 +69,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -111,7 +101,6 @@ jobs:
           REQUIRE_INTEGRATION_DB: "1"
           JWT_SECRET: test-jwt-secret-minimum-32-characters-long
           JWT_REFRESH_SECRET: test-jwt-refresh-secret-minimum-32-chars
-          REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           API_PORT: 3001
           FRONTEND_URL: http://localhost:3000

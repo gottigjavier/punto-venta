@@ -57,7 +57,7 @@ podman compose -f "$COMPOSE_FILE" build --no-cache
 
 # ─── Step 4: Run migrations ───────────────────
 log "Step 4/5: Running database migrations..."
-podman compose -f "$COMPOSE_FILE" up -d db redis
+podman compose -f "$COMPOSE_FILE" up -d db
 sleep 5 # Wait for DB to be ready
 
 podman compose -f "$COMPOSE_FILE" exec -T api npx prisma migrate deploy 2>/dev/null || {
