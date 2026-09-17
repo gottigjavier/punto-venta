@@ -128,7 +128,20 @@ export async function createVenta(
 
       const inicioHoy = limiteHoy();
       let total = 0;
-      const detallesCreados: Array<{ id: string }> = [];
+
+      // EF5 (reporte 26/09): los splits NO emiten lote.update +
+      // detalleVenta.create por iteración (2N round-trips a la DB). Se acumula
+      // en memoria y al final de TODOS los productos se aplica todo en 2
+      // queries: UN update batch de lotes + UN createMany de detalles.
+      const loteUpdates: Array<{ loteId: string; take: number }> = [];
+      const detallesData: Array<{
+        venta_id: string;
+        producto_id: string;
+        lote_id: string;
+        cantidad: number;
+        precio_unitario: number;
+        subtotal: number;
+      }> = [];
 
       // (1) lazy pass de vencidos dentro de la transacción
       await retirarLotesVencidos(tx);
@@ -211,7 +224,8 @@ export async function createVenta(
           );
         }
 
-        // (4) descontar en cascada
+        // (4) descontar en cascada — EF5: el split solo acumula en memoria;
+        // el write real (update batch + createMany) se ejecuta al final.
         let resto = linea.cantidad;
         for (const lote of lotes) {
           if (resto <= 0) break;
@@ -219,33 +233,63 @@ export async function createVenta(
           if (disponibleLote <= 0) continue; // saltar agotados
 
           const take = Math.min(disponibleLote, resto);
-          const nuevoDisponible = disponibleLote - take;
 
-          await tx.lote.update({
-            where: { id: lote.id },
-            data: {
-              cantidad_disponible: { decrement: take },
-              ...(nuevoDisponible === 0 ? { estado: "agotado" } : {}),
-            },
-          });
+          // Cada lote se descuenta UNA sola vez (FEFO: un split por lote y
+          // break al agotar la línea), así que loteUpdates no repite ids.
+          loteUpdates.push({ loteId: lote.id, take });
 
           // (5) UN DetalleVenta por lote — precio SIEMPRE del catálogo (SE2)
           const precioUnitario = precioPorProducto.get(productoId) ?? 0;
           const subtotal = round2(take * precioUnitario);
-          const detalle = await tx.detalleVenta.create({
-            data: {
-              venta_id: venta.id,
-              producto_id: productoId,
-              lote_id: lote.id,
-              cantidad: take,
-              precio_unitario: precioUnitario,
-              subtotal,
-            },
+          detallesData.push({
+            venta_id: venta.id,
+            producto_id: productoId,
+            lote_id: lote.id,
+            cantidad: take,
+            precio_unitario: precioUnitario,
+            subtotal,
           });
-          detallesCreados.push(detalle);
           total += subtotal;
           resto -= take;
         }
+      }
+
+      // (6) EF5: aplicar los descuentos de stock de TODOS los splits en UN
+      // update (antes: N tx.lote.update dentro del loop — 1 round-trip por
+      // lote). No se puede usar un solo updateMany de Prisma con decrement:
+      // el monto descontado difiere por lote y el decrement es único por
+      // llamada (destino con un solo where para todos). Los lotes ya están
+      // lockeados con FOR UPDATE arriba (orden determinístico), así que el
+      // update batch no introduce carreras ni deadlocks nuevos. 'agotado' se
+      // setea SOLO cuando la cantidad queda en exactamente 0 (misma condición
+      // que el update por fila original).
+      if (loteUpdates.length > 0) {
+        const loteUpdateValues = loteUpdates.map(
+          (u) => Prisma.sql`(${u.loteId}::uuid, ${u.take}::numeric)`,
+        );
+        await tx.$executeRaw(Prisma.sql`
+          WITH updates(lote_id, take) AS (
+            VALUES ${Prisma.join(loteUpdateValues, ", ")}
+          )
+          UPDATE "Lote" l SET
+            cantidad_disponible = l.cantidad_disponible - u.take,
+            estado = CASE
+              WHEN l.cantidad_disponible - u.take = 0 THEN 'agotado'::"EstadoLote"
+              ELSE l.estado
+            END
+          FROM updates u
+          WHERE l.id = u.lote_id
+        `);
+      }
+
+      // (7) EF5: UN createMany con todos los detalles (antes: N
+      // tx.detalleVenta.create — 1 round-trip por split). createMany es
+      // viable en este modelo: DetalleVenta NO tiene created_at y su único
+      // @default es el id con dbgenerated (lo genera Postgres, no se incluye
+      // en data); las FKs (venta_id, producto_id, lote_id) se pasan como
+      // escalares — no hay nested relations.
+      if (detallesData.length > 0) {
+        await tx.detalleVenta.createMany({ data: detallesData });
       }
 
       // Fijar el total = Σ subtotales (invariante)
@@ -268,7 +312,7 @@ export async function createVenta(
         },
       });
 
-      return { venta: ventaCompleta, detalles: detallesCreados };
+      return { venta: ventaCompleta };
     });
 
     if (!result.venta) {
