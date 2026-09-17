@@ -12,6 +12,15 @@ import {
 } from "../../../application/use-cases/cierre.use-case.js";
 import { sendDomainError } from "../utils/domain-error.js";
 
+// Schema compartido para el id de cierre en params (SE6): UUID estricto.
+// Antes cada handler validaba inline con z.string().min(1), y un id malformado
+// llegaba a Prisma (P2023 → 500). Con .uuid() se devuelve 400 antes del use
+// case, consistente con el resto de la API (mismo patrón que VentaIdParamSchema
+// en venta.dto.ts).
+const CierreIdParamSchema = z.object({
+  id: z.string().uuid("ID de cierre inválido"),
+});
+
 // Helper to handle domain errors (same pattern as venta.controller.ts)
 
 // GET /api/v1/ventas/cierres - List cash closures with filters and pagination
@@ -52,16 +61,14 @@ export async function getCierreByIdHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  const parsedId = z
-    .object({ id: z.string().min(1) })
-    .safeParse(request.params);
+  const parsedId = CierreIdParamSchema.safeParse(request.params);
 
   if (!parsedId.success) {
     return reply.status(400).send({
       success: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "ID de cierre requerido",
+        message: "ID de cierre inválido",
       },
     });
   }
@@ -84,16 +91,14 @@ export async function exportCierreCsvHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  const parsedId = z
-    .object({ id: z.string().min(1) })
-    .safeParse(request.params);
+  const parsedId = CierreIdParamSchema.safeParse(request.params);
 
   if (!parsedId.success) {
     return reply.status(400).send({
       success: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "ID de cierre requerido",
+        message: "ID de cierre inválido",
       },
     });
   }
@@ -116,16 +121,14 @@ export async function cierreVentasHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  const parsedId = z
-    .object({ id: z.string().min(1) })
-    .safeParse(request.params);
+  const parsedId = CierreIdParamSchema.safeParse(request.params);
 
   if (!parsedId.success) {
     return reply.status(400).send({
       success: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "ID de cierre requerido",
+        message: "ID de cierre inválido",
       },
     });
   }
