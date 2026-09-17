@@ -29,6 +29,14 @@ interface LoginResult {
   user: UsuarioSafe;
 }
 
+// Hash dummy fijo (SE4): cuando el usuario no existe se ejecuta igual un
+// bcrypt.compare (cost 12) contra este hash, para que la rama "usuario
+// inexistente" tome el mismo tiempo que la verificación real. Sin esto, la
+// latencia (µs vs ~100ms) revela si la cuenta existe (timing side-channel en
+// /login → enumeración de cuentas).
+const DUMMY_PASSWORD_HASH =
+  "$2b$12$1mjsMI4i4NNHIvqPwSZawu/GEAcvwtHY8qqaUVBaNm9XsMugvODqC";
+
 // Login use case
 export async function loginUseCase(
   input: LoginInput,
@@ -49,6 +57,10 @@ export async function loginUseCase(
     err({ code: "INVALID_CREDENTIALS", message: "Credenciales inválidas" });
 
   if (!user) {
+    // SE4: se corre bcrypt.compare igual que con un usuario real (contra un
+    // hash dummy fijo) para uniformar el timing y no filtrar por latencia si
+    // la cuenta existe.
+    await verifyPassword(password, DUMMY_PASSWORD_HASH);
     return credencialesInvalidas();
   }
 
