@@ -1,7 +1,7 @@
 // src/infrastructure/logging/logger.ts
 // Structured logging with pino - Phase 5: Operations
-import pino from 'pino';
-import { env } from '../config/env.js';
+import pino from "pino";
+import { env } from "../config/env.js";
 
 // Create logger based on environment
 function createLogger(): pino.Logger {
@@ -9,27 +9,27 @@ function createLogger(): pino.Logger {
   // profundidad por si un input crudo se filtra a un log). Aplica de forma
   // recursiva a claves conocidas en cualquier nivel del objeto.
   const SENSITIVE_PATHS = [
-    'password',
-    '*.password',
-    'password_hash',
-    'passwordHash',
-    'token',
-    '*.token',
-    'accessToken',
-    'access_token',
-    'refreshToken',
-    'refresh_token',
-    'authorization',
-    'JWT_SECRET',
-    'JWT_REFRESH_SECRET',
-    'DATABASE_URL',
+    "password",
+    "*.password",
+    "password_hash",
+    "passwordHash",
+    "token",
+    "*.token",
+    "accessToken",
+    "access_token",
+    "refreshToken",
+    "refresh_token",
+    "authorization",
+    "JWT_SECRET",
+    "JWT_REFRESH_SECRET",
+    "DATABASE_URL",
   ];
 
   const baseOptions: pino.LoggerOptions = {
     level: env.LOG_LEVEL,
     base: {
-      service: 'punto-venta-api',
-      version: '3.0.0',
+      service: "punto-venta-api",
+      version: "3.0.0",
     },
     serializers: {
       err: pino.stdSerializers.err,
@@ -38,20 +38,20 @@ function createLogger(): pino.Logger {
     },
     redact: {
       paths: SENSITIVE_PATHS,
-      censor: '[REDACTED]',
+      censor: "[REDACTED]",
     },
     timestamp: pino.stdTimeFunctions.isoTime,
   };
 
-  if (env.NODE_ENV !== 'production') {
+  if (env.NODE_ENV !== "production") {
     return pino({
       ...baseOptions,
       transport: {
-        target: 'pino-pretty',
+        target: "pino-pretty",
         options: {
           colorize: true,
-          translateTime: 'SYS:HH:MM:ss',
-          ignore: 'pid,hostname,service,version',
+          translateTime: "SYS:HH:MM:ss",
+          ignore: "pid,hostname,service,version",
         },
       },
     });

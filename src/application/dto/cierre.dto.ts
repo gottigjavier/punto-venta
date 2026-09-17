@@ -1,6 +1,6 @@
 // src/application/dto/cierre.dto.ts
 // Cierre DTOs with Zod validation
-import { z } from 'zod';
+import { z } from "zod";
 
 // Query params for listing cash closures
 export const ListCierresQuerySchema = z.object({
@@ -20,9 +20,9 @@ export const ListCierresQuerySchema = z.object({
   monto_min: z.coerce.number().min(0).optional(),
   monto_max: z.coerce.number().min(0).optional(),
   sort: z
-    .enum(['fecha_cierre', 'monto_total', 'cantidad_ventas'])
-    .default('fecha_cierre'),
-  order: z.enum(['asc', 'desc']).default('desc'),
+    .enum(["fecha_cierre", "monto_total", "cantidad_ventas"])
+    .default("fecha_cierre"),
+  order: z.enum(["asc", "desc"]).default("desc"),
   // EF3: paginación keyset como modo ADICIONAL al offset (page/limit). Token
   // opaco (base64url): se recibe como `next_cursor` y se devuelve tal cual.
   // Requiere sort=fecha_cierre (columna de orden real del listado).

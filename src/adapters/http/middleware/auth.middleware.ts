@@ -1,12 +1,12 @@
 // src/adapters/http/middleware/auth.middleware.ts
 // Authentication and authorization middleware
-import type { FastifyRequest, FastifyReply } from 'fastify';
-import { verifyAccessToken } from '../../../infrastructure/auth/jwt.js';
-import type { TokenPayload } from '../../../infrastructure/auth/jwt.js';
-import type { Rol } from '../../../domain/roles.js';
+import type { FastifyRequest, FastifyReply } from "fastify";
+import { verifyAccessToken } from "../../../infrastructure/auth/jwt.js";
+import type { TokenPayload } from "../../../infrastructure/auth/jwt.js";
+import type { Rol } from "../../../domain/roles.js";
 
 // Extend FastifyRequest to include user
-declare module 'fastify' {
+declare module "fastify" {
   interface FastifyRequest {
     user?: TokenPayload;
   }
@@ -19,12 +19,12 @@ export async function authenticate(
 ): Promise<void> {
   const authHeader = request.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return reply.status(401).send({
       success: false,
       error: {
-        code: 'UNAUTHORIZED',
-        message: 'Token de acceso requerido',
+        code: "UNAUTHORIZED",
+        message: "Token de acceso requerido",
       },
     });
   }
@@ -36,7 +36,7 @@ export async function authenticate(
     return reply.status(401).send({
       success: false,
       error: {
-        code: 'UNAUTHORIZED',
+        code: "UNAUTHORIZED",
         message: result.error.message,
       },
     });
@@ -59,8 +59,8 @@ export function authorize(...roles: Rol[]) {
       return reply.status(403).send({
         success: false,
         error: {
-          code: 'FORBIDDEN',
-          message: 'No tienes permisos para realizar esta acción',
+          code: "FORBIDDEN",
+          message: "No tienes permisos para realizar esta acción",
         },
       });
     }

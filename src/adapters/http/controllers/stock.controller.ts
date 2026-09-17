@@ -1,17 +1,17 @@
 // src/adapters/http/controllers/stock.controller.ts
 // Stock management HTTP controllers
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from "fastify";
 import {
   StockIngresoSchema,
   StockQuerySchema,
   StockAutocompleteSchema,
-} from '../../../application/dto/stock.dto.js';
+} from "../../../application/dto/stock.dto.js";
 import {
   loteList,
   loteIngreso,
   searchProductos,
-} from '../../../application/use-cases/stock.use-case.js';
-import { sendDomainError } from '../utils/domain-error.js';
+} from "../../../application/use-cases/stock.use-case.js";
+import { sendDomainError } from "../utils/domain-error.js";
 
 // Helper to handle domain errors
 
@@ -27,8 +27,8 @@ export async function listStockHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -60,8 +60,8 @@ export async function stockIngresoHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });
@@ -91,8 +91,8 @@ export async function stockAutocompleteHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Parámetros de consulta inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Parámetros de consulta inválidos",
         details: parsed.error.flatten().fieldErrors,
       },
     });

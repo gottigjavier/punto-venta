@@ -4,17 +4,17 @@
 // Acá: PUT /lotes/:id edita metadatos (NUNCA cantidad),
 // POST /lotes/:id/retirar descarta y
 // DELETE /lotes/:id borra físicamente solo si no tiene DetalleVenta.
-import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyRequest, FastifyReply } from "fastify";
 import {
   EditarLoteSchema,
   LoteIdParamSchema,
-} from '../../../application/dto/stock.dto.js';
+} from "../../../application/dto/stock.dto.js";
 import {
   loteEdit,
   loteRetirar,
   loteDelete,
-} from '../../../application/use-cases/stock.use-case.js';
-import { sendDomainError } from '../utils/domain-error.js';
+} from "../../../application/use-cases/stock.use-case.js";
+import { sendDomainError } from "../utils/domain-error.js";
 
 // Helper to handle domain errors
 
@@ -36,8 +36,8 @@ export async function editarLoteHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de lote inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de lote inválido",
       },
     });
   }
@@ -46,8 +46,8 @@ export async function editarLoteHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Datos de entrada inválidos',
+        code: "VALIDATION_ERROR",
+        message: "Datos de entrada inválidos",
         details: parsedBody.error.flatten().fieldErrors,
       },
     });
@@ -78,8 +78,8 @@ export async function retirarLoteHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de lote inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de lote inválido",
       },
     });
   }
@@ -109,8 +109,8 @@ export async function eliminarLoteHandler(
     return reply.status(400).send({
       success: false,
       error: {
-        code: 'VALIDATION_ERROR',
-        message: 'ID de lote inválido',
+        code: "VALIDATION_ERROR",
+        message: "ID de lote inválido",
       },
     });
   }

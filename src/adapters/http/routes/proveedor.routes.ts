@@ -1,34 +1,34 @@
 // src/adapters/http/routes/proveedor.routes.ts
 // Supplier routes - Fase 4: Documentación Swagger
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from "fastify";
 import {
   listProveedoresHandler,
   getProveedorByIdHandler,
   createProveedorHandler,
   updateProveedorHandler,
   deleteProveedorHandler,
-} from '../controllers/proveedor.controller.js';
-import { authorize } from '../middleware/auth.middleware.js';
+} from "../controllers/proveedor.controller.js";
+import { authorize } from "../middleware/auth.middleware.js";
 
 export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /api/v1/proveedores
   fastify.get(
-    '/',
+    "/",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
-        description: 'Listar proveedores con paginación y filtros.',
-        tags: ['Proveedores'],
+        description: "Listar proveedores con paginación y filtros.",
+        tags: ["Proveedores"],
         // NOTE: querystring validation is handled by Zod (ProveedorQuerySchema) in
         // listProveedoresHandler. Single source of truth.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean' },
-              data: { type: 'array', items: { $ref: 'Proveedor' } },
-              pagination: { $ref: 'Pagination' },
+              success: { type: "boolean" },
+              data: { type: "array", items: { $ref: "Proveedor" } },
+              pagination: { $ref: "Pagination" },
             },
           },
         },
@@ -39,20 +39,20 @@ export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
 
   // GET /api/v1/proveedores/:id
   fastify.get(
-    '/:id',
+    "/:id",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
-        description: 'Obtener proveedor por ID.',
-        tags: ['Proveedores'],
+        description: "Obtener proveedor por ID.",
+        tags: ["Proveedores"],
         // NOTE: params validated by Zod (*IdParamSchema) in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'Proveedor' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "Proveedor" },
             },
           },
         },
@@ -63,19 +63,19 @@ export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
 
   // POST /api/v1/proveedores
   fastify.post(
-    '/',
+    "/",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
-        description: 'Crear nuevo proveedor.',
-        tags: ['Proveedores'],
+        description: "Crear nuevo proveedor.",
+        tags: ["Proveedores"],
         security: [{ bearerAuth: [] }],
         response: {
           201: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'Proveedor' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "Proveedor" },
             },
           },
         },
@@ -86,20 +86,20 @@ export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
 
   // PUT /api/v1/proveedores/:id
   fastify.put(
-    '/:id',
+    "/:id",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
-        description: 'Actualizar proveedor existente.',
-        tags: ['Proveedores'],
+        description: "Actualizar proveedor existente.",
+        tags: ["Proveedores"],
         // NOTE: params validated by Zod (*IdParamSchema) in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'Proveedor' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "Proveedor" },
             },
           },
         },
@@ -110,25 +110,25 @@ export async function proveedorRoutes(fastify: FastifyInstance): Promise<void> {
 
   // DELETE /api/v1/proveedores/:id
   fastify.delete(
-    '/:id',
+    "/:id",
     {
-      preHandler: authorize('admin'),
+      preHandler: authorize("admin"),
       schema: {
-        description: 'Eliminar proveedor. Solo administradores.',
-        tags: ['Proveedores'],
+        description: "Eliminar proveedor. Solo administradores.",
+        tags: ["Proveedores"],
         // NOTE: params validated by Zod (*IdParamSchema) in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
+              success: { type: "boolean", example: true },
               data: {
-                type: 'object',
+                type: "object",
                 properties: {
                   message: {
-                    type: 'string',
-                    example: 'Proveedor eliminado exitosamente',
+                    type: "string",
+                    example: "Proveedor eliminado exitosamente",
                   },
                 },
               },

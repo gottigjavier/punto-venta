@@ -3,7 +3,7 @@
  * Lógica sin DOM para poder testearla con vitest.
  */
 
-const FALLBACK_MESSAGE = 'No se pudo completar la operación. Intenta de nuevo.';
+const FALLBACK_MESSAGE = "No se pudo completar la operación. Intenta de nuevo.";
 
 interface ApiErrorMessageShape {
   success?: boolean;
@@ -20,7 +20,7 @@ interface ApiErrorMessageShape {
 export function getApiErrorMessage(e: unknown): string {
   const err = e as { response?: { data?: ApiErrorMessageShape } } | null | undefined;
   const message = err?.response?.data?.error?.message;
-  return typeof message === 'string' && message.trim() !== '' ? message : FALLBACK_MESSAGE;
+  return typeof message === "string" && message.trim() !== "" ? message : FALLBACK_MESSAGE;
 }
 
 /**
@@ -33,7 +33,7 @@ export function parseRestoreSuggestion(e: unknown): { producto_id: string } | nu
   const error = err?.response?.data?.error;
   const restaurable = error?.restaurable;
   const productoId = error?.producto_id;
-  if (restaurable === true && typeof productoId === 'string' && productoId !== '') {
+  if (restaurable === true && typeof productoId === "string" && productoId !== "") {
     return { producto_id: productoId };
   }
   return null;

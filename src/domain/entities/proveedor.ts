@@ -14,7 +14,7 @@ export interface Proveedor {
 }
 
 // Supplier list item
-export type ProveedorListItem = Pick<Proveedor, 'id' | 'razon_social' | 'cuit' | 'email'>;
+export type ProveedorListItem = Pick<Proveedor, "id" | "razon_social" | "cuit" | "email">;
 
 // Supplier with product count
 export interface ProveedorWithCount extends ProveedorListItem {

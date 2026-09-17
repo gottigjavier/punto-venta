@@ -28,8 +28,8 @@ function escapeCsv(value: string): string {
     value = `'${value}`;
   }
 
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return `"${value.replace(/"/g, '""')}"`;
+  if (value.includes(",") || value.includes("\"") || value.includes("\n")) {
+    return `"${value.replace(/"/g, "\"\"")}"`;
   }
   return value;
 }

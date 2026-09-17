@@ -1,37 +1,37 @@
 // src/adapters/http/routes/usuario.routes.ts
 // User management routes (admin only) - Fase 4: Documentación Swagger
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from "fastify";
 import {
   listUsuariosHandler,
   getUsuarioByIdHandler,
   createUsuarioHandler,
   updateUsuarioHandler,
   deactivateUsuarioHandler,
-} from '../controllers/usuario.controller.js';
-import { authorize } from '../middleware/auth.middleware.js';
+} from "../controllers/usuario.controller.js";
+import { authorize } from "../middleware/auth.middleware.js";
 
 export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
   // All routes require admin role
-  fastify.addHook('preHandler', authorize('admin'));
+  fastify.addHook("preHandler", authorize("admin"));
 
   // GET /api/v1/usuarios
   fastify.get(
-    '/',
+    "/",
     {
       schema: {
         description:
-          'Listar usuarios con paginación y filtros. Solo administradores.',
-        tags: ['Usuarios'],
+          "Listar usuarios con paginación y filtros. Solo administradores.",
+        tags: ["Usuarios"],
         // NOTE: querystring validation is handled by Zod (UsuarioQuerySchema) in
         // listUsuariosHandler. Single source of truth.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean' },
-              data: { type: 'array', items: { $ref: 'Usuario' } },
-              pagination: { $ref: 'Pagination' },
+              success: { type: "boolean" },
+              data: { type: "array", items: { $ref: "Usuario" } },
+              pagination: { $ref: "Pagination" },
             },
           },
         },
@@ -42,19 +42,19 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
 
   // GET /api/v1/usuarios/:id
   fastify.get(
-    '/:id',
+    "/:id",
     {
       schema: {
-        description: 'Obtener usuario por ID. Solo administradores.',
-        tags: ['Usuarios'],
+        description: "Obtener usuario por ID. Solo administradores.",
+        tags: ["Usuarios"],
         // NOTE: params validated by Zod (*IdParamSchema) in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'Usuario' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "Usuario" },
             },
           },
         },
@@ -65,21 +65,21 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
 
   // POST /api/v1/usuarios
   fastify.post(
-    '/',
+    "/",
     {
       schema: {
         description:
-          'Crear nuevo usuario. Solo administradores.\n\n' +
-          '## Validación de contraseña\n' +
-          'Mínimo 8 caracteres, al menos 1 mayúscula, 1 número y 1 carácter especial.',
-        tags: ['Usuarios'],
+          "Crear nuevo usuario. Solo administradores.\n\n" +
+          "## Validación de contraseña\n" +
+          "Mínimo 8 caracteres, al menos 1 mayúscula, 1 número y 1 carácter especial.",
+        tags: ["Usuarios"],
         security: [{ bearerAuth: [] }],
         response: {
           201: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'Usuario' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "Usuario" },
             },
           },
         },
@@ -90,19 +90,19 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
 
   // PUT /api/v1/usuarios/:id
   fastify.put(
-    '/:id',
+    "/:id",
     {
       schema: {
-        description: 'Actualizar usuario existente. Solo administradores.',
-        tags: ['Usuarios'],
+        description: "Actualizar usuario existente. Solo administradores.",
+        tags: ["Usuarios"],
         // NOTE: params validated by Zod (*IdParamSchema) in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'Usuario' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "Usuario" },
             },
           },
         },
@@ -113,26 +113,26 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
 
   // DELETE /api/v1/usuarios/:id (deactivate, not delete)
   fastify.delete(
-    '/:id',
+    "/:id",
     {
       schema: {
         description:
-          'Desactivar usuario (no elimina). Solo administradores.\n\n' +
-          'No puedes desactivar tu propio usuario.',
-        tags: ['Usuarios'],
+          "Desactivar usuario (no elimina). Solo administradores.\n\n" +
+          "No puedes desactivar tu propio usuario.",
+        tags: ["Usuarios"],
         // NOTE: params validated by Zod (*IdParamSchema) in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
+              success: { type: "boolean", example: true },
               data: {
-                type: 'object',
+                type: "object",
                 properties: {
                   message: {
-                    type: 'string',
-                    example: 'Usuario desactivado exitosamente',
+                    type: "string",
+                    example: "Usuario desactivado exitosamente",
                   },
                 },
               },

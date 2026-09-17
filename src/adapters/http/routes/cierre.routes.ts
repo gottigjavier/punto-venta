@@ -1,14 +1,14 @@
 // src/adapters/http/routes/cierre.routes.ts
 // Cash closure routes — designed to be registered inside ventaRoutes
 // to avoid prefix conflict with /:id route
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from "fastify";
 import {
   listCierresHandler,
   getCierreByIdHandler,
   exportCierreCsvHandler,
   cierreVentasHandler,
-} from '../controllers/cierre.controller.js';
-import { authorize } from '../middleware/auth.middleware.js';
+} from "../controllers/cierre.controller.js";
+import { authorize } from "../middleware/auth.middleware.js";
 
 /**
  * Register cierre routes on an existing FastifyInstance.
@@ -20,33 +20,33 @@ export async function registerCierreRoutes(
 ): Promise<void> {
   // GET /cierres - List cash closures with filters and pagination
   fastify.get(
-    '/cierres',
+    "/cierres",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
         description:
-          'Lista paginada de cierres de caja con filtros por fecha, vendedor, ' +
-          'producto, proveedor y monto. Solo admin/gerente.',
-        tags: ['Cierres'],
+          "Lista paginada de cierres de caja con filtros por fecha, vendedor, " +
+          "producto, proveedor y monto. Solo admin/gerente.",
+        tags: ["Cierres"],
         // NOTE: querystring validation is handled by Zod (ListCierresQuerySchema) in
         // listCierresHandler. Single source of truth.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean' },
+              success: { type: "boolean" },
               data: {
-                type: 'array',
-                items: { $ref: 'CierreCaja' },
+                type: "array",
+                items: { $ref: "CierreCaja" },
               },
-              pagination: { $ref: 'Pagination' },
+              pagination: { $ref: "Pagination" },
               next_cursor: {
-                type: 'string',
+                type: "string",
                 nullable: true,
                 description:
-                  'Cursor opaco para la siguiente página en modo keyset (paginación por cursor). ' +
-                  'null si no hay más páginas o si se usa offset (page/limit).',
+                  "Cursor opaco para la siguiente página en modo keyset (paginación por cursor). " +
+                  "null si no hay más páginas o si se usa offset (page/limit).",
               },
             },
           },
@@ -58,19 +58,19 @@ export async function registerCierreRoutes(
 
   // GET /cierres/:id/csv - Export cash closure as CSV (must be before /:id)
   fastify.get(
-    '/cierres/:id/csv',
+    "/cierres/:id/csv",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
         description:
-          'Exporta el desglose de un cierre de caja como archivo CSV. ' +
-          'Solo admin/gerente.',
-        tags: ['Cierres'],
+          "Exporta el desglose de un cierre de caja como archivo CSV. " +
+          "Solo admin/gerente.",
+        tags: ["Cierres"],
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'string',
-            description: 'Archivo CSV con el desglose del cierre',
+            type: "string",
+            description: "Archivo CSV con el desglose del cierre",
           },
         },
       },
@@ -80,23 +80,23 @@ export async function registerCierreRoutes(
 
   // GET /cierres/:id/ventas - Detailed sales rows for a cash closure (must be before /:id)
   fastify.get(
-    '/cierres/:id/ventas',
+    "/cierres/:id/ventas",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
         description:
-          'Devuelve filas aplanadas de ventas de un cierre de caja, ' +
-          'una por línea de producto. Filtros server-side: vendedor, ' +
-          'producto, monto_min, monto_max. Orden: cantidad o monto. ' +
-          'Solo admin/gerente.',
-        tags: ['Cierres'],
+          "Devuelve filas aplanadas de ventas de un cierre de caja, " +
+          "una por línea de producto. Filtros server-side: vendedor, " +
+          "producto, monto_min, monto_max. Orden: cantidad o monto. " +
+          "Solo admin/gerente.",
+        tags: ["Cierres"],
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean' },
-              data: { $ref: 'VentaCierreRespuesta' },
+              success: { type: "boolean" },
+              data: { $ref: "VentaCierreRespuesta" },
             },
           },
         },
@@ -107,22 +107,22 @@ export async function registerCierreRoutes(
 
   // GET /cierres/:id - Get cash closure by ID with details
   fastify.get(
-    '/cierres/:id',
+    "/cierres/:id",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
         description:
-          'Obtiene un cierre de caja por ID con todos sus detalles. ' +
-          'Solo admin/gerente.',
-        tags: ['Cierres'],
+          "Obtiene un cierre de caja por ID con todos sus detalles. " +
+          "Solo admin/gerente.",
+        tags: ["Cierres"],
         // NOTE: params validated by Zod in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'CierreDetail' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "CierreDetail" },
             },
           },
         },

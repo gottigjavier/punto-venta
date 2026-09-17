@@ -154,7 +154,7 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
           "## Autenticación\n" +
           "Todos los endpoints protegidos requieren un Bearer Token en el header `Authorization`.\n\n" +
           "### Obtener token\n" +
-          '```POST /api/v1/auth/login``` con `{ "nik_usuario": "...", "password": "..." }`\n\n' +
+          "```POST /api/v1/auth/login``` con `{ \"nik_usuario\": \"...\", \"password\": \"...\" }`\n\n" +
           "### Usar token\n" +
           "```Authorization: Bearer <token>```\n\n" +
           "## Roles\n" +

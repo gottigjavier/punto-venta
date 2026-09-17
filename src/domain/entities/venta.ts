@@ -5,7 +5,7 @@ export interface Venta {
   id: string;
   usuario_id: string;
   total: number;
-  estado: 'pendiente' | 'completada' | 'cancelada';
+  estado: "pendiente" | "completada" | "cancelada";
   created_at: Date;
 }
 
@@ -44,7 +44,7 @@ export interface VentaListItem {
   usuario_id: string;
   usuario_nombre: string;
   total: number;
-  estado: 'pendiente' | 'completada' | 'cancelada';
+  estado: "pendiente" | "completada" | "cancelada";
   cantidad_items: number;
   created_at: Date;
 }
@@ -73,7 +73,7 @@ export interface ResumenDia {
 // Movimiento de caja (ingreso/egreso)
 export interface MovimientoCaja {
   id: string;
-  tipo: 'ingreso' | 'egreso';
+  tipo: "ingreso" | "egreso";
   monto: number;
   descripcion: string | null;
   usuario_id: string;

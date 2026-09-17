@@ -27,9 +27,9 @@ export function toDecimal(val: unknown): Prisma.Decimal {
 }
 
 export function toNumber(val: unknown): number {
-  if (typeof val === 'number') return val;
-  if (typeof val === 'string') return parseFloat(val);
-  if (val && typeof val === 'object' && 'toNumber' in val) {
+  if (typeof val === "number") return val;
+  if (typeof val === "string") return parseFloat(val);
+  if (val && typeof val === "object" && "toNumber" in val) {
     return (val as { toNumber: () => number }).toNumber();
   }
   return 0;

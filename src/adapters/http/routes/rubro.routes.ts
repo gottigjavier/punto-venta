@@ -1,31 +1,31 @@
 // src/adapters/http/routes/rubro.routes.ts
 // Rubro routes - Fase 4: Documentación Swagger
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from "fastify";
 import {
   listRubrosHandler,
   getRubroByIdHandler,
   createRubroHandler,
   updateRubroHandler,
   deleteRubroHandler,
-} from '../controllers/rubro.controller.js';
-import { authorize } from '../middleware/auth.middleware.js';
+} from "../controllers/rubro.controller.js";
+import { authorize } from "../middleware/auth.middleware.js";
 
 export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /api/v1/rubros
   fastify.get(
-    '/',
+    "/",
     {
-      preHandler: authorize('admin', 'gerente', 'despachador'),
+      preHandler: authorize("admin", "gerente", "despachador"),
       schema: {
-        description: 'Listar todos los rubros/categorías activos.',
-        tags: ['Rubros'],
+        description: "Listar todos los rubros/categorías activos.",
+        tags: ["Rubros"],
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { type: 'array', items: { $ref: 'Rubro' } },
+              success: { type: "boolean", example: true },
+              data: { type: "array", items: { $ref: "Rubro" } },
             },
           },
         },
@@ -36,20 +36,20 @@ export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
 
   // GET /api/v1/rubros/:id
   fastify.get(
-    '/:id',
+    "/:id",
     {
-      preHandler: authorize('admin', 'gerente', 'despachador'),
+      preHandler: authorize("admin", "gerente", "despachador"),
       schema: {
-        description: 'Obtener rubro por ID.',
-        tags: ['Rubros'],
+        description: "Obtener rubro por ID.",
+        tags: ["Rubros"],
         // NOTE: params validated by Zod (*IdParamSchema) in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'Rubro' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "Rubro" },
             },
           },
         },
@@ -60,19 +60,19 @@ export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
 
   // POST /api/v1/rubros
   fastify.post(
-    '/',
+    "/",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
-        description: 'Crear nuevo rubro/categoría.',
-        tags: ['Rubros'],
+        description: "Crear nuevo rubro/categoría.",
+        tags: ["Rubros"],
         security: [{ bearerAuth: [] }],
         response: {
           201: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'Rubro' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "Rubro" },
             },
           },
         },
@@ -83,20 +83,20 @@ export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
 
   // PUT /api/v1/rubros/:id
   fastify.put(
-    '/:id',
+    "/:id",
     {
-      preHandler: authorize('admin', 'gerente'),
+      preHandler: authorize("admin", "gerente"),
       schema: {
-        description: 'Actualizar rubro existente.',
-        tags: ['Rubros'],
+        description: "Actualizar rubro existente.",
+        tags: ["Rubros"],
         // NOTE: params validated by Zod (*IdParamSchema) in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
-              data: { $ref: 'Rubro' },
+              success: { type: "boolean", example: true },
+              data: { $ref: "Rubro" },
             },
           },
         },
@@ -107,25 +107,25 @@ export async function rubroRoutes(fastify: FastifyInstance): Promise<void> {
 
   // DELETE /api/v1/rubros/:id
   fastify.delete(
-    '/:id',
+    "/:id",
     {
-      preHandler: authorize('admin'),
+      preHandler: authorize("admin"),
       schema: {
-        description: 'Eliminar rubro. Solo administradores.',
-        tags: ['Rubros'],
+        description: "Eliminar rubro. Solo administradores.",
+        tags: ["Rubros"],
         // NOTE: params validated by Zod (*IdParamSchema) in handler.
         security: [{ bearerAuth: [] }],
         response: {
           200: {
-            type: 'object',
+            type: "object",
             properties: {
-              success: { type: 'boolean', example: true },
+              success: { type: "boolean", example: true },
               data: {
-                type: 'object',
+                type: "object",
                 properties: {
                   message: {
-                    type: 'string',
-                    example: 'Rubro eliminado exitosamente',
+                    type: "string",
+                    example: "Rubro eliminado exitosamente",
                   },
                 },
               },

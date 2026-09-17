@@ -439,10 +439,15 @@ podman compose logs api 2>&1 | jq -r '.statusCode' | sort | uniq -c
 
 | `NODE_ENV` | `development` | `development` / `staging` / `production` / `test` |
 | `API_PORT` | `3001` | API server port |
+| `TRUST_PROXY_HOPS` | `0` | Trusted reverse-proxy hops for `trustProxy`. `0` = disabled (API exposed directly); set to the exact hop count (usually `1`) behind a trusted proxy (Render, Nginx) so the client IP cannot be spoofed |
 | `FRONTEND_URL` | `http://localhost:5173` | Frontend URL for CORS (Vite dev server) |
 | `LOG_LEVEL` | `info` | `error` / `warn` / `info` / `debug` / `trace` |
+| `METRICS_TOKEN` | — | Bearer token required to scrape `/metrics` (optional). If unset in production, `/metrics` is not exposed (403) |
 | `RATE_LIMIT_WINDOW_MS` | `3600000` | Rate limit window (1 hour) |
 | `RATE_LIMIT_MAX_REQUESTS` | `10` | Max requests per window (global rate limiter) |
+| `RATE_LIMIT_ENABLED` | — | `true` / `false` — explicit global rate-limit toggle (optional). Unset → enabled in production/staging, disabled in development/test |
+| `LOGIN_RATE_LIMIT_MAX` | `5` | Max `/login` attempts per window, per IP (stricter than the global limiter) |
+| `LOGIN_RATE_LIMIT_WINDOW_MS` | `60000` | `/login` rate limit window (1 minute) |
 | `MAX_LOGIN_ATTEMPTS` | `3` | Failed attempts before lockout |
 | `LOCKOUT_DURATION_MINUTES` | `30` | Account lockout duration |
 | `POSTGRES_USER` | `pv_user` | PostgreSQL user (production) |

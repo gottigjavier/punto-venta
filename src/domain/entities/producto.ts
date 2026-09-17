@@ -1,10 +1,10 @@
 // src/domain/entities/producto.ts
 // Producto entity — información general del producto (maestro).
 // El stock/compra/vencimiento ya NO viven acá: van en Lote (ver ./lote.ts).
-import type { Lote } from './lote.js';
+import type { Lote } from "./lote.js";
 
 // Unidad de medida (compartida con Lote.producto.unidad_medida)
-export type UnidadMedida = 'unidad' | 'kg' | 'g' | 'l' | 'ml';
+export type UnidadMedida = "unidad" | "kg" | "g" | "l" | "ml";
 
 export interface Producto {
   id: string;
@@ -53,12 +53,12 @@ export interface ProductoStock extends Lote {
     precio_venta: number;
     cantidad_aviso: number;
   };
-  estado_vencimiento: 'vencido' | 'por_vencer' | 'ok';
+  estado_vencimiento: "vencido" | "por_vencer" | "ok";
   stock_bajo: boolean;
 }
 
 // Product list item (without full relations)
 export type ProductoListItem = Pick<
   Producto,
-  'id' | 'nombre' | 'codigo' | 'stock_actual' | 'precio_venta' | 'unidad_medida'
+  "id" | "nombre" | "codigo" | "stock_actual" | "precio_venta" | "unidad_medida"
 >;

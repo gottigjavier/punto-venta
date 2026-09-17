@@ -3,11 +3,11 @@
 // the duplicated handleDomainError found in each controller, removing drift
 // risk between the code→status map and the error response shape.
 
-import type { FastifyReply } from 'fastify';
-import type { DomainError } from '../../../shared/types/result.js';
+import type { FastifyReply } from "fastify";
+import type { DomainError } from "../../../shared/types/result.js";
 
 // Única fuente de verdad para el status code de cada error de dominio.
-const STATUS_CODE_MAP: Record<DomainError['code'], number> = {
+const STATUS_CODE_MAP: Record<DomainError["code"], number> = {
   VALIDATION_ERROR: 400,
   NOT_FOUND: 404,
   UNAUTHORIZED: 401,
@@ -41,7 +41,7 @@ export function sendDomainError(
     error: {
       code: error.code,
       message: error.message,
-      ...('details' in error ? { details: error.details } : {}),
+      ...("details" in error ? { details: error.details } : {}),
       ...extra,
     },
   });

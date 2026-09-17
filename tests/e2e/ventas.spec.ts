@@ -1,9 +1,9 @@
 // tests/e2e/ventas.spec.ts
 // E2E tests for Sales flows
 // Section 8.2 - Flujo de ventas
-import { test, expect } from '@playwright/test';
-import { createApiClient, TEST_USERS } from '../fixtures/test-data.js';
-import type { ApiClient, RubroResponse, ProveedorResponse, ProductoResponse, LoteResponse } from '../fixtures/test-data.js';
+import { test, expect } from "@playwright/test";
+import { createApiClient, TEST_USERS } from "../fixtures/test-data.js";
+import type { ApiClient, RubroResponse, ProveedorResponse, ProductoResponse, LoteResponse } from "../fixtures/test-data.js";
 
 // Helper to setup test data (rubro + proveedor + producto + lote con stock)
 async function setupTestData(api: ApiClient): Promise<{
@@ -13,37 +13,37 @@ async function setupTestData(api: ApiClient): Promise<{
   stockInicial: number;
 }> {
   // Create rubro
-  const rubroResult = await api.request<RubroResponse>('POST', '/api/v1/rubros', {
+  const rubroResult = await api.request<RubroResponse>("POST", "/api/v1/rubros", {
     nombre: `Rubro Venta Test ${Date.now()}`,
-    descripcion: 'Rubro para tests de venta',
+    descripcion: "Rubro para tests de venta",
   });
   expect(rubroResult.status).toBe(201);
   const rubroId = rubroResult.body.data!.id;
 
   // Create proveedor
-  const proveedorResult = await api.request<ProveedorResponse>('POST', '/api/v1/proveedores', {
+  const proveedorResult = await api.request<ProveedorResponse>("POST", "/api/v1/proveedores", {
     razon_social: `Proveedor Venta Test ${Date.now()}`,
     cuit: `30-${Math.floor(Math.random() * 90000000 + 10000000)}-${Math.floor(Math.random() * 9) + 1}`,
-    email: 'venta@test.com',
+    email: "venta@test.com",
   });
   expect(proveedorResult.status).toBe(201);
   const proveedorId = proveedorResult.body.data!.id;
 
   // Create producto (sin stock: el stock vive en Lote)
-  const productoResult = await api.request<ProductoResponse>('POST', '/api/v1/productos', {
+  const productoResult = await api.request<ProductoResponse>("POST", "/api/v1/productos", {
     nombre: `Producto Venta Test ${Date.now()}`,
     codigo: `VEN-${Date.now()}`,
     precio_venta: 250,
     rubro_id: rubroId,
     proveedor_id: proveedorId,
-    unidad_medida: 'unidad',
+    unidad_medida: "unidad",
   });
   expect(productoResult.status).toBe(201);
   const productoId = productoResult.body.data!.id;
 
   // Crear un lote con stock para poder vender
   const stockInicial = 100;
-  const lote = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
+  const lote = await api.request<LoteResponse>("POST", "/api/v1/stock/ingreso", {
     producto_id: productoId,
     numero_lote: `LOTE-${Date.now()}`,
     cantidad: stockInicial,
@@ -54,7 +54,7 @@ async function setupTestData(api: ApiClient): Promise<{
   return { rubroId, proveedorId, productoId, stockInicial };
 }
 
-test.describe('Ventas - Flujo completo de ventas', () => {
+test.describe("Ventas - Flujo completo de ventas", () => {
   let api: ApiClient;
 
   test.beforeEach(async () => {
@@ -67,12 +67,12 @@ test.describe('Ventas - Flujo completo de ventas', () => {
     await api.logout();
   });
 
-  test('Flujo completo: Login → listar productos → crear venta → verificar stock reducido', async () => {
+  test("Flujo completo: Login → listar productos → crear venta → verificar stock reducido", async () => {
     // 1. Setup test data
     const { productoId } = await setupTestData(api);
 
     // 2. List products (verify product exists)
-    const listResult = await api.request<ProductoResponse[]>('GET', '/api/v1/productos');
+    const listResult = await api.request<ProductoResponse[]>("GET", "/api/v1/productos");
     expect(listResult.status).toBe(200);
     expect(listResult.body.success).toBe(true);
     const product = listResult.body.data?.find(
@@ -82,7 +82,7 @@ test.describe('Ventas - Flujo completo de ventas', () => {
     expect(product!.stock_actual).toBe(100);
 
     // 3. Create sale (buy 10 units at $250 each)
-    const saleResult = await api.request('POST', '/api/v1/ventas', {
+    const saleResult = await api.request("POST", "/api/v1/ventas", {
       productos: [
         {
           producto_id: productoId,
@@ -98,7 +98,7 @@ test.describe('Ventas - Flujo completo de ventas', () => {
 
     const sale = saleResult.body.data as Record<string, unknown>;
     expect(sale.id).toBeDefined();
-    expect(sale.estado).toBe('completada');
+    expect(sale.estado).toBe("completada");
     expect(Number(sale.total)).toBe(2500); // 10 * 250
 
     // Verify details
@@ -110,19 +110,19 @@ test.describe('Ventas - Flujo completo de ventas', () => {
 
     // 4. Verify stock was reduced
     const afterSaleProduct = await api.request<ProductoResponse>(
-      'GET',
+      "GET",
       `/api/v1/productos/${productoId}`
     );
     expect(afterSaleProduct.status).toBe(200);
     expect(afterSaleProduct.body.data!.stock_actual).toBe(90); // 100 - 10 = 90
   });
 
-  test('Venta con stock insuficiente retorna error', async () => {
+  test("Venta con stock insuficiente retorna error", async () => {
     // 1. Setup test data
     const { productoId } = await setupTestData(api);
 
     // 2. Try to sell more than available stock
-    const saleResult = await api.request('POST', '/api/v1/ventas', {
+    const saleResult = await api.request("POST", "/api/v1/ventas", {
       productos: [
         {
           producto_id: productoId,
@@ -134,23 +134,23 @@ test.describe('Ventas - Flujo completo de ventas', () => {
 
     expect(saleResult.status).toBe(409);
     expect(saleResult.body.success).toBe(false);
-    expect(saleResult.body.error!.code).toBe('STOCK_INSUFFICIENT');
+    expect(saleResult.body.error!.code).toBe("STOCK_INSUFFICIENT");
     expect(saleResult.body.error!.disponible).toBe(100);
     expect(saleResult.body.error!.solicitado).toBe(200);
 
     // Verify stock was NOT reduced
     const afterSaleProduct = await api.request<ProductoResponse>(
-      'GET',
+      "GET",
       `/api/v1/productos/${productoId}`
     );
     expect(afterSaleProduct.body.data!.stock_actual).toBe(100);
   });
 
-  test('Venta con producto inexistente retorna error', async () => {
-    const result = await api.request('POST', '/api/v1/ventas', {
+  test("Venta con producto inexistente retorna error", async () => {
+    const result = await api.request("POST", "/api/v1/ventas", {
       productos: [
         {
-          producto_id: '00000000-0000-0000-0000-000000000000',
+          producto_id: "00000000-0000-0000-0000-000000000000",
           cantidad: 1,
           precio_unitario: 100,
         },
@@ -159,23 +159,23 @@ test.describe('Ventas - Flujo completo de ventas', () => {
 
     expect(result.status).toBe(404);
     expect(result.body.success).toBe(false);
-    expect(result.body.error!.code).toBe('NOT_FOUND');
+    expect(result.body.error!.code).toBe("NOT_FOUND");
   });
 
-  test('Venta con body inválido retorna error de validación', async () => {
-    const result = await api.request('POST', '/api/v1/ventas', {
+  test("Venta con body inválido retorna error de validación", async () => {
+    const result = await api.request("POST", "/api/v1/ventas", {
       productos: [],
     });
 
     expect(result.status).toBe(400);
     expect(result.body.success).toBe(false);
-    expect(result.body.error!.code).toBe('VALIDATION_ERROR');
+    expect(result.body.error!.code).toBe("VALIDATION_ERROR");
   });
 
-  test('Venta con cantidad 0 retorna error de validación', async () => {
+  test("Venta con cantidad 0 retorna error de validación", async () => {
     const { productoId } = await setupTestData(api);
 
-    const result = await api.request('POST', '/api/v1/ventas', {
+    const result = await api.request("POST", "/api/v1/ventas", {
       productos: [
         {
           producto_id: productoId,
@@ -189,15 +189,15 @@ test.describe('Ventas - Flujo completo de ventas', () => {
     expect(result.body.success).toBe(false);
   });
 
-  test('Listar ventas con paginación', async () => {
+  test("Listar ventas con paginación", async () => {
     // Create a sale first
     const { productoId } = await setupTestData(api);
-    await api.request('POST', '/api/v1/ventas', {
+    await api.request("POST", "/api/v1/ventas", {
       productos: [{ producto_id: productoId, cantidad: 1, precio_unitario: 250 }],
     });
 
     // List sales
-    const result = await api.request('GET', '/api/v1/ventas?page=1&limit=10');
+    const result = await api.request("GET", "/api/v1/ventas?page=1&limit=10");
     expect(result.status).toBe(200);
     expect(result.body.success).toBe(true);
     expect(result.body.data).toBeDefined();
@@ -207,51 +207,51 @@ test.describe('Ventas - Flujo completo de ventas', () => {
     expect(result.body.pagination!.limit).toBe(10);
   });
 
-  test('Obtener venta por ID', async () => {
+  test("Obtener venta por ID", async () => {
     // Create a sale first
     const { productoId } = await setupTestData(api);
-    const createResult = await api.request('POST', '/api/v1/ventas', {
+    const createResult = await api.request("POST", "/api/v1/ventas", {
       productos: [{ producto_id: productoId, cantidad: 5, precio_unitario: 250 }],
     });
     const saleId = (createResult.body.data as Record<string, unknown>).id as string;
 
     // Get by ID
-    const result = await api.request('GET', `/api/v1/ventas/${saleId}`);
+    const result = await api.request("GET", `/api/v1/ventas/${saleId}`);
     expect(result.status).toBe(200);
     expect(result.body.success).toBe(true);
     expect((result.body.data as Record<string, unknown>).id).toBe(saleId);
   });
 
-  test('Obtener venta inexistente retorna 404', async () => {
+  test("Obtener venta inexistente retorna 404", async () => {
     const result = await api.request(
-      'GET',
-      '/api/v1/ventas/00000000-0000-0000-0000-000000000000'
+      "GET",
+      "/api/v1/ventas/00000000-0000-0000-0000-000000000000"
     );
     expect(result.status).toBe(404);
     expect(result.body.success).toBe(false);
   });
 
-  test('Resumen diario de ventas', async () => {
+  test("Resumen diario de ventas", async () => {
     // Create some sales
     const { productoId } = await setupTestData(api);
-    await api.request('POST', '/api/v1/ventas', {
+    await api.request("POST", "/api/v1/ventas", {
       productos: [{ producto_id: productoId, cantidad: 2, precio_unitario: 250 }],
     });
 
     // Get daily summary
-    const result = await api.request('GET', '/api/v1/ventas/resumen/dia');
+    const result = await api.request("GET", "/api/v1/ventas/resumen/dia");
     expect(result.status).toBe(200);
     expect(result.body.success).toBe(true);
 
     const resumen = result.body.data as Record<string, unknown>;
     expect(resumen.fecha).toBeDefined();
-    expect(typeof resumen.total_ventas).toBe('number');
-    expect(typeof resumen.monto_total).toBe('number');
+    expect(typeof resumen.total_ventas).toBe("number");
+    expect(typeof resumen.monto_total).toBe("number");
     expect(Array.isArray(resumen.productos_vendidos)).toBe(true);
     expect(Array.isArray(resumen.ventas_por_usuario)).toBe(true);
   });
 
-  test('Despachador puede crear venta', async () => {
+  test("Despachador puede crear venta", async () => {
     // Switch to despachador
     api.clearToken();
     await api.login(TEST_USERS.despachador.nik_usuario, TEST_USERS.despachador.password);
@@ -263,49 +263,49 @@ test.describe('Ventas - Flujo completo de ventas', () => {
     await adminApi.logout();
 
     // Despachador creates sale
-    const result = await api.request('POST', '/api/v1/ventas', {
+    const result = await api.request("POST", "/api/v1/ventas", {
       productos: [{ producto_id: productoId, cantidad: 3, precio_unitario: 250 }],
     });
     expect(result.status).toBe(201);
     expect(result.body.success).toBe(true);
   });
 
-  test('Venta con múltiples productos', async () => {
+  test("Venta con múltiples productos", async () => {
     // Create two products
     const { proveedorId, rubroId } = await setupTestData(api);
 
-    const prod1 = await api.request<ProductoResponse>('POST', '/api/v1/productos', {
-      nombre: 'Producto Multi 1',
+    const prod1 = await api.request<ProductoResponse>("POST", "/api/v1/productos", {
+      nombre: "Producto Multi 1",
       codigo: `MULTI-1-${Date.now()}`,
       precio_venta: 200,
       rubro_id: rubroId,
       proveedor_id: proveedorId,
-      unidad_medida: 'unidad',
+      unidad_medida: "unidad",
     });
-    const prod2 = await api.request<ProductoResponse>('POST', '/api/v1/productos', {
-      nombre: 'Producto Multi 2',
+    const prod2 = await api.request<ProductoResponse>("POST", "/api/v1/productos", {
+      nombre: "Producto Multi 2",
       codigo: `MULTI-2-${Date.now()}`,
       precio_venta: 300,
       rubro_id: rubroId,
       proveedor_id: proveedorId,
-      unidad_medida: 'unidad',
+      unidad_medida: "unidad",
     });
 
     const id1 = prod1.body.data!.id;
     const id2 = prod2.body.data!.id;
 
     // Crear lotes con stock para cada producto
-    const lote1 = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
+    const lote1 = await api.request<LoteResponse>("POST", "/api/v1/stock/ingreso", {
       producto_id: id1, numero_lote: `L1-${Date.now()}`, cantidad: 50, precio_compra: 100,
     });
-    const lote2 = await api.request<LoteResponse>('POST', '/api/v1/stock/ingreso', {
+    const lote2 = await api.request<LoteResponse>("POST", "/api/v1/stock/ingreso", {
       producto_id: id2, numero_lote: `L2-${Date.now()}`, cantidad: 30, precio_compra: 150,
     });
     expect(lote1.status).toBe(201);
     expect(lote2.status).toBe(201);
 
     // Create sale with both products
-    const result = await api.request('POST', '/api/v1/ventas', {
+    const result = await api.request("POST", "/api/v1/ventas", {
       productos: [
         { producto_id: id1, cantidad: 5, precio_unitario: 200 },
         { producto_id: id2, cantidad: 3, precio_unitario: 300 },
@@ -322,8 +322,8 @@ test.describe('Ventas - Flujo completo de ventas', () => {
     expect(detalles).toHaveLength(2);
 
     // Verify stock for both products
-    const after1 = await api.request<ProductoResponse>('GET', `/api/v1/productos/${id1}`);
-    const after2 = await api.request<ProductoResponse>('GET', `/api/v1/productos/${id2}`);
+    const after1 = await api.request<ProductoResponse>("GET", `/api/v1/productos/${id1}`);
+    const after2 = await api.request<ProductoResponse>("GET", `/api/v1/productos/${id2}`);
     expect(after1.body.data!.stock_actual).toBe(45); // 50 - 5
     expect(after2.body.data!.stock_actual).toBe(27); // 30 - 3
   });

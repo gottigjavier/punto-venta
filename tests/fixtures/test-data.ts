@@ -4,49 +4,49 @@
 // ===== Test Users =====
 export const TEST_USERS = {
   admin: {
-    nik_usuario: 'admin',
-    password: 'Admin123!',
-    nombre_usuario: 'Administrador Test',
-    email: 'admin@test.com',
-    rol: 'admin' as const,
+    nik_usuario: "admin",
+    password: "Admin123!",
+    nombre_usuario: "Administrador Test",
+    email: "admin@test.com",
+    rol: "admin" as const,
   },
   gerente: {
-    nik_usuario: 'gerente',
-    password: 'Gerente123!',
-    nombre_usuario: 'Gerente Test',
-    email: 'gerente@test.com',
-    rol: 'gerente' as const,
+    nik_usuario: "gerente",
+    password: "Gerente123!",
+    nombre_usuario: "Gerente Test",
+    email: "gerente@test.com",
+    rol: "gerente" as const,
   },
   despachador: {
-    nik_usuario: 'despachador',
-    password: 'Despachador123!',
-    nombre_usuario: 'Despachador Test',
-    email: 'despachador@test.com',
-    rol: 'despachador' as const,
+    nik_usuario: "despachador",
+    password: "Despachador123!",
+    nombre_usuario: "Despachador Test",
+    email: "despachador@test.com",
+    rol: "despachador" as const,
   },
 };
 
 // ===== Test Entities =====
 export const TEST_RUBRO = {
-  nombre: 'Panadería Test',
-  descripcion: 'Rubro de prueba para tests E2E',
+  nombre: "Panadería Test",
+  descripcion: "Rubro de prueba para tests E2E",
 };
 
 export const TEST_PROVEEDOR = {
-  razon_social: 'Distribuidora Test S.A.',
-  representante: 'Juan Test',
-  cuit: '20-12345678-9',
-  email: 'test@distribuidora.com',
-  telefonos: ['11-1234-5678'],
+  razon_social: "Distribuidora Test S.A.",
+  representante: "Juan Test",
+  cuit: "20-12345678-9",
+  email: "test@distribuidora.com",
+  telefonos: ["11-1234-5678"],
 };
 
 export const TEST_PRODUCTO = {
-  nombre: 'Pan Integral Test',
-  codigo: 'PAN-TEST-001',
+  nombre: "Pan Integral Test",
+  codigo: "PAN-TEST-001",
   cantidad_disponible: 50,
   precio_compra: 180,
   precio_venta: 250,
-  unidad_medida: 'unidad' as const,
+  unidad_medida: "unidad" as const,
 };
 
 // ===== API Response Types =====
@@ -101,7 +101,7 @@ export interface LoteResponse {
   fecha_compra: string | null;
   fecha_vencimiento: string | null;
   precio_compra: number;
-  estado: 'activo' | 'agotado' | 'vencido' | 'descartado';
+  estado: "activo" | "agotado" | "vencido" | "descartado";
   producto: {
     id: string;
     nombre: string;
@@ -143,7 +143,7 @@ export class ApiClient {
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {};
     if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
     }
     return headers;
   }
@@ -161,7 +161,7 @@ export class ApiClient {
       // Solo fijar Content-Type cuando hay body. En POST sin body (logout,
       // unlock) enviar 'application/json' con body vacío hace que Fastify
       // responda 400 (no puede parsear JSON vacío).
-      (options.headers as Record<string, string>)['Content-Type'] = 'application/json';
+      (options.headers as Record<string, string>)["Content-Type"] = "application/json";
       options.body = JSON.stringify(body);
     }
 
@@ -178,7 +178,7 @@ export class ApiClient {
     nik_usuario: string,
     password: string
   ): Promise<{ status: number; body: ApiResponse<LoginResponse> }> {
-    const result = await this.request<LoginResponse>('POST', '/api/v1/auth/login', {
+    const result = await this.request<LoginResponse>("POST", "/api/v1/auth/login", {
       nik_usuario,
       password,
     });
@@ -189,12 +189,12 @@ export class ApiClient {
   }
 
   async logout(): Promise<void> {
-    await this.request('POST', '/api/v1/auth/logout');
+    await this.request("POST", "/api/v1/auth/logout");
     this.clearToken();
   }
 }
 
 // ===== Setup Helpers =====
 export function createApiClient(): ApiClient {
-  return new ApiClient(process.env.API_URL || 'http://localhost:3001');
+  return new ApiClient(process.env.API_URL || "http://localhost:3001");
 }

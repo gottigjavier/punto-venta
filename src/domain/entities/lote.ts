@@ -1,7 +1,7 @@
 // src/domain/entities/lote.ts
 // Lote entity — el stock/compra/vencimiento vive en el lote, no en el producto.
 
-export type EstadoLote = 'activo' | 'agotado' | 'vencido' | 'descartado';
+export type EstadoLote = "activo" | "agotado" | "vencido" | "descartado";
 
 export interface Lote {
   id: string;
@@ -21,7 +21,7 @@ export interface LoteWithRelations extends Lote {
     id: string;
     nombre: string;
     codigo: string;
-    unidad_medida: 'unidad' | 'kg' | 'g' | 'l' | 'ml';
+    unidad_medida: "unidad" | "kg" | "g" | "l" | "ml";
     precio_venta: number;
     cantidad_aviso: number;
   };

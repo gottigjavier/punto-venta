@@ -180,7 +180,7 @@ describe("Producto Use Cases (modelo Lote)", () => {
       );
     });
 
-    it('listProductos filtra activo=false cuando query.activo="false"', async () => {
+    it("listProductos filtra activo=false cuando query.activo=\"false\"", async () => {
       mockPrisma.producto.findMany.mockResolvedValue([mockProductoDb()]);
       mockPrisma.producto.count.mockResolvedValue(1);
       mockPrisma.lote.findMany.mockResolvedValue([]);

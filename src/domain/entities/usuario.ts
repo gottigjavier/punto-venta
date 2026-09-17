@@ -7,7 +7,7 @@ export interface Usuario {
   password_hash: string;
   email: string;
   telefono: string | null;
-  rol: 'admin' | 'gerente' | 'despachador';
+  rol: "admin" | "gerente" | "despachador";
   activo: boolean;
   intentos_fallidos: number;
   bloqueado_hasta: Date | null;
@@ -16,7 +16,7 @@ export interface Usuario {
 }
 
 // Safe user type (without password)
-export type UsuarioSafe = Omit<Usuario, 'password_hash'>;
+export type UsuarioSafe = Omit<Usuario, "password_hash">;
 
 // User with minimal info for JWT
-export type UsuarioJWT = Pick<Usuario, 'id' | 'nik_usuario' | 'rol'>;
+export type UsuarioJWT = Pick<Usuario, "id" | "nik_usuario" | "rol">;

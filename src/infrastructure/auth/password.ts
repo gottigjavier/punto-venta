@@ -1,7 +1,7 @@
 // src/infrastructure/auth/password.ts
 // Password hashing and verification
-import bcrypt from 'bcryptjs';
-import { BCRYPT_SALT_ROUNDS } from '../config/env.js';
+import bcrypt from "bcryptjs";
+import { BCRYPT_SALT_ROUNDS } from "../config/env.js";
 
 // Hash password
 export async function hashPassword(password: string): Promise<string> {
@@ -18,16 +18,16 @@ export function validatePasswordStrength(password: string): { valid: boolean; er
   const errors: string[] = [];
 
   if (password.length < 8) {
-    errors.push('Mínimo 8 caracteres');
+    errors.push("Mínimo 8 caracteres");
   }
   if (!/[A-Z]/.test(password)) {
-    errors.push('Al menos 1 letra mayúscula');
+    errors.push("Al menos 1 letra mayúscula");
   }
   if (!/[0-9]/.test(password)) {
-    errors.push('Al menos 1 número');
+    errors.push("Al menos 1 número");
   }
   if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-    errors.push('Al menos 1 carácter especial');
+    errors.push("Al menos 1 carácter especial");
   }
 
   return {
