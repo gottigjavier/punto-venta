@@ -104,18 +104,6 @@ export async function listarMovimientos(query: MovimientoQueryInput): Promise<
     if (cursor && !keyset) {
       return err(validationError("Cursor inválido"));
     }
-    if (keyset) {
-      if (keyset.createdAt === null) {
-        // created_at es NOT NULL en MovimientoCaja: un cursor con fecha null no
-        // puede provenir de una página real de este listado.
-        return err(validationError("Cursor inválido"));
-      }
-      if (sort !== "created_at") {
-        return err(
-          validationError("El cursor solo es compatible con sort=created_at"),
-        );
-      }
-    }
     let skip: number | undefined = (page - 1) * limit;
 
     // Only active period (cierre_caja_id = null)
@@ -128,18 +116,33 @@ export async function listarMovimientos(query: MovimientoQueryInput): Promise<
       | Prisma.MovimientoCajaOrderByWithRelationInput[] = { [sort]: order };
     let take = limit;
     if (keyset) {
+      // created_at es NOT NULL en MovimientoCaja: un cursor con `c: null` no
+      // puede provenir de una página real de este listado → cursor inválido.
+      // La guarda también estrecha keyset.createdAt a Date para la condición
+      // keyset de abajo: el narrowing de CursorKeyset no sobrevive a un
+      // `if (keyset)` posterior (bloques de build intermedios), así que se
+      // hace visible acá, en el mismo bloque donde se usa.
+      if (keyset.createdAt === null) {
+        return err(validationError("Cursor inválido"));
+      }
+      if (sort !== "created_at") {
+        return err(
+          validationError("El cursor solo es compatible con sort=created_at"),
+        );
+      }
+      const cursorCreatedAt = keyset.createdAt; // Date (NOT NULL)
       // Condición keyset: siguiente página = filas ESTRICTAMENTE posteriores al
       // cursor en (created_at, id) según la dirección. Se combina con el filtro
       // de período activo por AND (nunca lo saltea).
       where.OR =
         order === "desc"
           ? [
-              { created_at: { lt: keyset.createdAt } },
-              { created_at: keyset.createdAt, id: { lt: keyset.id } },
+              { created_at: { lt: cursorCreatedAt } },
+              { created_at: cursorCreatedAt, id: { lt: keyset.id } },
             ]
           : [
-              { created_at: { gt: keyset.createdAt } },
-              { created_at: keyset.createdAt, id: { gt: keyset.id } },
+              { created_at: { gt: cursorCreatedAt } },
+              { created_at: cursorCreatedAt, id: { gt: keyset.id } },
             ];
       orderBy = [{ created_at: order }, { id: order }];
       skip = undefined;
