@@ -33,6 +33,16 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(3600000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(10),
 
+  // Interruptor explícito del rate-limit global (SE3): "true" | "false".
+  // undefined = no seteado → main.ts decide el default por entorno
+  // (production/staging habilitado, development/test deshabilitado). Valor
+  // inválido (ej. "TRUE") falla el arranque igual que el resto de las env
+  // vars, en lugar de pasar silencioso.
+  RATE_LIMIT_ENABLED: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((val) => (val === undefined ? undefined : val === "true")),
+
   // Login rate limiting: más estricto y por IP para endurecer /login frente a
   // fuerza bruta y el ataque de bloqueo por lockout (S4).
   LOGIN_RATE_LIMIT_MAX: z.coerce.number().default(5),

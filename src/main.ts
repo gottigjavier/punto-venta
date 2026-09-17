@@ -86,8 +86,16 @@ async function bootstrap(): Promise<void> {
   //   threshold: 1024,
   // });
 
-  // Rate limiting global (deshabilitado en desarrollo para facilitar testing)
-  if (env.NODE_ENV === "production") {
+  // Rate limiting global (SE3): activo por defecto en production y staging
+  // (entornos que suelen usar DB real/seed y quedaban sin protección), y
+  // deshabilitado en development/test para facilitar el testing. El flag
+  // explícito RATE_LIMIT_ENABLED=true|false — validado en env.ts — sobreescribe
+  // el default por entorno; undefined (no seteado) → se decide por NODE_ENV.
+  const rateLimitEnabled =
+    env.RATE_LIMIT_ENABLED ??
+    (env.NODE_ENV === "production" || env.NODE_ENV === "staging");
+
+  if (rateLimitEnabled) {
     await fastify.register(rateLimit, {
       max: env.RATE_LIMIT_MAX_REQUESTS * 10,
       timeWindow: env.RATE_LIMIT_WINDOW_MS,
