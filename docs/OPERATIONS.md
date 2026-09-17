@@ -56,9 +56,6 @@ echo "your-db-password" > secrets/db_password.txt
 # Run database migrations
 ./scripts/dev.sh migrate
 
-# Seed initial data (optional)
-./scripts/dev.sh seed
-
 # Check status
 ./scripts/dev.sh ps
 ```
@@ -84,7 +81,6 @@ echo "your-db-password" > secrets/db_password.txt
 ./scripts/dev.sh logs       # Follow all logs
 ./scripts/dev.sh logs api   # Follow API logs only
 ./scripts/dev.sh migrate    # Run Prisma migrations
-./scripts/dev.sh seed       # Seed database
 ./scripts/dev.sh test       # Run unit tests
 ./scripts/dev.sh test:e2e   # Run E2E tests
 ./scripts/dev.sh stop       # Stop services

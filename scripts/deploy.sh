@@ -67,12 +67,10 @@ podman compose -f "$COMPOSE_FILE" exec -T api npx prisma migrate deploy 2>/dev/n
   podman compose -f "$COMPOSE_FILE" exec -T api npx prisma migrate deploy || err "Migration failed — check logs."
 }
 
-# DV2 (seed condicional): NO se corre `prisma db seed` en producción. El seed
-# ya aborta solo cuando NODE_ENV=production y, sobre todo, el primer
-# administrador ya no se crea por seed: se crea con el asistente de setup
-# (POST /auth/bootstrap) que la app redirige en el primer arranque, sin
-# credenciales por defecto. Correr el seed acá sería ruido / riesgo de
-# re-seedear datos de ejemplo en prod.
+# DV2 (decisión): NO se corre `prisma db seed` en producción. El seed ya no
+# existe en el repo (prisma/seed.ts fue eliminado): el primer administrador se
+# crea con el asistente de setup (POST /auth/bootstrap), que la app redirige en
+# el primer arranque, sin credenciales por defecto. No hay nada que seedear.
 
 # ─── Step 5: Deploy with rolling restart ──────
 log "Step 5/5: Deploying services..."

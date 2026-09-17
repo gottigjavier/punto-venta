@@ -84,8 +84,7 @@ La sección **Usuarios es exclusiva de `admin`**, y está protegida en **dos cap
 punto-venta/
 ├── package.json            # Backend (Fastify) - scripts dev/build/prisma/test
 ├── prisma/
-│   ├── schema.prisma       # Modelos: Usuario, Producto, Proveedor, Rubro, Venta, DetalleVenta, CierreCaja...
-│   └── seed.ts             # Seed: usuario admin + rubros + proveedor de ejemplo
+│   └── schema.prisma       # Modelos: Usuario, Producto, Proveedor, Rubro, Venta, DetalleVenta, CierreCaja...
 ├── src/                    # Código fuente del backend (domain/application/adapters/infrastructure)
 ├── client/                 # Frontend React + Vite + shadcn/ui
 │   ├── package.json        # Scripts dev/build/preview/lint/test
@@ -164,17 +163,14 @@ Generá el cliente de Prisma y aplicá las migraciones. En desarrollo:
 
 ```bash
 bun run prisma:migrate     # prisma migrate dev
-bun run prisma:seed        # tsx prisma/seed.ts
 ```
 
 En producción usá `bun run prisma:migrate:prod` (`prisma migrate deploy`).
 
-El seed crea:
-- Un **usuario admin** con `nik_usuario: user` / `password: password` (rol `admin`).
-- Rubros de ejemplo (Panadería, Lácteos, Bebidas, Snacks, Limpieza).
-- Un proveedor de ejemplo (Distribuidora Ejemplo S.A., CUIT `30-71234567-9`).
-
-> ⚠️ Cambiá la contraseña del admin en producción.
+> El primer **usuario admin** no se crea por seed: el backend expone
+> `POST /api/v1/auth/bootstrap` (asistente de setup en `/setup`), que crea el
+> primer administrador en el primer arranque cuando no existe ningún usuario.
+> No hay credenciales por defecto.
 
 ## Ejecución en desarrollo
 
@@ -266,7 +262,6 @@ podman compose -f podman-compose.prod.yml up -d --build
 | `bun run prisma:generate` | Genera el cliente Prisma |
 | `bun run prisma:migrate` | `prisma migrate dev` (desarrollo) |
 | `bun run prisma:migrate:prod` | `prisma migrate deploy` (producción) |
-| `bun run prisma:seed` | Ejecuta el seed |
 | `bun run prisma:studio` | Prisma Studio |
 | `bun run lint` | ESLint |
 | `bun run test` / `test:run` / `test:coverage` | Vitest |
@@ -288,18 +283,17 @@ podman compose -f podman-compose.prod.yml up -d --build
 ./scripts/dev.sh up         # Levanta servicios (podman compose)
 ./scripts/dev.sh logs       # Sigue logs
 ./scripts/dev.sh migrate    # Migraciones Prisma
-./scripts/dev.sh seed       # Seed de datos iniciales
 ./scripts/dev.sh test       # Tests unitarios
 ./scripts/dev.sh test:e2e   # Tests E2E
 ./scripts/dev.sh stop       # Detiene servicios
 ./scripts/dev.sh clean      # Detiene y elimina volúmenes
 ```
 
-## Usuarios por defecto
+## Primer administrador
 
-| Nik | Contraseña | Rol |
-|-----|------------|-----|
-| `user` | `password` | `admin` |
+No hay usuarios por defecto ni credenciales hardcodeadas. En el primer arranque
+(con la base vacía) la app redirige al asistente de **Setup** (`/setup`), que crea
+el primer usuario con rol `admin` vía `POST /api/v1/auth/bootstrap`.
 
 ## Seguridad
 

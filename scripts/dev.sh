@@ -5,7 +5,6 @@
 #   No args:  Start all services
 #   logs:     Follow API logs
 #   migrate:  Run Prisma migrations
-#   seed:     Seed the database
 #   test:     Run unit tests
 #   test:e2e: Run E2E tests
 #   stop:     Stop all services
@@ -36,11 +35,6 @@ case "${1:-up}" in
   migrate|db)
     log "Running Prisma migrations..."
     podman compose exec api npx prisma migrate dev
-    ;;
-
-  seed)
-    log "Seeding database..."
-    podman compose exec api npx prisma db seed
     ;;
 
   studio)
@@ -81,13 +75,12 @@ case "${1:-up}" in
     ;;
 
   *)
-    echo "Usage: $0 {up|logs|migrate|seed|studio|test|test:e2e|stop|clean|ps}"
+    echo "Usage: $0 {up|logs|migrate|studio|test|test:e2e|stop|clean|ps}"
     echo ""
     echo "Commands:"
     echo "  up       Start all services (default)"
     echo "  logs     Follow logs (optionally: logs api, logs db)"
     echo "  migrate  Run Prisma migrations"
-    echo "  seed     Seed the database"
     echo "  studio   Open Prisma Studio"
     echo "  test     Run unit tests"
     echo "  test:e2e Run E2E tests"
