@@ -10,7 +10,7 @@ import type { ListCierresQueryInput } from "../dto/cierre.dto.js";
 import type { VentaCierreQueryInput } from "../dto/venta.dto.js";
 import type { VentaCierreRespuesta } from "../../domain/entities/venta.js";
 import { logger } from "../../infrastructure/logging/logger.js";
-import { toNumber } from "../../shared/utils/number.js";
+import { toNumber, toDecimal } from "../../shared/utils/number.js";
 import {
   encodeCursor,
   decodeCursor,
@@ -429,8 +429,15 @@ export async function listVentasByCierreConDetalles(
       monto: toNumber(f.monto),
     }));
 
-    // 4. Totals over the filtered set
-    const total_monto = rows.reduce((sum, r) => sum + r.monto, 0);
+    // 4. Totals over the filtered set. QC5: la suma corre en Decimal sobre las
+    // filas crudas (f.monto ya es Prisma.Decimal, aún sin convertir) y recién
+    // acá, en el borde, se convierte a number para el wire.
+    const total_monto = toNumber(
+      filas.reduce(
+        (sum, f) => sum.plus(toDecimal(f.monto)),
+        new Prisma.Decimal(0),
+      ),
+    );
 
     return ok({
       rows,

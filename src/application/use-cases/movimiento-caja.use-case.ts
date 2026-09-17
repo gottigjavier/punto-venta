@@ -11,7 +11,7 @@ import type {
   MovimientoQueryInput,
 } from "../dto/movimiento.dto.js";
 import { logger } from "../../infrastructure/logging/logger.js";
-import { toNumber } from "../../shared/utils/number.js";
+import { toNumber, toDecimal } from "../../shared/utils/number.js";
 import {
   encodeCursor,
   decodeCursor,
@@ -167,12 +167,21 @@ export async function listarMovimientos(query: MovimientoQueryInput): Promise<
       select: { tipo: true, monto: true },
     });
 
+    // QC5: la suma de montos del período corre en Decimal (los monto vienen
+    // como Decimal de Prisma); la conversión a number se hace una vez, en el
+    // resumen (borde del wire).
     const ingresos = todosActivos
       .filter((m) => m.tipo === "ingreso")
-      .reduce((sum, m) => sum + toNumber(m.monto), 0);
+      .reduce(
+        (sum, m) => sum.plus(toDecimal(m.monto)),
+        new Prisma.Decimal(0),
+      );
     const egresos = todosActivos
       .filter((m) => m.tipo === "egreso")
-      .reduce((sum, m) => sum + toNumber(m.monto), 0);
+      .reduce(
+        (sum, m) => sum.plus(toDecimal(m.monto)),
+        new Prisma.Decimal(0),
+      );
 
     // EF3: en modo cursor, take = limit+1; la página real son las primeras
     // `limit` filas y el next_cursor se arma desde la ÚLTIMA fila de la página.
@@ -195,9 +204,10 @@ export async function listarMovimientos(query: MovimientoQueryInput): Promise<
     return ok({
       data,
       resumen: {
-        ingresos,
-        egresos,
-        total: ingresos - egresos,
+        // QC5 (borde): Decimal → number al armar la respuesta.
+        ingresos: toNumber(ingresos),
+        egresos: toNumber(egresos),
+        total: toNumber(ingresos.minus(egresos)),
       },
       pagination: {
         page,

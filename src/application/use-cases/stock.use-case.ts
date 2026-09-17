@@ -20,7 +20,7 @@ import type {
   EditarLoteInput,
 } from "../dto/stock.dto.js";
 import { logger } from "../../infrastructure/logging/logger.js";
-import { toNumber, round2 } from "../../shared/utils/number.js";
+import { toNumber, toDecimal } from "../../shared/utils/number.js";
 import { toUTC3DateString, limiteHoy } from "../../shared/utils/date.js";
 
 // Prisma include compartido por todas las consultas de lote con relaciones.
@@ -153,11 +153,20 @@ const aplicarMerge = (
   },
   input: StockIngresoInput,
 ) => {
-  const qOld = toNumber(existing.cantidad_disponible);
+  // QC5: el costo promedio ponderado es DINERO → se calcula en Decimal (los
+  // precios vienen como Decimal de la DB / number del input). El redondeo a 2
+  // decimales (−toDecimalPlaces(2)) equivale al round2 previo y la conversión a
+  // number ocurre recién al persistir (no hay aritmética float intermedia).
+  const qOld = toNumber(existing.cantidad_disponible); // cantidad (no dinero)
   const qNew = input.cantidad;
-  const pOld = toNumber(existing.precio_compra);
-  const pNew = input.precio_compra;
-  const precioPromedio = round2((qOld * pOld + qNew * pNew) / (qOld + qNew));
+  const pOld = toDecimal(existing.precio_compra);
+  const pNew = toDecimal(input.precio_compra);
+  const precioPromedio = pOld
+    .times(qOld)
+    .plus(pNew.times(qNew))
+    .div(qOld + qNew)
+    .toDecimalPlaces(2)
+    .toNumber();
 
   return tx.lote.update({
     where: { id: existing.id },

@@ -24,7 +24,7 @@ import { logger } from "../../infrastructure/logging/logger.js";
 import { verifyPassword } from "../../infrastructure/auth/password.js";
 import { retirarLotesVencidos } from "./stock.use-case.js";
 import { ADVISORY_LOCK_CIERRE_CAJA } from "../../infrastructure/database/transactions.js";
-import { toNumber, round2 } from "../../shared/utils/number.js";
+import { toNumber, toDecimal } from "../../shared/utils/number.js";
 import {
   startOfDay,
   endOfDay,
@@ -83,10 +83,12 @@ export async function createVenta(
       return err(notFoundError("Producto", missingId));
     }
 
-    // Mapa producto→precio de venta del catálogo (Decimal → number).
-    const precioPorProducto = new Map<string, number>();
+    // Mapa producto→precio de venta del catálogo. Patrón QC5: se conserva
+    // Decimal para que el subtotal (cantidad × precio) se calcule sin float;
+    // la conversión a number ocurre solo en el borde (respuesta/wire).
+    const precioPorProducto = new Map<string, Prisma.Decimal>();
     for (const p of productos) {
-      precioPorProducto.set(p.id, toNumber(p.precio_venta));
+      precioPorProducto.set(p.id, toDecimal(p.precio_venta));
     }
 
     // 2. Execute atomic transaction
@@ -118,7 +120,8 @@ export async function createVenta(
       });
 
       const inicioHoy = limiteHoy();
-      let total = 0;
+      // QC5: el total acumulado corre en Decimal (nunca float).
+      let total = new Prisma.Decimal(0);
 
       // EF5 (reporte 26/09): los splits NO emiten lote.update +
       // detalleVenta.create por iteración (2N round-trips a la DB). Se acumula
@@ -229,18 +232,22 @@ export async function createVenta(
           // break al agotar la línea), así que loteUpdates no repite ids.
           loteUpdates.push({ loteId: lote.id, take });
 
-          // (5) UN DetalleVenta por lote — precio SIEMPRE del catálogo (SE2)
-          const precioUnitario = precioPorProducto.get(productoId) ?? 0;
-          const subtotal = round2(take * precioUnitario);
+          // (5) UN DetalleVenta por lote — precio SIEMPRE del catálogo (SE2).
+          // QC5: cantidad × precio en Decimal (.times) y redondeo a 2 decimales
+          // en Decimal (.toDecimalPlaces(2), equivale al round2 previo); el
+          // subtotal se persiste como Decimal y el wire lo entrega como number.
+          const precioUnitario =
+            precioPorProducto.get(productoId) ?? new Prisma.Decimal(0);
+          const subtotal = precioUnitario.times(take).toDecimalPlaces(2);
           detallesData.push({
             venta_id: venta.id,
             producto_id: productoId,
             lote_id: lote.id,
             cantidad: take,
-            precio_unitario: precioUnitario,
-            subtotal,
+            precio_unitario: precioUnitario.toNumber(),
+            subtotal: subtotal.toNumber(),
           });
-          total += subtotal;
+          total = total.plus(subtotal);
           resto -= take;
         }
       }
@@ -604,18 +611,25 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
       (sum, u) => sum + u.cantidad_ventas,
       0,
     );
+    // QC5: los agregados del período se suman en Decimal (los resultados de
+    // $queryRaw llegan como string/number/Decimal); la conversión a number
+    // ocurre UNA vez en el mapeo final (abajo).
     const monto_ventas = ventasPorUsuario.reduce(
-      (sum, u) => sum + toNumber(u.monto_total),
-      0,
+      (sum, u) => sum.plus(toDecimal(u.monto_total)),
+      new Prisma.Decimal(0),
     );
 
     const ingresoRow = movimientos.find((m) => m.tipo === "ingreso");
     const egresoRow = movimientos.find((m) => m.tipo === "egreso");
-    const ingresos = ingresoRow ? toNumber(ingresoRow.monto_total) : 0;
-    const egresos = egresoRow ? toNumber(egresoRow.monto_total) : 0;
+    const ingresos = ingresoRow
+      ? toDecimal(ingresoRow.monto_total)
+      : new Prisma.Decimal(0);
+    const egresos = egresoRow
+      ? toDecimal(egresoRow.monto_total)
+      : new Prisma.Decimal(0);
 
-    // Total de caja = ventas + ingresos - egresos
-    const monto_total = monto_ventas + ingresos - egresos;
+    // Total de caja = ventas + ingresos - egresos (calculado en Decimal, no float)
+    const monto_total = monto_ventas.plus(ingresos).minus(egresos);
 
     // CO4: no existe flujo que cree un CierreCaja con estado 'abierto' — el único
     // insert (cerrarCaja) crea con estado 'cerrado'. El período abierto real se
@@ -626,9 +640,10 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
     const response: ResumenDia = {
       fecha,
       total_ventas,
-      monto_total,
-      ingresos_total: ingresos,
-      egresos_total: egresos,
+      // QC5 (borde): Decimal → number, una sola vez, al armar la respuesta.
+      monto_total: toNumber(monto_total),
+      ingresos_total: toNumber(ingresos),
+      egresos_total: toNumber(egresos),
       productos_vendidos: productosVendidos.map((p) => ({
         producto_id: p.producto_id,
         nombre: p.nombre,
@@ -966,19 +981,27 @@ export async function cerrarCaja(
         select: { id: true, tipo: true, monto: true },
       });
 
+      // QC5: suma en Decimal (los montos de $queryRaw/findMany llegan como
+      // string/Decimal), conversión a number solo en el borde de respuesta.
       const montoVentas = ventasRows.reduce(
-        (sum, v) => sum + toNumber(v.total),
-        0,
+        (sum, v) => sum.plus(toDecimal(v.total)),
+        new Prisma.Decimal(0),
       );
       const ingresos = movimientosActivos
         .filter((m) => m.tipo === "ingreso")
-        .reduce((sum, m) => sum + toNumber(m.monto), 0);
+        .reduce(
+          (sum, m) => sum.plus(toDecimal(m.monto)),
+          new Prisma.Decimal(0),
+        );
       const egresos = movimientosActivos
         .filter((m) => m.tipo === "egreso")
-        .reduce((sum, m) => sum + toNumber(m.monto), 0);
+        .reduce(
+          (sum, m) => sum.plus(toDecimal(m.monto)),
+          new Prisma.Decimal(0),
+        );
 
-      // Total de caja = ventas + ingresos - egresos
-      const montoTotal = montoVentas + ingresos - egresos;
+      // Total de caja = ventas + ingresos - egresos (Decimal, sin float)
+      const montoTotal = montoVentas.plus(ingresos).minus(egresos);
 
       const detallesVendedor = agregadosVendedor.map((u) => ({
         tipo: "vendedor",
