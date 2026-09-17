@@ -344,6 +344,7 @@ export function ProductsPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar productos..."
+                aria-label="Buscar productos"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -360,6 +361,7 @@ export function ProductsPage() {
               variant="outline"
               size="icon"
               onClick={() => void fetchProductos()}
+              aria-label="Actualizar productos"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -452,6 +454,7 @@ export function ProductsPage() {
                                   size="icon"
                                   className="h-8 w-8"
                                   onClick={() => openEdit(p)}
+                                  aria-label={`Editar ${p.nombre}`}
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </Button>
@@ -460,6 +463,7 @@ export function ProductsPage() {
                                   size="icon"
                                   className="h-8 w-8 text-destructive"
                                   onClick={() => openDelete(p)}
+                                  aria-label={`Eliminar ${p.nombre}`}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>

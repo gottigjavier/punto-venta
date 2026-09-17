@@ -339,6 +339,7 @@ export function HistorialView({
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => void viewDetails(f.id)}
+                              aria-label={`Ver detalle de la venta del ${formatDate(f.created_at)}`}
                             >
                               <Eye className="h-3.5 w-3.5" />
                             </Button>

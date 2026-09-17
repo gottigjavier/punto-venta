@@ -270,6 +270,7 @@ export function ProveedoresPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar por razon social o CUIT..."
+                aria-label="Buscar proveedores"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -279,6 +280,7 @@ export function ProveedoresPage() {
               variant="outline"
               size="icon"
               onClick={() => void fetchProveedores(1)}
+              aria-label="Actualizar proveedores"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -340,6 +342,7 @@ export function ProveedoresPage() {
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => openEdit(p)}
+                              aria-label={`Editar ${p.razon_social}`}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -348,6 +351,7 @@ export function ProveedoresPage() {
                               size="icon"
                               className="h-8 w-8 text-destructive"
                               onClick={() => openDelete(p)}
+                              aria-label={`Eliminar ${p.razon_social}`}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -504,6 +508,7 @@ export function ProveedoresPage() {
                   size="icon"
                   onClick={addTelefono}
                   disabled={!newTelefono.trim()}
+                  aria-label="Agregar teléfono"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -520,6 +525,7 @@ export function ProveedoresPage() {
                         type="button"
                         onClick={() => removeTelefono(tel)}
                         className="ml-0.5 text-muted-foreground hover:text-destructive"
+                        aria-label={`Eliminar teléfono ${tel}`}
                       >
                         <X className="h-3 w-3" />
                       </button>

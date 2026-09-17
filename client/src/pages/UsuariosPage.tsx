@@ -284,6 +284,7 @@ export function UsuariosPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar por nombre, nik o email..."
+                aria-label="Buscar por nombre, NIK o email"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -325,6 +326,7 @@ export function UsuariosPage() {
                 variant="outline"
                 size="icon"
                 onClick={() => void fetchUsuarios(1)}
+                aria-label="Actualizar usuarios"
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
@@ -393,6 +395,7 @@ export function UsuariosPage() {
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => openEdit(u)}
+                              aria-label={`Editar ${u.nombre_usuario}`}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -401,6 +404,7 @@ export function UsuariosPage() {
                               size="icon"
                               className="h-8 w-8 text-destructive"
                               onClick={() => openDelete(u)}
+                              aria-label={`Eliminar ${u.nombre_usuario}`}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>

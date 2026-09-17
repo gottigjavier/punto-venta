@@ -400,6 +400,7 @@ export function StockPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar por nombre, código o N° de Lote..."
+                aria-label="Buscar por nombre, código o N° de Lote"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -435,6 +436,7 @@ export function StockPage() {
               variant="outline"
               size="icon"
               onClick={() => void fetchStock(pagination.page)}
+              aria-label="Actualizar stock"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -545,6 +547,7 @@ export function StockPage() {
                               className="h-8 w-8"
                               onClick={() => openEdit(l)}
                               title="Editar"
+                              aria-label={`Editar ${l.producto?.nombre ?? "lote"}`}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -555,6 +558,7 @@ export function StockPage() {
                                 className="h-8 w-8"
                                 onClick={() => openRetirar(l)}
                                 title="Retirar"
+                                aria-label={`Retirar ${l.producto?.nombre ?? "lote"}`}
                               >
                                 <Ban className="h-3.5 w-3.5" />
                               </Button>
@@ -565,6 +569,7 @@ export function StockPage() {
                               className="h-8 w-8 text-destructive"
                               onClick={() => openDelete(l)}
                               title="Eliminar"
+                              aria-label={`Eliminar ${l.producto?.nombre ?? "lote"}`}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -595,6 +600,7 @@ export function StockPage() {
                       className="h-8 w-8"
                       disabled={pagination.page <= 1}
                       onClick={() => goToPage(pagination.page - 1)}
+                      aria-label="Página anterior"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -642,6 +648,7 @@ export function StockPage() {
                       className="h-8 w-8"
                       disabled={pagination.page >= pagination.totalPages}
                       onClick={() => goToPage(pagination.page + 1)}
+                      aria-label="Página siguiente"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>

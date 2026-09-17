@@ -144,6 +144,7 @@ export function AdministracionPage() {
             size="icon"
             className="ml-auto h-6 w-6"
             onClick={() => setNetworkError("")}
+            aria-label="Cerrar"
           >
             <X className="h-3 w-3" />
           </Button>
@@ -234,6 +235,7 @@ export function AdministracionPage() {
                             onClick={() =>
                               void navigate(`/administracion/${c.id}`)
                             }
+                            aria-label={`Ver detalle del cierre del ${formatDate(c.fecha_cierre)}`}
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>

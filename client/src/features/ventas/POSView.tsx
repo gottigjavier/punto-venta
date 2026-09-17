@@ -489,6 +489,7 @@ export function POSView() {
             <Input
               ref={searchInputRef}
               placeholder="Buscar producto (min. 3 caracteres)..."
+              aria-label="Buscar producto"
               value={searchQuery}
               onChange={(e) => void handleSearch(e.target.value)}
               className="pl-9 text-lg h-12"
@@ -526,6 +527,7 @@ export function POSView() {
               size="icon"
               className="ml-auto h-6 w-6"
               onClick={() => setSearchError("")}
+              aria-label="Cerrar"
             >
               <X className="h-3 w-3" />
             </Button>
@@ -720,6 +722,7 @@ export function POSView() {
                           className="h-7 w-7"
                           onClick={() => updateQuantity(item.producto_id, -1)}
                           disabled={cartMode === "confirmed"}
+                          aria-label={`Reducir cantidad de ${item.nombre}`}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -727,6 +730,7 @@ export function POSView() {
                           type="number"
                           step="0.01"
                           value={item.cantidad}
+                          aria-label={`Cantidad de ${item.nombre}`}
                           onChange={(e) => {
                             const val = parseFloat(e.target.value);
                             if (!isNaN(val)) setQuantity(item.producto_id, val);
@@ -745,6 +749,7 @@ export function POSView() {
                             cartMode === "confirmed" ||
                             item.cantidad >= item.stock_disponible
                           }
+                          aria-label={`Aumentar cantidad de ${item.nombre}`}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -761,6 +766,7 @@ export function POSView() {
                           className="h-7 w-7 text-destructive"
                           onClick={() => removeFromCart(item.producto_id)}
                           disabled={cartMode === "confirmed"}
+                          aria-label={`Quitar ${item.nombre} del carrito`}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -841,6 +847,7 @@ export function POSView() {
                   size="icon"
                   className="h-6 w-6"
                   onClick={() => setSaleResult(null)}
+                  aria-label="Cerrar"
                 >
                   <X className="h-3 w-3" />
                 </Button>

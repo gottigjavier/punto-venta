@@ -197,6 +197,7 @@ export function DashboardLayout() {
               variant="ghost"
               size="icon"
               onClick={() => void logout()}
+              aria-label="Cerrar sesión"
               className={cn(
                 "text-sidebar-foreground/50 hover:text-sidebar-foreground",
                 collapsed && "lg:flex-1",
@@ -216,6 +217,7 @@ export function DashboardLayout() {
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(true)}
+            aria-label={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
           >
             {sidebarOpen ? (
               <X className="h-5 w-5" />
