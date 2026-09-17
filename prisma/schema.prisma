@@ -71,7 +71,10 @@ model Lote {
 
   @@index([producto_id, estado])
   @@index([producto_id, fecha_vencimiento])
-  @@index([estado])
+  // EF4 (reporte 26/09): retirarLotesVencidos y la ventana FEFO barren
+  // estado='activo' AND fecha_vencimiento < hoy — el compuesto permite el
+  // range scan sobre el índice en vez de barrer todos los lotes por estado.
+  @@index([estado, fecha_vencimiento])
 }
 
 model Proveedor {

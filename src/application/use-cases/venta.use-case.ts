@@ -450,102 +450,75 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
       select: { fecha_apertura: true },
     });
 
-    // Get all completed sales not yet archived in a cash closing
-    const ventas = await prisma.venta.findMany({
-      where: {
-        estado: "completada",
-        cierre_caja_id: null,
-      },
-      include: {
-        usuario: {
-          select: { id: true, nombre_usuario: true },
-        },
-        detalles_venta: {
-          include: {
-            producto: {
-              select: { id: true, nombre: true },
-            },
-          },
-        },
-      },
-      orderBy: { created_at: "desc" },
-    });
+    // EF2 (reporte 26/09): la agregación baja a SQL (COUNT/SUM + GROUP BY) en
+    // vez de materializar todas las ventas abiertas con detalle_venta + producto
+    // y agregar por Maps en el proceso. Se leen solo agregados sobre el mismo
+    // set filtrado (completada + no archivada en un cierre). Cada venta
+    // pertenece a un único usuario, así que COUNT/SUM por usuario particionan
+    // exactamente el total global del período.
+    const [ventasPorUsuario, productosVendidos, movimientos] =
+      await Promise.all([
+        prisma.$queryRaw<
+          Array<{
+            usuario_id: string;
+            nombre: string;
+            cantidad_ventas: number;
+            monto_total: unknown;
+          }>
+        >`
+          SELECT v.usuario_id,
+                 u.nombre_usuario AS nombre,
+                 CAST(COUNT(*) AS INTEGER) AS cantidad_ventas,
+                 SUM(v.total) AS monto_total
+          FROM "Venta" v
+          JOIN "Usuario" u ON u.id = v.usuario_id
+          WHERE v.estado = 'completada' AND v.cierre_caja_id IS NULL
+          GROUP BY v.usuario_id, u.nombre_usuario
+          ORDER BY MAX(v.created_at) DESC, v.usuario_id
+        `,
+        prisma.$queryRaw<
+          Array<{
+            producto_id: string;
+            nombre: string;
+            cantidad_total: unknown;
+            monto_total: unknown;
+          }>
+        >`
+          SELECT d.producto_id,
+                 p.nombre AS nombre,
+                 SUM(d.cantidad) AS cantidad_total,
+                 SUM(d.subtotal) AS monto_total
+          FROM "DetalleVenta" d
+          JOIN "Venta" v ON v.id = d.venta_id
+          JOIN "Producto" p ON p.id = d.producto_id
+          WHERE v.estado = 'completada' AND v.cierre_caja_id IS NULL
+          GROUP BY d.producto_id, p.nombre
+          ORDER BY MAX(v.created_at) DESC, d.producto_id
+        `,
+        prisma.$queryRaw<Array<{ tipo: string; monto_total: unknown }>>`
+          SELECT tipo, SUM(monto) AS monto_total
+          FROM "MovimientoCaja"
+          WHERE cierre_caja_id IS NULL
+          GROUP BY tipo
+        `,
+      ]);
 
-    // Get all cash movements of the active period (not yet archived)
-    const movimientos = await prisma.movimientoCaja.findMany({
-      where: { cierre_caja_id: null },
-      select: { tipo: true, monto: true },
-    });
+    const total_ventas = ventasPorUsuario.reduce(
+      (sum, u) => sum + u.cantidad_ventas,
+      0,
+    );
+    const monto_ventas = ventasPorUsuario.reduce(
+      (sum, u) => sum + toNumber(u.monto_total),
+      0,
+    );
 
-    // Calculate totals
-    const total_ventas = ventas.length;
-    const monto_ventas = ventas.reduce((sum, v) => sum + toNumber(v.total), 0);
-
-    const ingresos = movimientos
-      .filter((m) => m.tipo === "ingreso")
-      .reduce((sum, m) => sum + toNumber(m.monto), 0);
-    const egresos = movimientos
-      .filter((m) => m.tipo === "egreso")
-      .reduce((sum, m) => sum + toNumber(m.monto), 0);
+    const ingresoRow = movimientos.find((m) => m.tipo === "ingreso");
+    const egresoRow = movimientos.find((m) => m.tipo === "egreso");
+    const ingresos = ingresoRow ? toNumber(ingresoRow.monto_total) : 0;
+    const egresos = egresoRow ? toNumber(egresoRow.monto_total) : 0;
 
     // Total de caja = ventas + ingresos - egresos
     const monto_total = monto_ventas + ingresos - egresos;
-
-    // Aggregate products sold (por producto_id — los detalles split se suman)
-    const productoMap = new Map<
-      string,
-      {
-        producto_id: string;
-        nombre: string;
-        cantidad_total: number;
-        monto_total: number;
-      }
-    >();
-
-    // Aggregate sales by user
-    const usuarioMap = new Map<
-      string,
-      {
-        usuario_id: string;
-        nombre: string;
-        cantidad_ventas: number;
-        monto_total: number;
-      }
-    >();
-
-    for (const venta of ventas) {
-      // User aggregation
-      const userKey = venta.usuario_id;
-      const existingUser = usuarioMap.get(userKey);
-      if (existingUser) {
-        existingUser.cantidad_ventas += 1;
-        existingUser.monto_total += toNumber(venta.total);
-      } else {
-        usuarioMap.set(userKey, {
-          usuario_id: venta.usuario_id,
-          nombre: venta.usuario.nombre_usuario,
-          cantidad_ventas: 1,
-          monto_total: toNumber(venta.total),
-        });
-      }
-
-      // Product aggregation
-      for (const detalle of venta.detalles_venta) {
-        const prodKey = detalle.producto_id;
-        const existingProd = productoMap.get(prodKey);
-        if (existingProd) {
-          existingProd.cantidad_total += toNumber(detalle.cantidad);
-          existingProd.monto_total += toNumber(detalle.subtotal);
-        } else {
-          productoMap.set(prodKey, {
-            producto_id: detalle.producto_id,
-            nombre: detalle.producto.nombre,
-            cantidad_total: toNumber(detalle.cantidad),
-            monto_total: toNumber(detalle.subtotal),
-          });
-        }
-      }
-    }
 
     // fecha = opening date of active cierre (UTC-3), or empty if no active cierre
     let fecha = "";
@@ -562,8 +535,18 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
       monto_total,
       ingresos_total: ingresos,
       egresos_total: egresos,
-      productos_vendidos: Array.from(productoMap.values()),
-      ventas_por_usuario: Array.from(usuarioMap.values()),
+      productos_vendidos: productosVendidos.map((p) => ({
+        producto_id: p.producto_id,
+        nombre: p.nombre,
+        cantidad_total: toNumber(p.cantidad_total),
+        monto_total: toNumber(p.monto_total),
+      })),
+      ventas_por_usuario: ventasPorUsuario.map((u) => ({
+        usuario_id: u.usuario_id,
+        nombre: u.nombre,
+        cantidad_ventas: u.cantidad_ventas,
+        monto_total: toNumber(u.monto_total),
+      })),
     };
 
     return ok(response);
@@ -816,33 +799,51 @@ export async function cerrarCaja(
       // Datos asociados: las filas de negocio ya están lockeadas (foto estable),
       // las lecturas de apoyo no necesitan lock.
       const ventaIds = ventasRows.map((v) => v.id);
-      const detallesRows = await tx.detalleVenta.findMany({
-        where: { venta_id: { in: ventaIds } },
-        include: {
-          producto: { select: { id: true, nombre: true } },
-        },
-      });
-      const usuariosRows = await tx.usuario.findMany({
-        where: { id: { in: ventasRows.map((v) => v.usuario_id) } },
-        select: { id: true, nombre_usuario: true },
-      });
-      const usuarioNombre = new Map(
-        usuariosRows.map((u) => [u.id, u.nombre_usuario]),
+      const idsVenta = Prisma.join(
+        ventaIds.map((id) => Prisma.sql`${id}::uuid`),
       );
-      const detallesPorVenta = new Map<
-        string,
+
+      // EF2 (reporte 26/09): los agregados del cierre (vendedor × producto) se
+      // resuelven en SQL (COUNT/SUM + GROUP BY) sobre la foto lockeada, en vez
+      // de materializar detalle_venta + producto y agregar por Maps en el
+      // proceso. El set filtrado es idéntico al anterior: detalles de las
+      // ventas lockeadas (vía venta_id) con nombre actual de producto.
+      const agregadosVendedor = await tx.$queryRaw<
+        Array<{
+          usuario_id: string;
+          nombre: string;
+          cantidad_ventas: number;
+          monto_total: unknown;
+        }>
+      >`
+        SELECT v.usuario_id,
+               COALESCE(u.nombre_usuario, '') AS nombre,
+               CAST(COUNT(*) AS INTEGER) AS cantidad_ventas,
+               SUM(v.total) AS monto_total
+        FROM "Venta" v
+        LEFT JOIN "Usuario" u ON u.id = v.usuario_id
+        WHERE v.id IN (${idsVenta})
+        GROUP BY v.usuario_id, u.nombre_usuario
+        ORDER BY MAX(v.created_at) ASC, v.usuario_id
+      `;
+      const agregadosProducto = await tx.$queryRaw<
         Array<{
           producto_id: string;
-          cantidad: unknown;
-          subtotal: unknown;
-          producto: { id: string; nombre: string };
+          nombre: string;
+          cantidad_total: unknown;
+          monto_total: unknown;
         }>
-      >();
-      for (const d of detallesRows) {
-        const arr = detallesPorVenta.get(d.venta_id) ?? [];
-        arr.push(d);
-        detallesPorVenta.set(d.venta_id, arr);
-      }
+      >`
+        SELECT d.producto_id,
+               p.nombre AS nombre,
+               SUM(d.cantidad) AS cantidad_total,
+               SUM(d.subtotal) AS monto_total
+        FROM "DetalleVenta" d
+        JOIN "Producto" p ON p.id = d.producto_id
+        WHERE d.venta_id IN (${idsVenta})
+        GROUP BY d.producto_id, p.nombre
+        ORDER BY MIN(d.id)
+      `;
 
       // Movimientos del período activo. Se archivan por id IN (solo los CONTADOS en
       // el monto): un movimiento insertado a mitad del cierre queda en el período
@@ -866,74 +867,20 @@ export async function cerrarCaja(
       // Total de caja = ventas + ingresos - egresos
       const montoTotal = montoVentas + ingresos - egresos;
 
-      // Aggregate by vendor
-      const usuarioMap = new Map<
-        string,
-        {
-          usuario_id: string;
-          nombre: string;
-          cantidad_ventas: number;
-          monto_total: number;
-        }
-      >();
-
-      // Aggregate by product
-      const productoMap = new Map<
-        string,
-        {
-          producto_id: string;
-          nombre: string;
-          cantidad_total: number;
-          monto_total: number;
-        }
-      >();
-
-      for (const venta of ventasRows) {
-        const userKey = venta.usuario_id;
-        const existingUser = usuarioMap.get(userKey);
-        if (existingUser) {
-          existingUser.cantidad_ventas += 1;
-          existingUser.monto_total += toNumber(venta.total);
-        } else {
-          usuarioMap.set(userKey, {
-            usuario_id: venta.usuario_id,
-            nombre: usuarioNombre.get(venta.usuario_id) ?? "",
-            cantidad_ventas: 1,
-            monto_total: toNumber(venta.total),
-          });
-        }
-
-        for (const detalle of detallesPorVenta.get(venta.id) ?? []) {
-          const prodKey = detalle.producto_id;
-          const existingProd = productoMap.get(prodKey);
-          if (existingProd) {
-            existingProd.cantidad_total += toNumber(detalle.cantidad);
-            existingProd.monto_total += toNumber(detalle.subtotal);
-          } else {
-            productoMap.set(prodKey, {
-              producto_id: detalle.producto_id,
-              nombre: detalle.producto.nombre,
-              cantidad_total: toNumber(detalle.cantidad),
-              monto_total: toNumber(detalle.subtotal),
-            });
-          }
-        }
-      }
-
-      const detallesVendedor = Array.from(usuarioMap.values()).map((u) => ({
+      const detallesVendedor = agregadosVendedor.map((u) => ({
         tipo: "vendedor",
         referencia_id: u.usuario_id,
         nombre: u.nombre,
         cantidad: u.cantidad_ventas,
-        monto_total: u.monto_total,
+        monto_total: toNumber(u.monto_total),
       }));
 
-      const detallesProducto = Array.from(productoMap.values()).map((p) => ({
+      const detallesProducto = agregadosProducto.map((p) => ({
         tipo: "producto",
         referencia_id: p.producto_id,
         nombre: p.nombre,
-        cantidad: p.cantidad_total,
-        monto_total: p.monto_total,
+        cantidad: toNumber(p.cantidad_total),
+        monto_total: toNumber(p.monto_total),
       }));
 
       const nuevoCierre = await tx.cierreCaja.create({
