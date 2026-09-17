@@ -1032,17 +1032,6 @@ describe("Venta Use Cases (modelo Lote)", () => {
         password_hash: "$2a$10$hashed",
       });
       vi.mocked(verifyPassword).mockResolvedValue(true);
-      mockPrisma.venta.findMany.mockResolvedValue([
-        {
-          id: "v1",
-          usuario_id: userId,
-          total: 500,
-          estado: "completada",
-          created_at: new Date(),
-          usuario: { id: userId, nombre_usuario: "Juan" },
-          detalles_venta: [],
-        },
-      ]);
       mockPrisma.movimientoCaja.findMany.mockResolvedValue([]);
       mockPrisma.$transaction.mockResolvedValue({
         id: "cierre-1",
