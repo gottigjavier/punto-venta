@@ -100,6 +100,15 @@ export async function createVenta(
 
     // 2. Execute atomic transaction
     const result = await prisma.$transaction(async (tx) => {
+      // CO3 (reporte 26/09): tomar el MISMO advisory lock que cerrarCaja al
+      // inicio de la tx. Una venta no puede committear a mitad del cierre con
+      // cierre_caja_id NULL (no contada): o entra ANTES del cierre (lo
+      // bloqueamos hasta que el cierre commitee) o cae al período NUEVO.
+      // Misma constante compartida (ADVISORY_LOCK_CIERRE_CAJA), mismo
+      // mecanismo ($executeRaw + pg_advisory_xact_lock), mismo alcance xact
+      // (se libera al COMMIT/ROLLBACK).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_CIERRE_CAJA})`;
+
       // Agrupar líneas por producto_id (una línea puede venir repetida)
       const agrupadas = new Map<string, { cantidad: number }>();
       for (const item of input.productos) {
@@ -670,6 +679,33 @@ export async function deleteVenta(
         );
       }
 
+      // CO2 (reporte 26/09): lockear con FOR UPDATE los lote_id afectados al
+      // inicio de la restauración, en el MISMO orden determinístico que
+      // createVenta (ORDER BY producto_id, id). El chequeo de reactivación
+      // (agotado→activo) lee cantidad_disponible bajo lock: un createVenta
+      // concurrente no puede descontar el lote entre nuestro INCREMENT y el
+      // findUnique, y ambos toman los locks de lote en el mismo orden
+      // (se evitan deadlocks nuevos entre deleteVenta y createVenta).
+      const loteIds = [
+        ...new Set(
+          venta.detalles_venta
+            .map((d) => d.lote_id)
+            .filter((x): x is string => x != null),
+        ),
+      ];
+
+      if (loteIds.length > 0) {
+        await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id
+          FROM "Lote"
+          WHERE id IN (${Prisma.join(
+            loteIds.map((id) => Prisma.sql`${id}::uuid`),
+          )})
+          ORDER BY producto_id, id
+          FOR UPDATE
+        `;
+      }
+
       // Restore stock for each detail by lote
       for (const detalle of venta.detalles_venta) {
         if (!detalle.lote_id) continue; // ya validado que no es null
@@ -685,14 +721,6 @@ export async function deleteVenta(
 
       // Si el lote estaba en 'agotado' y ahora tiene cantidad > 0 → reactivar
       // (a 'activo', o 'vencido' si su fecha de vencimiento ya pasó)
-      const loteIds = [
-        ...new Set(
-          venta.detalles_venta
-            .map((d) => d.lote_id)
-            .filter((x): x is string => x != null),
-        ),
-      ];
-
       for (const loteId of loteIds) {
         const lote = await tx.lote.findUnique({ where: { id: loteId } });
         if (!lote) continue;
