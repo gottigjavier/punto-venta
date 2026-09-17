@@ -25,6 +25,10 @@ import { verifyPassword } from "../../infrastructure/auth/password.js";
 import { retirarLotesVencidos, toUTC3DateString } from "./stock.use-case.js";
 import { ADVISORY_LOCK_CIERRE_CAJA } from "../../infrastructure/database/transactions.js";
 import { toNumber, round2 } from "../../shared/utils/number.js";
+import {
+  encodeCursor,
+  decodeCursor,
+} from "../../shared/utils/cursor.js";
 
 // Helper to build start/end of day
 function startOfDay(date: Date): Date {
@@ -402,6 +406,7 @@ export async function listVentas(query: VentaQueryInput): Promise<
       total: number;
       totalPages: number;
     };
+    next_cursor: string | null;
   }>
 > {
   try {
@@ -415,8 +420,33 @@ export async function listVentas(query: VentaQueryInput): Promise<
       page,
       limit,
       cierre_caja_id,
+      cursor,
     } = query;
-    const skip = (page - 1) * limit;
+
+    // EF3 (reporte 26/09): keyset pagination como modo ADICIONAL al offset.
+    // Si viene `cursor`, se pagina por (created_at, id) en vez de skip/take;
+    // si no, el comportamiento offset histórico queda intacto (el client actual
+    // usa page/limit y no se toca). El cursor es opaco (base64url) y debe venir
+    // con sort=created_at: en cualquier otro sort el rango keyset no coincidiría
+    // con el ORDER BY, así que se rechaza en vez de devolver datos incorrectos.
+    const keyset = cursor ? decodeCursor(cursor) : null;
+    if (cursor && !keyset) {
+      return err(validationError("Cursor inválido"));
+    }
+    if (keyset) {
+      if (keyset.createdAt === null) {
+        // created_at es NOT NULL en Venta: un cursor con fecha null no puede
+        // provenir de una página real de este listado.
+        return err(validationError("Cursor inválido"));
+      }
+      if (sort !== "created_at") {
+        return err(
+          validationError("El cursor solo es compatible con sort=created_at"),
+        );
+      }
+    }
+
+    let skip: number | undefined = (page - 1) * limit;
 
     // Build where clause
     const where: Prisma.VentaWhereInput = {};
@@ -447,7 +477,29 @@ export async function listVentas(query: VentaQueryInput): Promise<
       where.cierre_caja_id = cierre_caja_id;
     }
 
-    const orderBy: Prisma.VentaOrderByWithRelationInput = { [sort]: order };
+    let orderBy:
+      | Prisma.VentaOrderByWithRelationInput
+      | Prisma.VentaOrderByWithRelationInput[] = { [sort]: order };
+    let take = limit;
+    if (keyset) {
+      // Condición keyset: siguiente página = filas ESTRICTAMENTE posteriores al
+      // cursor en (created_at, id) según la dirección. Se combina con los
+      // filtros por AND (top-level keys de `where`): el cursor NUNCA saltea un
+      // filtro existente (usuario, estado, fechas, cierre_caja_id).
+      where.OR =
+        order === "desc"
+          ? [
+              { created_at: { lt: keyset.createdAt } },
+              { created_at: keyset.createdAt, id: { lt: keyset.id } },
+            ]
+          : [
+              { created_at: { gt: keyset.createdAt } },
+              { created_at: keyset.createdAt, id: { gt: keyset.id } },
+            ];
+      orderBy = [{ created_at: order }, { id: order }];
+      skip = undefined;
+      take = limit + 1; // +1 solo para detectar has_more (se recorta después)
+    }
 
     const [ventas, total] = await Promise.all([
       prisma.venta.findMany({
@@ -462,12 +514,17 @@ export async function listVentas(query: VentaQueryInput): Promise<
         },
         orderBy,
         skip,
-        take: limit,
+        take,
       }),
       prisma.venta.count({ where }),
     ]);
 
-    const data: VentaListItem[] = ventas.map((v) => ({
+    // EF3: en modo cursor, take = limit+1; la página real son las primeras
+    // `limit` filas y el next_cursor se arma desde la ÚLTIMA fila de la página.
+    const hasMore = keyset !== null && ventas.length > limit;
+    const pageVentas = hasMore ? ventas.slice(0, limit) : ventas;
+
+    const data: VentaListItem[] = pageVentas.map((v) => ({
       id: v.id,
       usuario_id: v.usuario_id,
       usuario_nombre: v.usuario.nombre_usuario,
@@ -478,6 +535,11 @@ export async function listVentas(query: VentaQueryInput): Promise<
     }));
 
     const totalPages = Math.ceil(total / limit);
+    const last = pageVentas[pageVentas.length - 1];
+    const next_cursor =
+      keyset !== null && hasMore && last
+        ? encodeCursor(last.created_at, last.id)
+        : null;
 
     return ok({
       data,
@@ -487,6 +549,7 @@ export async function listVentas(query: VentaQueryInput): Promise<
         total,
         totalPages,
       },
+      next_cursor,
     });
   } catch (error) {
     logger.error({ error, query }, "Error al listar ventas");

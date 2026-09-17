@@ -5,12 +5,16 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../infrastructure/database/prisma/client.js";
 import { listVentasCierreConDetalles } from "../../infrastructure/database/repositories/venta.repository.js";
 import type { AppResult } from "../../shared/types/result.js";
-import { notFoundError, databaseError } from "../../shared/types/result.js";
+import { notFoundError, databaseError, validationError } from "../../shared/types/result.js";
 import type { ListCierresQueryInput } from "../dto/cierre.dto.js";
 import type { VentaCierreQueryInput } from "../dto/venta.dto.js";
 import type { VentaCierreRespuesta } from "../../domain/entities/venta.js";
 import { logger } from "../../infrastructure/logging/logger.js";
 import { toNumber } from "../../shared/utils/number.js";
+import {
+  encodeCursor,
+  decodeCursor,
+} from "../../shared/utils/cursor.js";
 
 // Escape CSV field (wrap in quotes if contains comma or quote). Además
 // neutraliza la inyección de fórmula (SE5, OWASP CSV Injection): una celda que
@@ -50,6 +54,7 @@ export async function listCierres(query: ListCierresQueryInput): Promise<
       total: number;
       totalPages: number;
     };
+    next_cursor: string | null;
   }>
 > {
   try {
@@ -65,8 +70,26 @@ export async function listCierres(query: ListCierresQueryInput): Promise<
       monto_max,
       sort,
       order,
+      cursor,
     } = query;
-    const skip = (page - 1) * limit;
+
+    // EF3 (reporte 26/09): keyset pagination como modo ADICIONAL al offset.
+    // Cursor opaco (base64url) sobre (fecha_cierre, id) — la columna de orden
+    // real del listado y la indexada (@@index([fecha_cierre])). Requiere
+    // sort=fecha_cierre: en cualquier otro sort el rango keyset no coincidiría
+    // con el ORDER BY y se rechaza (nunca se devuelven datos incorrectos).
+    const keyset = cursor ? decodeCursor(cursor) : null;
+    if (cursor && !keyset) {
+      return err(validationError("Cursor inválido"));
+    }
+    if (keyset && sort !== "fecha_cierre") {
+      return err(
+        validationError(
+          "El cursor solo es compatible con sort=fecha_cierre",
+        ),
+      );
+    }
+    let skip: number | undefined = (page - 1) * limit;
 
     // Build where clause
     const where: Prisma.CierreCajaWhereInput = {};
@@ -127,6 +150,7 @@ export async function listCierres(query: ListCierresQueryInput): Promise<
         return ok({
           data: [],
           pagination: { page, limit, total: 0, totalPages: 0 },
+          next_cursor: null,
         });
       }
 
@@ -138,9 +162,41 @@ export async function listCierres(query: ListCierresQueryInput): Promise<
       };
     }
 
-    const orderBy: Prisma.CierreCajaOrderByWithRelationInput = {
-      [sort]: order,
-    };
+    let orderBy:
+      | Prisma.CierreCajaOrderByWithRelationInput
+      | Prisma.CierreCajaOrderByWithRelationInput[] = { [sort]: order };
+    let take = limit;
+    if (keyset) {
+      // Condición keyset sobre (fecha_cierre, id). fecha_cierre es nullable:
+      // Postgres ordena NULLs FIRST en DESC y NULLS LAST en ASC, así que las
+      // condiciones cubren también el bloque de NULLs (un cursor con
+      // fecha_cierre null solo puede provenir de ese bloque). Se combina con
+      // los filtros por AND (top-level keys de `where`), nunca los saltea.
+      if (order === "desc") {
+        where.OR =
+          keyset.createdAt === null
+            ? [
+                { fecha_cierre: null, id: { lt: keyset.id } },
+                { fecha_cierre: { not: null } },
+              ]
+            : [
+                { fecha_cierre: { lt: keyset.createdAt } },
+                { fecha_cierre: keyset.createdAt, id: { lt: keyset.id } },
+              ];
+      } else {
+        where.OR =
+          keyset.createdAt === null
+            ? [{ fecha_cierre: null, id: { gt: keyset.id } }]
+            : [
+                { fecha_cierre: { gt: keyset.createdAt } },
+                { fecha_cierre: keyset.createdAt, id: { gt: keyset.id } },
+                { fecha_cierre: null },
+              ];
+      }
+      orderBy = [{ fecha_cierre: order }, { id: order }];
+      skip = undefined;
+      take = limit + 1; // +1 solo para detectar has_more (se recorta después)
+    }
 
     const [cierres, total] = await Promise.all([
       prisma.cierreCaja.findMany({
@@ -155,12 +211,17 @@ export async function listCierres(query: ListCierresQueryInput): Promise<
         },
         orderBy,
         skip,
-        take: limit,
+        take,
       }),
       prisma.cierreCaja.count({ where }),
     ]);
 
-    const data = cierres.map((c) => ({
+    // EF3: en modo cursor, take = limit+1; la página real son las primeras
+    // `limit` filas y el next_cursor se arma desde la ÚLTIMA fila de la página.
+    const hasMore = keyset !== null && cierres.length > limit;
+    const pageCierres = hasMore ? cierres.slice(0, limit) : cierres;
+
+    const data = pageCierres.map((c) => ({
       id: c.id,
       fecha_apertura: c.fecha_apertura,
       fecha_cierre: c.fecha_cierre,
@@ -173,6 +234,11 @@ export async function listCierres(query: ListCierresQueryInput): Promise<
     }));
 
     const totalPages = Math.ceil(total / limit);
+    const last = pageCierres[pageCierres.length - 1];
+    const next_cursor =
+      keyset !== null && hasMore && last
+        ? encodeCursor(last.fecha_cierre, last.id)
+        : null;
 
     return ok({
       data,
@@ -182,6 +248,7 @@ export async function listCierres(query: ListCierresQueryInput): Promise<
         total,
         totalPages,
       },
+      next_cursor,
     });
   } catch (error) {
     logger.error({ error, query }, "Error al listar cierres");

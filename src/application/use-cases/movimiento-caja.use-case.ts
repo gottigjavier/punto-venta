@@ -12,6 +12,10 @@ import type {
 } from "../dto/movimiento.dto.js";
 import { logger } from "../../infrastructure/logging/logger.js";
 import { toNumber } from "../../shared/utils/number.js";
+import {
+  encodeCursor,
+  decodeCursor,
+} from "../../shared/utils/cursor.js";
 
 // Helper to convert Prisma Decimal to number
 
@@ -85,20 +89,62 @@ export async function listarMovimientos(query: MovimientoQueryInput): Promise<
       total: number;
       totalPages: number;
     };
+    next_cursor: string | null;
   }>
 > {
   try {
-    const { sort, order, page, limit } = query;
-    const skip = (page - 1) * limit;
+    const { sort, order, page, limit, cursor } = query;
+
+    // EF3 (reporte 26/09): keyset pagination como modo ADICIONAL al offset.
+    // Cursor opaco (base64url) sobre (created_at, id) — la columna de orden
+    // real del listado (created_at NOT NULL) y su índice (@@index([created_at])).
+    // Requiere sort=created_at: con sort=monto el rango keyset no coincidiría
+    // con el ORDER BY, así que se rechaza en vez de devolver datos incorrectos.
+    const keyset = cursor ? decodeCursor(cursor) : null;
+    if (cursor && !keyset) {
+      return err(validationError("Cursor inválido"));
+    }
+    if (keyset) {
+      if (keyset.createdAt === null) {
+        // created_at es NOT NULL en MovimientoCaja: un cursor con fecha null no
+        // puede provenir de una página real de este listado.
+        return err(validationError("Cursor inválido"));
+      }
+      if (sort !== "created_at") {
+        return err(
+          validationError("El cursor solo es compatible con sort=created_at"),
+        );
+      }
+    }
+    let skip: number | undefined = (page - 1) * limit;
 
     // Only active period (cierre_caja_id = null)
     const where: Prisma.MovimientoCajaWhereInput = {
       cierre_caja_id: null,
     };
 
-    const orderBy: Prisma.MovimientoCajaOrderByWithRelationInput = {
-      [sort]: order,
-    };
+    let orderBy:
+      | Prisma.MovimientoCajaOrderByWithRelationInput
+      | Prisma.MovimientoCajaOrderByWithRelationInput[] = { [sort]: order };
+    let take = limit;
+    if (keyset) {
+      // Condición keyset: siguiente página = filas ESTRICTAMENTE posteriores al
+      // cursor en (created_at, id) según la dirección. Se combina con el filtro
+      // de período activo por AND (nunca lo saltea).
+      where.OR =
+        order === "desc"
+          ? [
+              { created_at: { lt: keyset.createdAt } },
+              { created_at: keyset.createdAt, id: { lt: keyset.id } },
+            ]
+          : [
+              { created_at: { gt: keyset.createdAt } },
+              { created_at: keyset.createdAt, id: { gt: keyset.id } },
+            ];
+      orderBy = [{ created_at: order }, { id: order }];
+      skip = undefined;
+      take = limit + 1; // +1 solo para detectar has_more (se recorta después)
+    }
 
     const [movimientos, total] = await Promise.all([
       prisma.movimientoCaja.findMany({
@@ -110,7 +156,7 @@ export async function listarMovimientos(query: MovimientoQueryInput): Promise<
         },
         orderBy,
         skip,
-        take: limit,
+        take,
       }),
       prisma.movimientoCaja.count({ where }),
     ]);
@@ -128,13 +174,23 @@ export async function listarMovimientos(query: MovimientoQueryInput): Promise<
       .filter((m) => m.tipo === "egreso")
       .reduce((sum, m) => sum + toNumber(m.monto), 0);
 
-    const data: MovimientoCaja[] = movimientos.map((m) => ({
+    // EF3: en modo cursor, take = limit+1; la página real son las primeras
+    // `limit` filas y el next_cursor se arma desde la ÚLTIMA fila de la página.
+    const hasMore = keyset !== null && movimientos.length > limit;
+    const pageMovimientos = hasMore ? movimientos.slice(0, limit) : movimientos;
+
+    const data: MovimientoCaja[] = pageMovimientos.map((m) => ({
       ...m,
       monto: toNumber(m.monto),
       usuario: m.usuario,
     }));
 
     const totalPages = Math.ceil(total / limit);
+    const last = pageMovimientos[pageMovimientos.length - 1];
+    const next_cursor =
+      keyset !== null && hasMore && last
+        ? encodeCursor(last.created_at, last.id)
+        : null;
 
     return ok({
       data,
@@ -149,6 +205,7 @@ export async function listarMovimientos(query: MovimientoQueryInput): Promise<
         total,
         totalPages,
       },
+      next_cursor,
     });
   } catch (error) {
     logger.error({ error, query }, "Error al listar movimientos de caja");

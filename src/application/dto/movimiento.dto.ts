@@ -22,6 +22,10 @@ export const MovimientoQuerySchema = z.object({
   order: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  // EF3: paginación keyset como modo ADICIONAL al offset (page/limit). Token
+  // opaco (base64url): se recibe como `next_cursor` y se devuelve tal cual.
+  // Requiere sort=created_at.
+  cursor: z.string().min(1).optional(),
 });
 
 export type MovimientoQueryInput = z.infer<typeof MovimientoQuerySchema>;

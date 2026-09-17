@@ -23,6 +23,10 @@ export const ListCierresQuerySchema = z.object({
     .enum(['fecha_cierre', 'monto_total', 'cantidad_ventas'])
     .default('fecha_cierre'),
   order: z.enum(['asc', 'desc']).default('desc'),
+  // EF3: paginación keyset como modo ADICIONAL al offset (page/limit). Token
+  // opaco (base64url): se recibe como `next_cursor` y se devuelve tal cual.
+  // Requiere sort=fecha_cierre (columna de orden real del listado).
+  cursor: z.string().min(1).optional(),
 });
 
 export type ListCierresQueryInput = z.infer<typeof ListCierresQuerySchema>;

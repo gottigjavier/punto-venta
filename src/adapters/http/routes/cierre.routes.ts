@@ -41,6 +41,13 @@ export async function registerCierreRoutes(
                 items: { $ref: 'CierreCaja' },
               },
               pagination: { $ref: 'Pagination' },
+              next_cursor: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'Cursor opaco para la siguiente página en modo keyset (paginación por cursor). ' +
+                  'null si no hay más páginas o si se usa offset (page/limit).',
+              },
             },
           },
         },

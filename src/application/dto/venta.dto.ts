@@ -43,6 +43,11 @@ export const VentaQuerySchema = z.object({
   order: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  // EF3: paginación keyset como modo ADICIONAL al offset (page/limit). El token
+  // es opaco (base64url, ver shared/utils/cursor.ts): el client lo recibe como
+  // `next_cursor` en la respuesta y lo devuelve tal cual acá. Si viene `cursor`,
+  // el use-case pagina por (created_at, id) y exige sort=created_at.
+  cursor: z.string().min(1).optional(),
 });
 
 export type VentaQueryInput = z.infer<typeof VentaQuerySchema>;

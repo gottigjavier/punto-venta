@@ -179,12 +179,13 @@ export async function listVentasHandler(
     return handleDomainError(reply, result.error);
   }
 
-  const { data, pagination } = result.value;
+  const { data, pagination, next_cursor } = result.value;
 
   reply.send({
     success: true,
     data,
     pagination,
+    next_cursor,
   });
 }
 
@@ -370,13 +371,14 @@ export async function listarMovimientosHandler(
     return handleDomainError(reply, result.error);
   }
 
-  const { data, resumen, pagination } = result.value;
+  const { data, resumen, pagination, next_cursor } = result.value;
 
   reply.send({
     success: true,
     data,
     resumen,
     pagination,
+    next_cursor,
   });
 }
 

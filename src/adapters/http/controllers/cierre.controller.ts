@@ -47,12 +47,13 @@ export async function listCierresHandler(
     return sendDomainError(reply, result.error);
   }
 
-  const { data, pagination } = result.value;
+  const { data, pagination, next_cursor } = result.value;
 
   reply.send({
     success: true,
     data,
     pagination,
+    next_cursor,
   });
 }
 
