@@ -11,8 +11,18 @@ import type { VentaCierreRespuesta } from "../../domain/entities/venta.js";
 import { logger } from "../../infrastructure/logging/logger.js";
 import { toNumber } from "../../shared/utils/number.js";
 
-// Escape CSV field (wrap in quotes if contains comma or quote)
+// Escape CSV field (wrap in quotes if contains comma or quote). Además
+// neutraliza la inyección de fórmula (SE5, OWASP CSV Injection): una celda que
+// empieza con = + - @ (o tab/CR) puede ejecutarse como fórmula al abrir el CSV
+// en Excel/Sheets. Se prefija con comilla simple, sin romper el quoting
+// existente. Solo recibe datos no numéricos (tipo, referencia_id, nombre); los
+// montos/cantidades van directos, sin pasar por acá.
 function escapeCsv(value: string): string {
+  // Neutralizar formula injection: prefijar ' los inicios peligrosos (OWASP).
+  if (/^[=+\-@\t\r]/.test(value)) {
+    value = `'${value}`;
+  }
+
   if (value.includes(",") || value.includes('"') || value.includes("\n")) {
     return `"${value.replace(/"/g, '""')}"`;
   }
