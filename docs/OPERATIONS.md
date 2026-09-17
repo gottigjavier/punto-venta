@@ -437,12 +437,12 @@ podman compose logs api 2>&1 | jq -r '.statusCode' | sort | uniq -c
 | `JWT_SECRET` | — | Access token secret, min 32 chars (required) |
 | `JWT_REFRESH_SECRET` | — | Refresh token secret, min 32 chars (required) |
 
-| `NODE_ENV` | `development` | `development` / `staging` / `production` |
+| `NODE_ENV` | `development` | `development` / `staging` / `production` / `test` |
 | `API_PORT` | `3001` | API server port |
-| `FRONTEND_URL` | `http://localhost:3000` | Frontend URL for CORS |
+| `FRONTEND_URL` | `http://localhost:5173` | Frontend URL for CORS (Vite dev server) |
 | `LOG_LEVEL` | `info` | `error` / `warn` / `info` / `debug` / `trace` |
 | `RATE_LIMIT_WINDOW_MS` | `3600000` | Rate limit window (1 hour) |
-| `RATE_LIMIT_MAX_REQUESTS` | `10` | Max login attempts per window |
+| `RATE_LIMIT_MAX_REQUESTS` | `10` | Max requests per window (global rate limiter) |
 | `MAX_LOGIN_ATTEMPTS` | `3` | Failed attempts before lockout |
 | `LOCKOUT_DURATION_MINUTES` | `30` | Account lockout duration |
 | `POSTGRES_USER` | `pv_user` | PostgreSQL user (production) |
