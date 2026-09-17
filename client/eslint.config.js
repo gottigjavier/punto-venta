@@ -1,7 +1,7 @@
 // ESLint flat config — Client (package `punto-venta-client`, React/Vite/TS).
 // A diferencia del API (TS 7 → Babel sin type-info), el client usa TypeScript
 // 5.6, así que aquí SÍ usamos typescript-eslint con type-check real.
-// Styling: single-quotes + semicolons (consistente con el API).
+// Styling: double-quotes + semicolons (consistente con el API).
 import js from "@eslint/js";
 import globals from "globals";
 import ts from "typescript-eslint";
@@ -39,7 +39,7 @@ export default ts.config(
         "error",
         { prefer: "type-imports", fixStyle: "inline-type-imports" },
       ],
-      quotes: ["error", "single"],
+      quotes: ["error", "double"],
       semi: ["error", "always"],
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "warn",

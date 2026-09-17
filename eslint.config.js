@@ -1,5 +1,5 @@
 // ESLint flat config — API (root package `punto-venta-api`).
-// Opción A: ESLint core (sin type-info), single-quotes.
+// Opción A: ESLint core (sin type-info), double-quotes.
 // Parser: @babel/eslint-parser (no depende de la versión de TS → compatible con TS 7).
 // Scope: solo ./src. El client/ tiene su propio package.json y análisis aparte.
 import js from "@eslint/js";
@@ -42,7 +42,7 @@ export default [
       // Babel parsea anotaciones de tipo pero no las resuelve; tsc ya valida
       // variables reales. Apagar aquí es el patrón estándar sin type-info.
       "no-undef": "off",
-      quotes: ["error", "single"],
+      quotes: ["error", "double"],
       semi: ["error", "always"],
       // Los imports usados solo como tipos (Prisma.X, AppResult, *Input) no
       // cuentan como 'usados' para Babel -> falsos positivos. tsc con
