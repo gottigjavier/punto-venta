@@ -10,7 +10,7 @@ Desarrollar una aplicación de punto de venta que permita el manejo de ventas, s
 
 | Capa | Tecnología | Justificación |
 |------|------------|---------------|
-| Frontend | React/Next.js + TypeScript | SSR opcional, ecosistema maduro, tipado fuerte |
+| Frontend | React + Vite + TypeScript | SPA, dev server rápido, proxy `/api` hacia la API, tipado fuerte |
 | Backend | Node.js + Fastify | Alto rendimiento, bajo overhead, plugins |
 | Base de datos | PostgreSQL | ACID, robustez, extensiones (pg_trgm para búsquedas) |
 | ORM | Prisma | Type-safe, migraciones, DX excelente |
@@ -28,7 +28,7 @@ Desarrollar una aplicación de punto de venta que permita el manejo de ventas, s
 
 ```
 src/
-├── domain/              # Entidades, valores对象, errores de dominio
+├── domain/              # Entidades, valores objeto, errores de dominio
 │   ├── entities/
 │   ├── value-objects/
 │   └── errors/
@@ -41,13 +41,14 @@ src/
 │   │   └── repositories/
 │   ├── auth/
 │   ├── config/
-│   └── logging/
+│   ├── logging/
+│   └── swagger/
 ├── adapters/            # Adaptadores de entrada
 │   ├── http/
 │   │   ├── routes/
 │   │   ├── middleware/
-│   │   └── controllers/
-│   └── websocket/
+│   │   ├── controllers/
+│   │   └── utils/
 └── shared/              # Utilidades compartidas
     ├── types/
     └── utils/
@@ -161,7 +162,7 @@ Usuario ──1:N──> Venta
 - **Tokens**:
   - Access token: JWT, expiración 15 minutos.
   - Refresh token: httpOnly cookie, expiración 7 días, rotación obligatoria.
-- **Rate limiting**: 10 intentos de login por IP por hora.
+- **Rate limiting**: global por IP (`RATE_LIMIT_MAX_REQUESTS` × 10 por `RATE_LIMIT_WINDOW_MS`); activo por defecto en production/staging, desactivado en development/test salvo `RATE_LIMIT_ENABLED=true|false`. `/login` tiene límite más estricto: `LOGIN_RATE_LIMIT_MAX=5` por `LOGIN_RATE_LIMIT_WINDOW_MS=60s` por IP.
 - **HTTPS**: obligatorio en producción.
 
 ### 5.2 Roles y Permisos
@@ -435,7 +436,7 @@ GET /api/v1/productos?search=pan&rubro=rubro-id&sort=precio_venta&order=asc&page
 | Tipo | Cobertura | Herramientas |
 |------|-----------|--------------|
 | Unit | 80% mínimo | Vitest |
-| Integration | Flujos críticos | Vitest + Supertest |
+| Integration | Flujos críticos | Vitest (`app.inject`) |
 | E2E | Flujos principales | Playwright |
 
 **Flujos críticos a testear**:
@@ -462,82 +463,113 @@ GET /api/v1/productos?search=pan&rubro=rubro-id&sort=precio_venta&order=asc&page
 
 ```
 podman-compose.yml
-├── app          # Next.js (puerto 3000)
-├── api          # Fastify (puerto 3001)
-└── db           # PostgreSQL (puerto 5432)
+├── db          # PostgreSQL (puerto 5432) — container pv-database
+├── migrate     # Prisma migrate deploy (one-shot, termina) — container pv-migrate
+├── api         # Fastify (puerto 3001) — container pv-api
+└── client      # React + Vite dev server (puerto 5173) — container pv-client
 ```
 
 ### 9.2 Containerfile (Backend)
 
 ```dockerfile
-# api/Containerfile
+# api/Containerfile (producción — multi-stage)
 FROM node:20-alpine AS builder
+
 WORKDIR /app
+
+# Install ALL dependencies (including devDependencies for build)
 COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
+RUN npm ci
+
+# Copy Prisma schema and generate client
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Copy source code and build TypeScript
+COPY src ./src/
+COPY tsconfig.json ./
 RUN npm run build
 
+# Remove devDependencies after build
+RUN npm prune --omit=dev
+
+# ─── Stage 2: Production ─────────────────────
 FROM node:20-alpine
-WORKDIR /app
+
+# Security: add non-root user
 RUN addgroup -g 1001 -S appgroup && \
-    adduser -S appuser -u 1001 -G appgroup
+    adduser -S appuser -u 1001 -G appgroup && \
+    apk add --no-cache wget
+
+WORKDIR /app
+
+# Copy only what's needed for runtime
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
 COPY --from=builder --chown=appuser:appgroup /app/package.json ./
+COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
+
 USER appuser
+
 EXPOSE 3001
-HEALTHCHECK --interval=30s --timeout=3s \
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+
 CMD ["node", "dist/main.js"]
 ```
+
+> El compose de desarrollo usa `api/Containerfile.dev` (la imagen levanta el `dist` compilado y el compose monta `./src` en vivo con `tsx watch src/main.ts` como `command`, ver `podman-compose.yml`).
 
 ### 9.3 Containerfile (Frontend)
 
 ```dockerfile
-# web/Containerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-RUN npm run build
-
+# client/Containerfile — Vite dev server dentro de podman (compose service `client`)
 FROM node:20-alpine
+
 WORKDIR /app
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -S appuser -u 1001 -G appgroup
-COPY --from=builder --chown=appuser:appgroup /app/.next/standalone ./
-COPY --from=builder --chown=appuser:appgroup /app/.next/static ./.next/static
-COPY --from=builder --chown=appuser:appgroup /app/public ./public
-USER appuser
-EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
-CMD ["node", "server.js"]
+
+# Install dependencies (deterministic: npm ci usa el package-lock.json)
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy source
+COPY . .
+
+# El proxy de Vite reenvía /api al servicio `api` de la red del compose.
+ENV VITE_PROXY_TARGET=http://api:3001
+
+EXPOSE 5173
+
+# host: true está seteado en vite.config; el dev server corre bound a 0.0.0.0
+CMD ["npm", "run", "dev"]
 ```
+
+> Es la imagen de desarrollo del client (dev server de Vite con hot reload; el navegador solo habla con el contenedor del client y el proxy reenvía `/api` al `api`). El build de producción del client no corre en podman (se despliega aparte, ver `docs/OPERATIONS.md`).
 
 ### 9.4 Comandos Útiles
 
 ```bash
 # Desarrollo
-podman compose up -d
+podman compose up -d                                 # db + migrate (one-shot) + api + client (Vite 5173)
 podman compose logs -f api
-podman compose exec api npx prisma migrate dev
+podman compose exec api npx prisma migrate dev       # desarrollar/aplicar migraciones (dev)
+podman compose run --rm migrate                      # re-ejecutar el one-shot `migrate deploy`
 
 # Producción
 podman compose -f podman-compose.prod.yml up -d --build
-podman compose exec api npx prisma migrate deploy
+podman compose -f podman-compose.prod.yml exec api npx prisma migrate deploy
+
+# Tests
+npm run test:run        # unit + integración (Vitest)
+npm run test:e2e        # E2E (Playwright — tests/e2e, workers=1, serial)
 
 # Mantenimiento
 podman system prune -f
 podman volume prune -f
 
-# Secrets
-echo "mi-secreto" | podman secret create db_password -
-podman run --secret db_password,type=env,target=DB_PASSWORD api
+# Secrets (prod compose los resuelve desde el archivo, ver podman-compose.prod.yml)
+echo "mi-secreto" > secrets/db_password.txt
 ```
 
 ---
@@ -623,13 +655,29 @@ jj tag list
 ### 11.1 Variables de Entorno
 
 ```bash
-# .env.example
-DATABASE_URL=postgresql://user:pass@localhost:5432/punto_venta
-JWT_SECRET=tu-secreto-aqui
-JWT_REFRESH_SECRET=tu-secreto-refresh
+# .env.example (referencia; la validación real está en src/infrastructure/config/env.ts)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/punto_venta_dev
+JWT_SECRET=change-this-to-a-secure-random-string-min-32-chars
+JWT_REFRESH_SECRET=change-this-to-another-secure-random-string-min-32
 NODE_ENV=development
 API_PORT=3001
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:5173     # dev server de Vite (el compose dev la setea así)
+TRUST_PROXY_HOPS=0
+
+# Rate limiting (RATE_LIMIT_ENABLED=true|false sobreescribe el default por NODE_ENV)
+RATE_LIMIT_ENABLED=
+RATE_LIMIT_WINDOW_MS=3600000
+RATE_LIMIT_MAX_REQUESTS=10
+LOGIN_RATE_LIMIT_MAX=5
+LOGIN_RATE_LIMIT_WINDOW_MS=60000
+
+# Account lockout
+MAX_LOGIN_ATTEMPTS=3
+LOCKOUT_DURATION_MINUTES=30
+
+# Logging / métricas
+LOG_LEVEL=info
+METRICS_TOKEN=
 ```
 
 ### 11.2 Entornos
@@ -638,7 +686,8 @@ FRONTEND_URL=http://localhost:3000
 |---------|-----|------------|
 | development | Desarrollo local | punto_venta_dev |
 | staging | QA y pruebas | punto_venta_staging |
-| production | Producción | punto_venta_prod |
+| production | Producción | punto_venta |
+| test | Tests (CI/local) | punto_venta_test |
 
 ---
 
