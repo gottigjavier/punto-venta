@@ -69,87 +69,233 @@ src/
 ```
 Proveedor ──1:N──> Producto
 Rubro ──1:N──> Producto
+Producto ──1:N──> Lote
 Producto ──N:M──> Venta (a través de DetalleVenta)
+Lote ──1:N──> DetalleVenta (lote_id opcional, RESTRICT)
 Usuario ──1:N──> Venta
+Usuario ──1:N──> MovimientoCaja
+Usuario ──1:N──> CierreCaja (apertura y cierre)
+CierreCaja ──1:N──> Venta (cierre_caja_id SET NULL)
+CierreCaja ──1:N──> MovimientoCaja (cierre_caja_id SET NULL)
+CierreCaja ──1:N──> CierreCajaDetalle
 ```
 
-### 4.2 Tablas
+### 4.2 Enums
+
+| Enum | Valores | Uso |
+|------|---------|-----|
+| Rol | admin, gerente, despachador | Nivel de permiso del usuario (ver §5.2) |
+| UnidadMedida | unidad, kg, g, l, ml | Unidad de venta del producto (default `unidad`) |
+| EstadoVenta | pendiente, completada, cancelada | Ciclo de vida de la venta (default `pendiente`) |
+| EstadoCierre | abierto, cerrado | Estado del cierre de caja (default `abierto`; en la práctica el único insert es `cerrado`, ver §4.4) |
+| TipoMovimiento | ingreso, egreso | Sentido del movimiento de caja |
+| EstadoLote | activo, agotado, vencido, descartado | Ciclo de vida del lote (default `activo`) |
+
+### 4.3 Tablas
 
 #### Usuarios
+
+Cuenta de acceso al sistema; el rol determina los permisos (ver §5.2).
+
 | Campo | Tipo | Constraints |
 |-------|------|-------------|
 | id | UUID | PK, default gen_random_uuid() |
 | nombre_usuario | VARCHAR(100) | NOT NULL |
 | nik_usuario | VARCHAR(50) | UNIQUE, NOT NULL |
 | password_hash | VARCHAR(255) | NOT NULL |
-| email | VARCHAR(255) | UNIQUE, FORMATO VÁLIDO |
-| telefono | VARCHAR(20) | |
+| email | VARCHAR(255) | UNIQUE, NOT NULL, formato validado en app |
+| telefono | VARCHAR(20) | NULL |
 | rol | ENUM('admin', 'gerente', 'despachador') | NOT NULL |
 | activo | BOOLEAN | DEFAULT true |
 | intentos_fallidos | INTEGER | DEFAULT 0 |
-| bloqueado_hasta | TIMESTAMP | NULL |
-| created_at | TIMESTAMP | DEFAULT NOW() |
-| updated_at | TIMESTAMP | |
+| bloqueado_hasta | TIMESTAMPTZ | NULL |
+| refresh_token_version | INTEGER | DEFAULT 1, versiona los refresh tokens: se incrementa en logout / cambio de password / desactivación e invalida todas las versiones anteriores (S5) |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+| updated_at | TIMESTAMPTZ | NULL |
+
+**Relaciones**: 1-N Venta · 1-N MovimientoCaja · 1-N CierreCaja (apertura) · 1-N CierreCaja (cierre, opcional).
+
+**Índices**: nik_usuario, email, rol (además de los UNIQUE en nik_usuario y email).
 
 #### Productos
+
+Información general del producto + precio de venta por unidad. El stock NO vive acá: vive en Lote (migración `split_productos_lotes`).
+
 | Campo | Tipo | Constraints |
 |-------|------|-------------|
-| id | UUID | PK |
+| id | UUID | PK, default gen_random_uuid() |
 | nombre | VARCHAR(200) | NOT NULL |
-| codigo | VARCHAR(50) | NOT NULL |
-| cantidad_disponible | DECIMAL(10,3) | CHECK (>= 0) |
-| precio_compra | DECIMAL(10,2) | CHECK (>= 0) |
-| precio_venta | DECIMAL(10,2) | CHECK (>= 0) |
+| codigo | VARCHAR(50) | NOT NULL, UNIQUE con (codigo, proveedor_id) |
+| precio_venta | DECIMAL(10,2) | NOT NULL, DEFAULT 0 |
 | rubro_id | UUID | FK -> Rubros |
 | proveedor_id | UUID | FK -> Proveedores |
-| fecha_compra | DATE | |
-| fecha_vencimiento | DATE | |
-| numero_lote | VARCHAR(50) | |
 | unidad_medida | ENUM('unidad', 'kg', 'g', 'l', 'ml') | DEFAULT 'unidad' |
-| created_at | TIMESTAMP | |
-| updated_at | TIMESTAMP | |
+| cantidad_aviso | DECIMAL(10,3) | DEFAULT 0, alerta de stock bajo (se compara contra la suma de los lotes) |
+| vencimiento_preaviso_dias | INTEGER | DEFAULT 30, preaviso de vencimiento por producto; NULL = sin preaviso |
+| activo | BOOLEAN | DEFAULT true, soft delete (archivado) |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+| updated_at | TIMESTAMPTZ | NULL |
 
-**Índices**: nombre, codigo, fecha_vencimiento, proveedor_id, rubro_id
+**Relaciones**: N-1 Rubro · N-1 Proveedor · 1-N Lote · 1-N DetalleVenta.
+
+**Índices**: nombre, codigo, rubro_id, proveedor_id y UNIQUE (codigo, proveedor_id).
+
+#### Lotes
+
+Unidad de stock y trazabilidad: cantidad disponible, compra, vencimiento, costo y estado. Cada lote pertenece a un único producto; el stock de un producto = suma de `cantidad_disponible` de sus lotes.
+
+| Campo | Tipo | Constraints |
+|-------|------|-------------|
+| id | UUID | PK, default gen_random_uuid() |
+| producto_id | UUID | FK -> Productos, RESTRICT |
+| numero_lote | VARCHAR(50) | NULL |
+| cantidad_disponible | DECIMAL(10,3) | DEFAULT 0, CHECK (>= 0) — ver §4.4 |
+| fecha_compra | DATE | NULL |
+| fecha_vencimiento | DATE | NULL |
+| precio_compra | DECIMAL(10,2) | DEFAULT 0, costo del lote (márgenes) |
+| estado | ENUM('activo', 'agotado', 'vencido', 'descartado') | DEFAULT 'activo' |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+**Relaciones**: N-1 Producto · 1-N DetalleVenta (lote_id opcional, RESTRICT: un lote con ventas asociadas no se puede borrar).
+
+**Invariantes**: merge key único (producto_id, numero_lote, fecha_vencimiento) — ver §4.4.
+
+**Índices**: (producto_id, estado), (producto_id, fecha_vencimiento) y (estado, fecha_vencimiento) ← FEFO.
 
 #### Proveedores
+
+Entidad que provee productos; el código de producto es único dentro de cada proveedor.
+
 | Campo | Tipo | Constraints |
 |-------|------|-------------|
-| id | UUID | PK |
+| id | UUID | PK, default gen_random_uuid() |
 | razon_social | VARCHAR(200) | NOT NULL |
-| representante | VARCHAR(150) | |
-| cuit | VARCHAR(13) | UNIQUE |
-| direccion_postal | TEXT | |
-| email | VARCHAR(255) | |
-| telefonos | JSONB | ARRAY de strings |
-| created_at | TIMESTAMP | |
-| updated_at | TIMESTAMP | |
+| representante | VARCHAR(150) | NULL |
+| cuit | VARCHAR(13) | UNIQUE, NULL |
+| direccion_postal | TEXT | NULL |
+| email | VARCHAR(255) | NULL |
+| telefonos | JSONB | NULL, array de strings |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+| updated_at | TIMESTAMPTZ | NULL |
+
+**Relaciones**: 1-N Producto.
 
 #### Rubros
+
+Clasificación del producto.
+
 | Campo | Tipo | Constraints |
 |-------|------|-------------|
-| id | UUID | PK |
+| id | UUID | PK, default gen_random_uuid() |
 | nombre | VARCHAR(100) | UNIQUE, NOT NULL |
-| descripcion | TEXT | |
+| descripcion | TEXT | NULL |
 | activo | BOOLEAN | DEFAULT true |
 
+**Relaciones**: 1-N Producto.
+
 #### Ventas
+
+Cabecera de venta. Mientras el período de caja está abierto, `cierre_caja_id` es NULL (ver §4.4).
+
 | Campo | Tipo | Constraints |
 |-------|------|-------------|
-| id | UUID | PK |
+| id | UUID | PK, default gen_random_uuid() |
 | usuario_id | UUID | FK -> Usuarios |
 | total | DECIMAL(12,2) | NOT NULL |
-| estado | ENUM('pendiente', 'completada', 'cancelada') | |
-| created_at | TIMESTAMP | |
+| estado | ENUM('pendiente', 'completada', 'cancelada') | DEFAULT 'pendiente' |
+| cierre_caja_id | UUID | FK -> CierreCaja, NULL, SET NULL |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+**Relaciones**: N-1 Usuario · N-1 CierreCaja (opcional) · 1-N DetalleVenta.
+
+**Índices**: usuario_id, created_at, estado, cierre_caja_id.
 
 #### DetalleVenta
+
+Ítem de una venta: precio congelado al momento de la venta y trazabilidad opcional por lote.
+
 | Campo | Tipo | Constraints |
 |-------|------|-------------|
-| id | UUID | PK |
+| id | UUID | PK, default gen_random_uuid() |
 | venta_id | UUID | FK -> Ventas |
 | producto_id | UUID | FK -> Productos |
-| cantidad | DECIMAL(10,3) | CHECK (> 0) |
-| precio_unitario | DECIMAL(10,2) | CHECK (>= 0) |
-| subtotal | DECIMAL(12,2) | GENERATED ALWAYS AS (cantidad * precio_unitario) |
+| lote_id | UUID | FK -> Lotes, NULL, RESTRICT (trazabilidad por lote; históricos previos al split quedaron con NULL) |
+| cantidad | DECIMAL(10,3) | NOT NULL |
+| precio_unitario | DECIMAL(10,2) | NOT NULL |
+| subtotal | DECIMAL(12,2) | NOT NULL, calculado por la aplicación (cantidad × precio_unitario); NO es columna generada por la DB |
+
+**Relaciones**: N-1 Venta · N-1 Producto · N-1 Lote (opcional).
+
+**Índices**: venta_id, producto_id, lote_id.
+
+#### CierreCaja
+
+Cierre de período de caja. Solo se inserta cuando el período se cierra (estado `cerrado`); no existe flujo que cree un cierre abierto (CO4). El "período abierto" se modela como ventas y movimientos con `cierre_caja_id IS NULL`, no como un CierreCaja con estado 'abierto'.
+
+| Campo | Tipo | Constraints |
+|-------|------|-------------|
+| id | UUID | PK, default gen_random_uuid() |
+| fecha_apertura | TIMESTAMPTZ | DEFAULT NOW(), inicio del período |
+| fecha_cierre | TIMESTAMPTZ | NULL, momento del cierre |
+| usuario_apertura_id | UUID | FK -> Usuarios, RESTRICT |
+| usuario_cierre_id | UUID | FK -> Usuarios, NULL, SET NULL |
+| monto_total | DECIMAL(12,2) | DEFAULT 0, ventas + ingresos − egresos |
+| cantidad_ventas | INTEGER | DEFAULT 0 |
+| ingresos_total | DECIMAL(12,2) | DEFAULT 0 |
+| egresos_total | DECIMAL(12,2) | DEFAULT 0 |
+| estado | ENUM('abierto', 'cerrado') | DEFAULT 'abierto' (en la práctica el único insert es 'cerrado', ver §4.4) |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+**Relaciones**: N-1 Usuario (apertura) · N-1 Usuario (cierre, opcional) · 1-N Venta (SET NULL) · 1-N MovimientoCaja (SET NULL) · 1-N CierreCajaDetalle (RESTRICT).
+
+**Índices**: estado, fecha_cierre.
+
+#### MovimientoCaja
+
+Ingresos y egresos de caja fuera de ventas: gastos, retiros, ajustes. Se asocian al cierre en el que quedaron incluidos (`cierre_caja_id` NULL mientras el período está abierto).
+
+| Campo | Tipo | Constraints |
+|-------|------|-------------|
+| id | UUID | PK, default gen_random_uuid() |
+| tipo | ENUM('ingreso', 'egreso') | NOT NULL |
+| monto | DECIMAL(10,2) | NOT NULL |
+| descripcion | TEXT | NULL |
+| usuario_id | UUID | FK -> Usuarios, RESTRICT |
+| cierre_caja_id | UUID | FK -> CierreCaja, NULL, SET NULL |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+**Relaciones**: N-1 Usuario · N-1 CierreCaja (opcional).
+
+**Índices**: cierre_caja_id, created_at, usuario_id.
+
+#### CierreCajaDetalle
+
+Snapshot desnormalizado e inmutable del cierre: un registro por vendedor (`tipo='vendedor'`) y por producto vendido (`tipo='producto'`) del período, con montos y cantidades congelados al momento del cierre.
+
+| Campo | Tipo | Constraints |
+|-------|------|-------------|
+| id | UUID | PK, default gen_random_uuid() |
+| cierre_caja_id | UUID | FK -> CierreCaja, RESTRICT |
+| tipo | TEXT | NOT NULL ('vendedor' | 'producto') |
+| referencia_id | UUID | NOT NULL, id del vendedor/producto referenciado |
+| nombre | VARCHAR(200) | NOT NULL, denominación snapshot |
+| cantidad | DECIMAL(12,3) | DEFAULT 0 |
+| monto_total | DECIMAL(12,2) | DEFAULT 0 |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+**Relaciones**: N-1 CierreCaja.
+
+**Índices**: cierre_caja_id, tipo.
+
+### 4.4 Invariantes del dominio (enforced por la DB)
+
+1. **Stock nunca negativo**: CHECK constraint `Lote_cantidad_disponible_non_negative` (`cantidad_disponible >= 0`) en Lote. Defense-in-depth: la app maneja `STOCK_INSUFFICIENT` con selección FEFO antes de llegar; la constraint solo dispara ante un bug real.
+2. **Merge key único de Lote**: índice UNIQUE parcial `Lote_merge_key_unique` sobre (producto_id, numero_lote, fecha_vencimiento) `WHERE numero_lote IS NOT NULL`. Cierra la carrera de dos `loteIngreso`/`loteEdit` concurrentes con el mismo merge key; `numero_lote` NULL nunca mergea (cada lote sin número se considera único por diseño).
+3. **Refresh token versionado**: `Usuario.refresh_token_version` se incrementa en logout, cambio de password y desactivación de usuario; invalida todos los refresh tokens emitidos en versiones anteriores (S5).
+4. **Índice FEFO**: `(estado, fecha_vencimiento)` en Lote permite range scan para `retirarLotesVencidos` y la ventana FEFO (`estado='activo' AND fecha_vencimiento < hoy`).
+5. **Período de caja abierto** = `cierre_caja_id IS NULL` en Venta y MovimientoCaja. CierreCaja solo se inserta al cerrar, con estado `cerrado`; la rama de cierres abiertos se eliminó (CO4) porque no existe flujo que la cree.
+6. **Código de producto único por proveedor**: UNIQUE (codigo, proveedor_id) en Producto.
+7. **Trazabilidad ventas → lote**: `DetalleVenta.lote_id` tiene FK RESTRICT: un lote con ventas asociadas no puede eliminarse (la trazabilidad histórica queda intacta).
 
 ---
 
@@ -282,7 +428,7 @@ if (usuario.intentos_fallidos >= 3) {
      BEGIN;
      INSERT INTO ventas (...) RETURNING id;
      INSERT INTO detalle_venta (...) VALUES (...);
-     UPDATE productos SET cantidad_disponible = cantidad_disponible - ? WHERE id = ?;
+     UPDATE lotes SET cantidad_disponible = cantidad_disponible - ? WHERE id = ?; -- el stock se descuenta por lote (selección FEFO)
      COMMIT;
      ```
    - Si falla alguna parte, todo se revierte.
