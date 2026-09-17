@@ -12,13 +12,13 @@
 # NOT for production — use api/Containerfile for that.
 
 # ─── Stage 1: Builder ─────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 # Install ALL dependencies (dev + prod) so tsc can compile.
 COPY package*.json ./
-RUN npm ci && npm cache clean --force
+RUN npm config set fetch-retries 3 && npm config set fetch-retry-mintimeout 10000 && npm config set fetch-retry-maxtimeout 60000 && npm ci && npm cache clean --force
 
 # Prisma client (needs the schema + engines before building TS).
 COPY prisma ./prisma/
@@ -34,7 +34,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # ─── Stage 2: Runtime (dev) ───────────────────
-FROM node:20-alpine
+FROM node:22-alpine
 
 # Non-root user (mirrors prod security posture)
 RUN addgroup -g 1001 -S appgroup && \
