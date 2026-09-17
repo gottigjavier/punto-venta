@@ -21,3 +21,8 @@ export function formatDate(dateStr: string | null | undefined): string {
     year: 'numeric',
   });
 }
+
+/** Format a number as es-AR currency (e.g. "$1.234,56"). */
+export function formatCurrency(value: number): string {
+  return `$${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
