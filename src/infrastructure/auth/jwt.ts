@@ -55,7 +55,7 @@ export function generateTokenPair(payload: TokenPayload, version: number): Token
 // Verify access token
 export function verifyAccessToken(token: string): Result<TokenPayload, Error> {
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET) as TokenPayload;
+    const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
     return ok(decoded);
   } catch {
     return err(new Error('Token inválido o expirado'));
@@ -65,7 +65,7 @@ export function verifyAccessToken(token: string): Result<TokenPayload, Error> {
 // Verify refresh token (exige subtype 'refresh' y una `version` numérica)
 export function verifyRefreshToken(token: string): Result<RefreshTokenPayload, Error> {
   try {
-    const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET) as Record<string, unknown>;
+    const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET, { algorithms: ['HS256'] }) as Record<string, unknown>;
     if (decoded.subtype !== 'refresh' || typeof decoded.version !== 'number') {
       return err(new Error('Refresh token inválido o expirado'));
     }
