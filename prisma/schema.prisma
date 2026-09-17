@@ -145,7 +145,10 @@ model CierreCaja {
   usuario_cierre_id   String?             @db.Uuid
   monto_total         Decimal             @default(0) @db.Decimal(12, 2)
   cantidad_ventas     Int                 @default(0)
-  estado              EstadoCierre        @default(abierto)
+  // default 'cerrado' (CO4): el único insert real (cerrarCaja) crea con
+  // estado:'cerrado'; un insert que omitiera estado no debe producir un
+  // cierre 'abierto' fantasma. El período abierto se modela con cierre_caja_id IS NULL.
+  estado              EstadoCierre        @default(cerrado)
   created_at          DateTime            @default(now()) @db.Timestamptz(6)
   egresos_total       Decimal             @default(0) @db.Decimal(12, 2)
   ingresos_total      Decimal             @default(0) @db.Decimal(12, 2)
