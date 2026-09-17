@@ -26,14 +26,9 @@ import type {
   ProductoQueryInput,
 } from "../dto/producto.dto.js";
 import { logger } from "../../infrastructure/logging/logger.js";
-import { retirarLotesVencidos, toUTC3DateString } from "./stock.use-case.js";
+import { retirarLotesVencidos } from "./stock.use-case.js";
 import { toNumber } from "../../shared/utils/number.js";
-
-// Midnoches UTC del día (UTC-3) para filtrar lotes NO vencidos
-function limiteVencidos(): Date {
-  const hoyStr = toUTC3DateString(new Date());
-  return new Date(hoyStr + "T00:00:00.000Z");
-}
+import { limiteHoy } from "../../shared/utils/date.js";
 
 // Incluye relaciones del producto
 const productoInclude = {
@@ -53,7 +48,7 @@ async function calcularStockPorProducto(
   ids: string[],
 ): Promise<SumaPorProducto> {
   if (ids.length === 0) return new Map();
-  const limite = limiteVencidos();
+  const limite = limiteHoy();
   const lotes = await prisma.lote.findMany({
     where: {
       producto_id: { in: ids },
@@ -75,7 +70,7 @@ async function calcularStockPorProducto(
 // Lee los lotes vigentes (activos NO vencidos) de varios productos como Lote[]
 async function lotesVigentesDe(ids: string[]): Promise<Lote[]> {
   if (ids.length === 0) return [];
-  const limite = limiteVencidos();
+  const limite = limiteHoy();
   const lotes = await prisma.lote.findMany({
     where: {
       producto_id: { in: ids },

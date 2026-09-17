@@ -17,16 +17,7 @@
 import { describe, it, afterAll, expect } from "vitest";
 import { prisma } from "../../infrastructure/database/prisma/client.js";
 import { loteIngreso } from "./stock.use-case.js";
-
-// Convierte Decimal/DTOs de Prisma a number para las afirmaciones del test.
-function toNumber(val: unknown): number {
-  if (typeof val === "number") return val;
-  if (typeof val === "string") return parseFloat(val);
-  if (val && typeof val === "object" && "toNumber" in val) {
-    return (val as { toNumber: () => number }).toNumber();
-  }
-  return 0;
-}
+import { toNumber } from "../../shared/utils/number.js";
 
 // Detectar la disponibilidad de la DB a nivel de módulo (top-level await).
 // Vitest evalúa it.skipIf(!dbUp) al registrar el test, ANTES de cualquier beforeAll,

@@ -14,7 +14,7 @@ import type {
   StockQueryInput,
   EditarLoteInput,
 } from "../../../application/dto/stock.dto.js";
-import { toUTC3DateString } from "../../../application/use-cases/stock.use-case.js";
+import { toUTC3DateString } from "../../../shared/utils/date.js";
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {

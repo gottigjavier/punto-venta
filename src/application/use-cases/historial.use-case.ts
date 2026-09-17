@@ -10,16 +10,7 @@ import type {
 } from "../dto/historial.dto.js";
 import { logger } from "../../infrastructure/logging/logger.js";
 import { toNumber } from "../../shared/utils/number.js";
-
-// Helper to convert Prisma Decimal to number
-
-function startOfDay(d: string): Date {
-  return new Date(`${d}T00:00:00.000Z`);
-}
-
-function endOfDay(d: string): Date {
-  return new Date(`${d}T23:59:59.999Z`);
-}
+import { startOfDayUTC, endOfDayUTC } from "../../shared/utils/date.js";
 
 export async function historialUnificado(query: HistorialQueryInput): Promise<
   AppResult<{
@@ -47,8 +38,8 @@ export async function historialUnificado(query: HistorialQueryInput): Promise<
 
     // Only active period (cierre_caja_id = null) + shared filters
     const rango: { gte?: Date; lte?: Date } = {};
-    if (fecha_desde) rango.gte = startOfDay(fecha_desde);
-    if (fecha_hasta) rango.lte = endOfDay(fecha_hasta);
+    if (fecha_desde) rango.gte = startOfDayUTC(fecha_desde);
+    if (fecha_hasta) rango.lte = endOfDayUTC(fecha_hasta);
 
     const whereComun = {
       cierre_caja_id: null,

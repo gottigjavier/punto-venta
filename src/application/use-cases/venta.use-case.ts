@@ -22,32 +22,19 @@ import type {
 import type { CreateVentaInput, VentaQueryInput } from "../dto/venta.dto.js";
 import { logger } from "../../infrastructure/logging/logger.js";
 import { verifyPassword } from "../../infrastructure/auth/password.js";
-import { retirarLotesVencidos, toUTC3DateString } from "./stock.use-case.js";
+import { retirarLotesVencidos } from "./stock.use-case.js";
 import { ADVISORY_LOCK_CIERRE_CAJA } from "../../infrastructure/database/transactions.js";
 import { toNumber, round2 } from "../../shared/utils/number.js";
+import {
+  startOfDay,
+  endOfDay,
+  limiteHoy,
+  toUTC3DateString,
+} from "../../shared/utils/date.js";
 import {
   encodeCursor,
   decodeCursor,
 } from "../../shared/utils/cursor.js";
-
-// Helper to build start/end of day
-function startOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function endOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-// Medianoche de hoy en UTC (UTC-3) para filtrar lotes NO vencidos
-function limiteHoy(): Date {
-  const hoyStr = toUTC3DateString(new Date());
-  return new Date(`${hoyStr}T00:00:00.000Z`);
-}
 
 // Error interno para interrumpir la transacción con stock insuficiente (rollback)
 class StockInsuficienteError extends Error {
