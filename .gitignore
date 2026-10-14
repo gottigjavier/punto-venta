@@ -12,6 +12,12 @@ playwright-report/
 blob-report/
 .playwright/
 
+# Podman kube manifests and local compose backups (not for VCS / deploy)
+kube-individual/
+podman-compose.yml.bak
+podman-compose.prod.yml.bak
+postgres-data/
+
 # Phase 5: Operations
 secrets/
 backups/
@@ -32,3 +38,4 @@ docs/architecture.json
 
 # Session/metadata files (persisted in engram, not VCS)
 sessions/
+

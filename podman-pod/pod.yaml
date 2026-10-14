@@ -1,0 +1,134 @@
+# Pod para correr el proyecto con solo el puerto 5173 expuesto al host.
+#
+# Uso: podman-pod/run.sh  (o: podman play kube --replace podman-pod/pod.yaml)
+#
+# Requiere las imágenes locales 'punto-venta-api' y 'punto-venta-client'
+# (run.sh las construye si no existen).
+#
+# Migraciones: NO correr `podman run --pod pv-pod ...`. La restartPolicy del pod
+# aplica a todo contenedor que se le una, así que un job de un solo uso entra en
+# loop de reinicio y puede reiniciar el pod entero. Usar:
+#   podman exec pv-pod-pv-api npx prisma migrate deploy
+#
+# Los 3 contenedores comparten el network namespace del pod, por eso se
+# hablan entre sí por localhost (el cliente llega a la API en :3001 y la API
+# a Postgres en :5432) sin publicar esos puertos en el host.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pv-pod
+spec:
+  # Sin esto, un contenedor que arranca antes que Postgres queda 'Exited' y no
+  # se recupera (dentro de un pod no hay depends_on como en compose).
+  restartPolicy: Always
+  containers:
+  - name: pv-database
+    image: docker.io/library/postgres:16-alpine
+    args: [postgres]
+    env:
+    - name: POSTGRES_USER
+      value: postgres
+    - name: POSTGRES_PASSWORD
+      value: postgres
+    - name: POSTGRES_DB
+      value: punto_venta_dev
+    ports:
+    - containerPort: 5432
+    volumeMounts:
+    - name: pg-data
+      mountPath: /var/lib/postgresql/data
+    livenessProbe:
+      exec:
+        command: ["/bin/sh","-c","pg_isready -U postgres"]
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 5
+
+  - name: pv-api
+    image: punto-venta-api
+    # Imagen local: sin esto podman intenta pullear 'docker.io/library/punto-venta-api'
+    # y el pod no arranca.
+    imagePullPolicy: Never
+    # Watch mode: tsx recompila al vuelo y reinicia el proceso cuando cambia
+    # ./src (montado abajo). tsx viene instalado en la imagen dev
+    # (api/Containerfile.dev). Sin typecheck: tsx solo strippea tipos.
+    args: [tsx, watch, src/main.ts]
+    env:
+    - name: NODE_ENV
+      value: development
+    - name: DATABASE_URL
+      value: postgresql://postgres:postgres@localhost:5432/punto_venta_dev
+    - name: JWT_SECRET
+      value: dev-secret-key-for-jwt-tokens-minimum-32-characters
+    - name: JWT_REFRESH_SECRET
+      value: dev-secret-key-for-refresh-tokens-minimum-32-characters
+    - name: API_PORT
+      value: "3001"
+    - name: FRONTEND_URL
+      value: http://localhost:5173
+    - name: LOG_LEVEL
+      value: debug
+    # OJO: el campo es `volumeMounts` (kube) y cada entrada referencia el
+    # `name` de un volumen del pod. Con `volumes:` acá adentro podman NO falla:
+    # ignora el bloque en silencio y el contenedor queda SIN mounts.
+    volumeMounts:
+    - name: src-host
+      mountPath: /app/src
+      readOnly: true
+    - name: prisma-host
+      mountPath: /app/prisma
+      readOnly: true
+    - name: config-host
+      mountPath: /app/prisma.config.ts
+      readOnly: true
+    livenessProbe:
+      exec:
+        command: ["wget","--no-verbose","--tries=1","--spider","http://127.0.0.1:3001/health"]
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 3
+      failureThreshold: 3
+
+  - name: pv-client
+    image: punto-venta-client
+    imagePullPolicy: Never
+    args: [npm, run, dev]
+    env:
+    - name: VITE_PROXY_TARGET
+      value: http://localhost:3001
+    ports:
+    - containerPort: 5173
+      hostPort: 5173
+    volumeMounts:
+    - name: client-src-host
+      mountPath: /app/src
+      readOnly: true
+    - name: client-config-host
+      mountPath: /app/vite.config.ts
+      readOnly: true
+  volumes:
+  - name: pg-data
+    hostPath:
+      path: /home/javier/programacion/punto-venta/postgres-data
+      type: Directory
+  - name: src-host
+    hostPath:
+      path: /home/javier/programacion/punto-venta/src
+      type: Directory
+  - name: prisma-host
+    hostPath:
+      path: /home/javier/programacion/punto-venta/prisma
+      type: Directory
+  - name: config-host
+    hostPath:
+      path: /home/javier/programacion/punto-venta/prisma.config.ts
+      type: File
+  - name: client-src-host
+    hostPath:
+      path: /home/javier/programacion/punto-venta/client/src
+      type: Directory
+  - name: client-config-host
+    hostPath:
+      path: /home/javier/programacion/punto-venta/client/vite.config.ts
+      type: File

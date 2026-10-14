@@ -11,9 +11,16 @@ playwright-report/
 blob-report/
 .playwright/
 
+# Podman kube manifests and local compose backups (not for VCS / deploy)
+kube-individual/
+podman-compose.yml.bak
+podman-compose.prod.yml.bak
+postgres-data/
+
 # Build artifacts
 *.tsbuildinfo
 
 # SDD / skill metadata (persisted in engram, not VCS)
 .atl/
 .sdd/
+
