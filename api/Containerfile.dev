@@ -2,13 +2,14 @@
 # Development image for the Fastify API.
 # Multi-stage (same healthy pattern as the prod `api/Containerfile`):
 #   builder  → npm ci + prisma generate + tsc build (produces ./dist)
-#   runtime  → lean final image with ONLY the built dist + prod deps + tsx
+#   runtime  → lean final image with the built dist + prod deps + tsx (dev runner)
 #
-# Dev behavior is preserved exactly:
-#   * ./src is mounted live by podman-compose.yml (./src:/app/src:ro) and served
-#     with `tsx watch` → source edits hot-reload WITHOUT an image rebuild.
-#   * The builder stage is just the SAFE fallback so the image is also
-#     runnable standalone for prod-like smoke tests.
+# Two ways to run this image:
+#   * Watch mode: podman-pod/pod.yaml mounts ./src (./src:/app/src:ro) and runs
+#     `tsx watch src/main.ts` → source edits hot-reload WITHOUT an image rebuild.
+#   * Standalone / podman-compose.yml: they do NOT override the command, so the
+#     CMD below runs and the API serves the COMPILED dist (the ./src mount is
+#     inert there — it is only there for parity with the watch-mode flow).
 # NOT for production — use api/Containerfile for that.
 
 # ─── Stage 1: Builder ─────────────────────────
@@ -29,8 +30,9 @@ COPY tsconfig.json ./
 COPY src ./src/
 RUN npm run build
 
-# Trim to production deps only → smaller node_modules in the runtime stage
-# (tsx stays because the runtime CMD uses it).
+# Trim to production deps only → smaller node_modules in the runtime stage.
+# This DOES drop tsx (it is a devDependency); the runtime stage reinstalls it
+# on purpose, for the watch-mode entrypoint.
 RUN npm prune --omit=dev
 
 # ─── Stage 2: Runtime (dev) ───────────────────
@@ -48,13 +50,20 @@ COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
 COPY --from=builder --chown=appuser:appgroup /app/package.json ./
 COPY --from=builder --chown=appuser:appgroup /app/prisma ./prisma
 
+# Dev runner, installed on purpose (the builder pruned devDependencies).
+# GLOBAL on purpose: `npm install --no-save tsx` reconciles the dependency tree
+# against package.json and would drag every other devDependency (eslint, vitest,
+# playwright…) back into this stage. Running as root here keeps the global
+# prefix writable; appuser can execute the binary.
+RUN npm install -g tsx@4
+
 USER appuser
 
 EXPOSE 3001
 
 # ─── Runtime ──────────────────────────────────
-# Dev runs the COMPILED dist. For watch mode on the LIVE mounted ./src,
-# podman-compose.yml overrides the command via the container entrypoint
-# (see compose `command: ["npx","tsx","watch","src/main.ts"]`) — this CMD
-# is only the standalone fallback.
+# Standalone fallback: serves the COMPILED dist.
+# For watch mode over the live-mounted ./src, override the command with:
+#   command: ["tsx", "watch", "src/main.ts"]
+# (that is exactly what podman-pod/pod.yaml does).
 CMD ["node", "dist/main.js"]

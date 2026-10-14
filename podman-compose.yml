@@ -71,6 +71,12 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    # Watch mode over the live-mounted ./src (volume below): tsx is shipped in
+    # the dev image (api/Containerfile.dev) and restarts the API on every source
+    # edit. Without this override the container runs the image CMD
+    # (`node dist/main.js`) and the ./src mount stays inert.
+    # No typecheck here — tsx only strips types; lint/CI owns that.
+    command: ["tsx", "watch", "src/main.ts"]
     volumes:
       - ./src:/app/src:ro
       - ./prisma:/app/prisma:ro
