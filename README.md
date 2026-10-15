@@ -95,7 +95,8 @@ punto-venta/
 ├── api/                    # Containerfiles (deploy en Render)
 ├── docs/                   # OPERATIONS.md
 ├── render.yaml             # Blueprint de deploy del backend en Render
-├── podman-compose.yml      # Dev local con Podman
+├── podman-compose.yml      # Dev local con Podman (publica 5432/3001/5173)
+├── podman-pod/             # Pod kube de Podman: todo el stack con SOLO 5173 expuesto
 └── .env.example            # Variables de entorno (template)
 ```
 
@@ -104,6 +105,7 @@ punto-venta/
 - **Node.js 20+**
 - **bun** (recomendado) o **npm**
 - Una base de datos **PostgreSQL** (local con Podman, o **Neon** en producción)
+- **Podman** para correr el stack contenerizado (opcional): pod `pv-pod` o `podman-compose`
 - **Jujutsu (jj)** para el control de versiones (opcional, el repo también es git)
 
 ## Configuración del entorno
@@ -191,12 +193,106 @@ El cliente consume la API vía `/api/v1` (`client/src/lib/api-client.ts`, `baseU
 
 > Nota: `FRONTEND_URL` debe coincidir con el origen desde donde se sirve el frontend (Vite usa el puerto `5173` por defecto).
 
+Alternativa contenerizada con un solo comando: ver [Ejecución con Podman (pod pv-pod)](#ejecución-con-podman-pod-pv-pod).
+
+## Ejecución con Podman (pod pv-pod)
+
+Alternativa a los dos terminales de arriba: un **pod de Podman** con los tres contenedores (PostgreSQL 16 + API Fastify + cliente Vite) compartiendo el network namespace del pod, publicando **solo el puerto 5173** en el host. La API (`3001`) y Postgres (`5432`) no se publican: los contenedores se hablan por `localhost` dentro del pod.
+
+La ventaja es que requiere un solo comando y da **hot-reload real en ambos lados** (el API corre `tsx watch src/main.ts` y el cliente el dev server de Vite, los dos sobre el código del host).
+
+> **En modo pod, Swagger no es accesible desde el host.** Solo se publica el `5173`, así que `http://localhost:3001/docs` no responde. Cuidado: `http://localhost:5173/docs` **tampoco** es la UI de la API —el proxy de Vite únicamente reenvía `/api`, y Vite contesta `200` con la SPA (`index.html`).
+>
+> Para consultarla desde dentro del pod:
+>
+> ```bash
+> podman exec pv-pod-pv-api wget -qO- http://127.0.0.1:3001/docs       # Swagger UI
+> podman exec pv-pod-pv-api wget -qO- http://127.0.0.1:3001/docs/json  # spec OpenAPI
+> ```
+>
+> Usá `127.0.0.1`, no `localhost`: la API escucha en IPv4 (`0.0.0.0:3001`) y el `wget` de BusyBox intenta primero `::1`, donde no hay nadie, y no reintenta.
+>
+> Si necesitás la UI en el navegador, publicá el puerto temporalmente: agregá `ports: [{containerPort: 3001, hostPort: 3001}]` al contenedor `pv-api` de `podman-pod/pod.yaml` y recreá el pod con `podman play kube --replace podman-pod/pod.yaml`.
+
+### Arranque
+
+```bash
+bash podman-pod/run.sh
+```
+
+Se puede ejecutar desde cualquier directorio (el script resuelve la raíz del repo solo) y hace todo:
+
+1. Construye las imágenes locales **si no existen**: `punto-venta-api` (desde `api/Containerfile.dev`) y `punto-venta-client` (desde `client/Containerfile`).
+2. Crea el pod: `podman play kube --replace podman-pod/pod.yaml`.
+3. Espera a Postgres (`pg_isready`).
+4. Aplica las migraciones de Prisma (idempotente).
+5. Verifica el cliente y muestra el estado, los puertos publicados y un smoke test.
+
+Al terminar, la app queda en **http://localhost:5173**.
+
+Los mismos pasos a mano:
+
+```bash
+podman build -t punto-venta-api    -f api/Containerfile.dev .
+podman build -t punto-venta-client -f client/Containerfile client
+podman play kube --replace podman-pod/pod.yaml
+podman exec pv-pod-pv-api npx prisma migrate deploy
+```
+
+> `run.sh` construye las imágenes **solo si faltan**. Si cambiás `api/Containerfile.dev`, `client/Containerfile` o algún `package.json`, reconstruí a mano y recreá el pod con `podman play kube --replace ...`. Para verificar el hot-reload alcanza con `touch src/main.ts`.
+
+### Migraciones y base de datos
+
+```bash
+# Migraciones (idempotente)
+podman exec pv-pod-pv-api npx prisma migrate deploy
+
+# psql dentro del contenedor
+podman exec -it pv-pod-pv-database psql -U postgres -d punto_venta_dev
+```
+
+> **No uses `podman run --pod pv-pod ...` para tareas puntuales.** La `restartPolicy: Always` del pod aplica a *cualquier* contenedor que se le una: un job de un solo uso (como `prisma migrate deploy`) entra en loop de reinicio y puede reiniciar el pod entero. Por eso las migraciones se corren con `podman exec`.
+
+Como `5432` no se publica al host, no podés conectar Prisma Studio ni un cliente local directo contra la base del pod: usá `podman exec` (arriba) o publicá el puerto en `podman-pod/pod.yaml` si lo necesitás puntualmente.
+
+### Logs, estado y parada
+
+```bash
+# Logs (seguir)
+podman logs -f pv-pod-pv-api
+podman logs -f pv-pod-pv-client
+podman logs -f pv-pod-pv-database
+
+# Estado de los contenedores del pod
+podman ps --pod
+
+# Confirmar que SOLO se publica 5173 (podman port no acepta pods)
+podman pod inspect pv-pod --format '{{range $p, $c := .InfraConfig.PortBindings}}{{$p}} => host {{(index $c 0).HostPort}}{{"\n"}}{{end}}'
+
+# Smoke test del proxy: 401 sin token == API OK
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5173/api/v1/productos
+
+# Bajar y eliminar el pod (postgres-data/ es un hostPath: los datos NO se borran)
+podman play kube --down podman-pod/pod.yaml
+# o: podman pod stop pv-pod && podman pod rm pv-pod
+```
+
+### Hot-reload y límites
+
+- **API**: al tocar cualquier archivo de `src/` aparece `[tsx] change in ./src/... Restarting...` en los logs del API. El `restartCount` del contenedor no sube: el reinicio es interno de `tsx`, no un crash del pod.
+- **Cliente**: HMR de Vite (monta `client/src` y `client/vite.config.ts`).
+- `tsx` **no** hace typecheck (solo elimina los tipos): los errores de tipo los marca `bun run lint` y el CI.
+- Si cambiás `prisma/schema.prisma` hay que reconstruir la imagen y regenerar el cliente: el cliente generado vive en el `node_modules` de la imagen.
+- No levantes `podman-compose.yml` (`./scripts/dev.sh up`) al mismo tiempo: publica `5432`, `3001` y `5173`, y choca con el pod en el 5173.
+
 ## Documentación de la API
 
 Swagger UI (OpenAPI 3.0.0) está habilitado en el código (`registerSwagger` en `src/main.ts`):
 
 - UI: `http://localhost:3001/docs`
 - Spec crudo (JSON): `http://localhost:3001/docs/json`
+
+> En modo pod estas URLs **no responden desde el host** (la API no publica el `3001`): ver la advertencia en [Ejecución con Podman](#ejecución-con-podman-pod-pv-pod).
 
 En producción la ruta `/docs` no se loguea pero sigue disponible. Todos los endpoints protegidos requieren `Authorization: Bearer <token>`.
 
