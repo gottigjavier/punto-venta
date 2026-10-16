@@ -26,9 +26,9 @@ services:
   # termina. El `api` espera a que este servicio complete con éxito
   # (idempotente: no aplica nada si la DB ya está al día).
   migrate:
-    build:
-      context: .
-      dockerfile: api/Containerfile.dev
+    # Imagen construida con `podman build` (ver podman-pod/run.sh y
+    # scripts/dev.sh): el compose nunca construye, solo orquesta.
+    image: punto-venta-api
     container_name: pv-migrate
     restart: "no"
     environment:
@@ -47,9 +47,9 @@ services:
 
   # Fastify API
   api:
-    build:
-      context: .
-      dockerfile: api/Containerfile.dev
+    # Imagen construida con `podman build` (ver podman-pod/run.sh y
+    # scripts/dev.sh): el compose nunca construye, solo orquesta.
+    image: punto-venta-api
     container_name: pv-api
     restart: unless-stopped
     ports:
@@ -91,9 +91,9 @@ services:
 
   # React client (Vite dev server). Forwards /api to the `api` service.
   client:
-    build:
-      context: ./client
-      dockerfile: Containerfile
+    # Imagen construida con `podman build` (ver podman-pod/run.sh y
+    # scripts/dev.sh): el compose nunca construye, solo orquesta.
+    image: punto-venta-client
     container_name: pv-client
     restart: unless-stopped
     ports:

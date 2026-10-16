@@ -38,7 +38,10 @@ case "${1:-up}" in
   up|start)
     check_secrets
     log "Building and starting production services..."
-    podman compose -f "$COMPOSE_FILE" up -d --build
+    # La imagen se construye con `podman build` (el compose solo orquesta).
+    # --build-arg replica el `args: NODE_ENV=production` del compose.
+    podman build --build-arg NODE_ENV=production -t punto-venta-api-prod -f api/Containerfile .
+    podman compose -f "$COMPOSE_FILE" up -d
     log "Production services started."
     log "API: http://localhost:${API_PORT:-3001}"
     ;;

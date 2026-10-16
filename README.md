@@ -342,7 +342,8 @@ Los schemas `querystring`/`body`/`params` de Fastify en `src/adapters/http/route
 Despliegue manual con Podman:
 
 ```bash
-podman compose -f podman-compose.prod.yml up -d --build
+podman build --build-arg NODE_ENV=production -t punto-venta-api-prod -f api/Containerfile .
+podman compose -f podman-compose.prod.yml up -d
 # o: ./scripts/deploy.sh
 ```
 
@@ -376,7 +377,7 @@ podman compose -f podman-compose.prod.yml up -d --build
 ### Helpers (`scripts/dev.sh`)
 
 ```bash
-./scripts/dev.sh up         # Levanta servicios (podman compose)
+./scripts/dev.sh up         # Buildea las imágenes y levanta servicios
 ./scripts/dev.sh logs       # Sigue logs
 ./scripts/dev.sh migrate    # Migraciones Prisma
 ./scripts/dev.sh test       # Tests unitarios

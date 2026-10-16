@@ -696,14 +696,17 @@ CMD ["npm", "run", "dev"]
 ### 9.4 Comandos Útiles
 
 ```bash
-# Desarrollo
+# Desarrollo (el compose solo orquesta: primero se arman las imágenes)
+podman build -t punto-venta-api -f api/Containerfile.dev .
+podman build -t punto-venta-client -f client/Containerfile client
 podman compose up -d                                 # db + migrate (one-shot) + api + client (Vite 5173)
 podman compose logs -f api
 podman compose exec api npx prisma migrate dev       # desarrollar/aplicar migraciones (dev)
 podman compose run --rm migrate                      # re-ejecutar el one-shot `migrate deploy`
 
-# Producción
-podman compose -f podman-compose.prod.yml up -d --build
+# Producción (el compose solo orquesta; la imagen se arma aparte)
+podman build --build-arg NODE_ENV=production -t punto-venta-api-prod -f api/Containerfile .
+podman compose -f podman-compose.prod.yml up -d
 podman compose -f podman-compose.prod.yml exec api npx prisma migrate deploy
 
 # Tests

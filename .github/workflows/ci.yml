@@ -135,7 +135,7 @@ jobs:
         run: podman --version
 
       - name: Build containers
-        run: podman compose -f compose.test.yaml build
+        run: podman build -t punto-venta-api-e2e -f api/Containerfile.dev .
 
       # El servicio `migrate` del stack aplica las migraciones Prisma y el `api`
       # espera a que complete con éxito, así que NO hace falta un paso aparte de

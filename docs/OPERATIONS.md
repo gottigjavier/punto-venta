@@ -100,8 +100,9 @@ podman compose exec api npx prisma migrate dev
 podman compose exec api npx prisma studio
 podman compose exec api node -e "console.log(process.version)"
 
-# Rebuild a specific service
-podman compose build api --no-cache
+# Rebuild a specific service (el compose solo orquesta; la imagen se arma aparte)
+podman build --no-cache -t punto-venta-api -f api/Containerfile.dev .
+podman compose up -d api
 
 # Prune unused resources
 podman system prune -f
@@ -122,8 +123,9 @@ export JWT_REFRESH_SECRET="your-32-char-minimum-refresh-secret"
 # Start
 ./scripts/prod.sh up
 
-# Or manually
-podman compose -f podman-compose.prod.yml up -d --build
+# Or manually (el compose solo orquesta; la imagen se arma aparte)
+podman build --build-arg NODE_ENV=production -t punto-venta-api-prod -f api/Containerfile .
+podman compose -f podman-compose.prod.yml up -d
 ```
 
 ### Production Script Commands
@@ -146,7 +148,7 @@ podman compose -f podman-compose.prod.yml up -d --build
 
 # Or step by step
 jj pull && jj update
-podman compose -f podman-compose.prod.yml build
+podman build --build-arg NODE_ENV=production -t punto-venta-api-prod -f api/Containerfile .
 podman compose -f podman-compose.prod.yml up -d
 ```
 
@@ -355,9 +357,9 @@ podman compose logs api
 # Check if port is in use
 lsof -i :3001
 
-# Rebuild from scratch
+# Rebuild from scratch (el compose solo orquesta; la imagen se arma aparte)
 podman compose down
-podman compose build api --no-cache
+podman build --no-cache -t punto-venta-api -f api/Containerfile.dev .
 podman compose up -d api
 ```
 

@@ -53,7 +53,9 @@ fi
 
 # ─── Step 3: Build new images ─────────────────
 log "Step 3/5: Building new container images..."
-podman compose -f "$COMPOSE_FILE" build --no-cache
+# El compose ya no construye (solo orquesta): la imagen se arma con podman build.
+# --build-arg replica el `args: NODE_ENV=production` del compose de producción.
+podman build --no-cache --build-arg NODE_ENV=production -t punto-venta-api-prod -f api/Containerfile .
 
 # ─── Step 4: Run migrations ───────────────────
 log "Step 4/5: Running database migrations..."

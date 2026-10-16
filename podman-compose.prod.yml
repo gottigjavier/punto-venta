@@ -1,6 +1,8 @@
 # podman-compose.prod.yml
 # Punto de Venta - Production Environment
-# Usage: podman compose -f podman-compose.prod.yml up -d --build
+# Uso en dos pasos (el compose nunca construye, solo orquesta):
+#   1. podman build --build-arg NODE_ENV=production -t punto-venta-api-prod -f api/Containerfile .
+#   2. podman compose -f podman-compose.prod.yml up -d
 
 services:
   # ──────────────────────────────────────────────
@@ -46,11 +48,12 @@ services:
   # Fastify API
   # ──────────────────────────────────────────────
   api:
-    build:
-      context: .
-      dockerfile: api/Containerfile
-      args:
-        - NODE_ENV=production
+    # Imagen construida con `podman build` (ver scripts/prod.sh y
+    # scripts/deploy.sh): el compose nunca construye, solo orquesta.
+    # El build del original pasaba `args: NODE_ENV=production`; se replica como
+    # `--build-arg NODE_ENV=production` por paridad. Es inerte: `api/Containerfile`
+    # no declara `ARG NODE_ENV` (el NODE_ENV real lo inyecta `environment:`).
+    image: punto-venta-api-prod
     container_name: pv-api-prod
     restart: unless-stopped
     ports:

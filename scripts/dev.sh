@@ -21,6 +21,9 @@ log() { echo -e "${GREEN}[DEV]${NC} $*"; }
 case "${1:-up}" in
   up|start)
     log "Starting development environment..."
+    # Las imágenes se construyen con `podman build` (el compose solo orquesta).
+    podman build -t punto-venta-api -f api/Containerfile.dev .
+    podman build -t punto-venta-client -f client/Containerfile client
     podman compose up -d
     log "Services starting. Check status with: podman compose ps"
     log "API will be at: http://localhost:3001"

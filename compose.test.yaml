@@ -39,9 +39,9 @@ services:
   # termina. El `api` espera a que este servicio complete con éxito
   # (idempotente: no aplica nada si la DB ya está al día).
   migrate:
-    build:
-      context: .
-      dockerfile: api/Containerfile.dev
+    # Imagen construida con `podman build` (ver .github/workflows/ci.yml):
+    # el compose nunca construye, solo orquesta.
+    image: punto-venta-api-e2e
     container_name: pv-migrate-e2e
     restart: "no"
     environment:
@@ -60,9 +60,9 @@ services:
 
   # Fastify API
   api:
-    build:
-      context: .
-      dockerfile: api/Containerfile.dev
+    # Imagen construida con `podman build` (ver .github/workflows/ci.yml):
+    # el compose nunca construye, solo orquesta.
+    image: punto-venta-api-e2e
     container_name: pv-api-e2e
     restart: unless-stopped
     ports:
