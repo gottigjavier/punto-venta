@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { rubrosApi, type Rubro } from "@/lib/api-client";
+import { rubrosApi } from "@/lib/api-client";
+import type { Rubro } from "@/features/ventas/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
