@@ -60,6 +60,29 @@ class VentaDeleteConflictError extends Error {
   }
 }
 
+// Orden de consumo FEFO (first-expired-first-out) de los lotes de UN producto:
+// fecha_vencimiento ASC con los lotes sin vencimiento al final, y desempate por
+// created_at y por id para que el orden sea SIEMPRE determinístico.
+// Se aplica en memoria a propósito: el ORDER BY de la query que bloquea los
+// lotes es (producto_id, id) —una clave inmutable— porque es el contrato
+// anti-deadlock con deleteVenta, que lockea con la misma clave. fecha_vencimiento
+// es un dato mutable y no debe decidir en qué orden se adquieren los locks.
+function compararFEFO(
+  a: { fecha_vencimiento: Date | null; created_at: Date; id: string },
+  b: { fecha_vencimiento: Date | null; created_at: Date; id: string },
+): number {
+  if (a.fecha_vencimiento === null && b.fecha_vencimiento !== null) return 1;
+  if (a.fecha_vencimiento !== null && b.fecha_vencimiento === null) return -1;
+  if (a.fecha_vencimiento !== null && b.fecha_vencimiento !== null) {
+    const porVencimiento =
+      a.fecha_vencimiento.getTime() - b.fecha_vencimiento.getTime();
+    if (porVencimiento !== 0) return porVencimiento;
+  }
+  const porCreacion = a.created_at.getTime() - b.created_at.getTime();
+  if (porCreacion !== 0) return porCreacion;
+  return a.id.localeCompare(b.id);
+}
+
 // Create a sale (atomic transaction) — FEFO en cascada sobre lotes
 export async function createVenta(
   input: CreateVentaInput,
@@ -143,7 +166,10 @@ export async function createVenta(
       // (2) Bloquear TODOS los lotes de la venta en UNA consulta, con ORDER BY
       // determinístico (producto_id, id). Forzar el lock en orden consistente
       // evita deadlocks entre ventas concurrentes que procesen los mismos
-      // productos en distinto orden (T1: P1→P2 / T2: P2→P1).
+      // productos en distinto orden (T1: P1→P2 / T2: P2→P1). Ese orden es además
+      // un CONTRATO con deleteVenta (CO2), que lockea con la misma clave, y por
+      // eso NO se agrega fecha_vencimiento al ORDER BY: es un dato mutable. El
+      // orden FEFO de consumo se aplica después, en memoria (compararFEFO).
       // SELECT ... FOR UPDATE: retiene el lock de las filas hasta el COMMIT.
       // Sin esto, dos ventas concurrentes leen el mismo stock (READ COMMITTED),
       // ambas pasan la validación y la segunda descuenta stock ya consumido
@@ -198,12 +224,11 @@ export async function createVenta(
       }
 
       for (const [productoId, linea] of agrupadas) {
-        // NULLs al final del orden FEFO (manejo en memoria)
         const lotesRaw = lotesPorProducto.get(productoId) ?? [];
-        const lotes = [
-          ...lotesRaw.filter((l) => l.fecha_vencimiento !== null),
-          ...lotesRaw.filter((l) => l.fecha_vencimiento === null),
-        ];
+        // (FEFO) La query bloqueó con orden de LOCK (producto_id, id); acá se
+        // define el orden de CONSUMO: fecha_vencimiento ASC, los lotes sin
+        // vencimiento al final, desempate por created_at y por id.
+        const lotes = [...lotesRaw].sort(compararFEFO);
 
         // (3) validar stock suficiente
         const disponible = lotes.reduce(
