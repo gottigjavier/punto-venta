@@ -43,6 +43,9 @@ const { mockPrisma } = vi.hoisted(() => ({
     },
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
+    // SAVEPOINT/RELEASE/ROLLBACK TO SAVEPOINT del retry post-P2002 de loteIngreso.
+    // El mock ejecuta el callback con mockPrisma como tx, así que necesita el stub.
+    $executeRaw: vi.fn(),
   },
 }));
 

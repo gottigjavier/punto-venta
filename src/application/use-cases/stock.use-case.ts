@@ -115,7 +115,9 @@ export interface StockLoteRow extends LoteWithRelations {
 // la búsqueda del merge-key usa SELECT ... FOR UPDATE (bloquea el lote si existe) y
 // el unique index parcial (producto_id, numero_lote, fecha_vencimiento) rechaza en
 // la DB el caso de dos ingresos concurrentes que crean el mismo lote: el que pierde
-// recibe P2002 y reintenta con el merge sobre el lote ya consagrado.
+// recibe P2002 y reintenta con el merge sobre el lote ya consagrado. El retry exige un
+// SAVEPOINT previo al INSERT: Postgres aborta la transacción ante el P2002 (25P02) y sin
+// el rollback al savepoint el merge posterior no podría ejecutarse.
 async function mergeLoteForUpdate(
   tx: Prisma.TransactionClient,
   productoId: string,
@@ -247,6 +249,12 @@ export async function loteIngreso(
             "Stock sumado a lote existente via ingreso",
           );
         } else {
+          // SAVEPOINT obligatorio: en Postgres un INSERT que viola el unique index
+          // parcial (P2002) ABORTA la transacción entera, y todo statement posterior
+          // falla con 25P02 ("current transaction is aborted, commands ignored until
+          // end of transaction block"). Sin volver al savepoint, el retry de abajo
+          // (SELECT ... FOR UPDATE + merge) jamás llega a ejecutarse. NO borrar.
+          await tx.$executeRaw`SAVEPOINT sp_lote_ingreso_merge`;
           try {
             loteRaw = await tx.lote.create({
               data: {
@@ -264,6 +272,7 @@ export async function loteIngreso(
               },
               include: loteInclude,
             });
+            await tx.$executeRaw`RELEASE SAVEPOINT sp_lote_ingreso_merge`;
             esNuevo = true;
             logger.info(
               {
@@ -280,6 +289,9 @@ export async function loteIngreso(
               e instanceof Prisma.PrismaClientKnownRequestError &&
               e.code === "P2002"
             ) {
+              // El INSERT fallido dejó la transacción en estado abortado (25P02).
+              // Volver al savepoint la rehabilita para el SELECT ... FOR UPDATE.
+              await tx.$executeRaw`ROLLBACK TO SAVEPOINT sp_lote_ingreso_merge`;
               existing = await mergeLoteForUpdate(
                 tx,
                 input.producto_id,
