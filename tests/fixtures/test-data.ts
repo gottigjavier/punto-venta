@@ -93,6 +93,13 @@ export interface ProductoResponse {
 }
 
 // Respuesta de un lote (fila de stock tras el split Producto/Lote)
+// Shape "Lote" del wire (LoteSchema en src/application/dto/response.dto.ts): el que
+// devuelven POST /stock/ingreso y PUT /lotes/:id. Es PELADO a proposito: no trae
+// `producto`/`rubro`/`proveedor` aunque el mapper del backend los produzca, porque
+// Fastify serializa solo las propiedades declaradas en el response schema y descarta
+// el resto en silencio. El shape enriquecido (con `producto`, `rubro`, `proveedor`,
+// `estado_vencimiento` y `stock_bajo`) es el de GET /api/v1/stock.
+// No volver a agregar `producto` aca sin ampliar antes LoteSchema.
 export interface LoteResponse {
   id: string;
   producto_id: string;
@@ -102,11 +109,6 @@ export interface LoteResponse {
   fecha_vencimiento: string | null;
   precio_compra: number;
   estado: "activo" | "agotado" | "vencido" | "descartado";
-  producto: {
-    id: string;
-    nombre: string;
-    codigo: string;
-  };
 }
 
 export interface RubroResponse {

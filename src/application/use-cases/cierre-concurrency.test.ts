@@ -166,7 +166,14 @@ describe("cerrarCaja ↔ deleteVenta — concurrencia", () => {
           expect(resDelete._unsafeUnwrapErr().code).toBe("CONFLICT");
         } else {
           // El delete ganó: la venta ya no existe y el cierre no la archivó.
-          // (el cierre falla con NO_OPEN_SALES o bien ya no cuenta esta venta).
+          // (el cierre falla con NO_OPEN_SALES -> CONFLICT).
+          //
+          // HARDENING: si `cerrarCaja` falla, TIENE que ser por falta de ventas
+          // abiertas. Un DATABASE_ERROR (p.ej. el 42883 de min(uuid) en PostgreSQL 16)
+          // NO debe pasar como "el delete ganó": eso fue exactamente lo que mantuvo
+          // el bug de cierre de caja invisible en CI. No relajar esta asercion.
+          expect(resCierre._unsafeUnwrapErr().code).toBe("CONFLICT");
+
           const venta = await prisma.venta.findUnique({
             where: { id: ventaId },
           });
@@ -228,6 +235,12 @@ describe("cerrarCaja ↔ deleteVenta — concurrencia", () => {
             if (!venta) {
               expect(resDelete.isOk()).toBe(true);
             }
+          } else {
+            // HARDENING: mismo invariante que en el test anterior. Si el cierre falla,
+            // debe ser por falta de ventas abiertas (CONFLICT), nunca por un error de
+            // base de datos. Sin esto, un fallo sistematico del cierre dejaba el bloque
+            // `if (resCierre.isOk())` sin ejecutar y el test pasaba en verde igual.
+            expect(resCierre._unsafeUnwrapErr().code).toBe("CONFLICT");
           }
           if (resDelete.isOk()) {
             expect(venta).toBeNull();

@@ -95,7 +95,7 @@ punto-venta/
 ├── api/                    # Containerfiles (deploy en Render)
 ├── docs/                   # OPERATIONS.md
 ├── render.yaml             # Blueprint de deploy del backend en Render
-├── podman-compose.yml      # Dev local con Podman (publica 5432/3001/5173)
+├── compose.yaml            # Dev local con Podman (publica 5432/3001/5173)
 ├── podman-pod/             # Pod kube de Podman: todo el stack con SOLO 5173 expuesto
 └── .env.example            # Variables de entorno (template)
 ```
@@ -283,7 +283,7 @@ podman play kube --down podman-pod/pod.yaml
 - **Cliente**: HMR de Vite (monta `client/src` y `client/vite.config.ts`).
 - `tsx` **no** hace typecheck (solo elimina los tipos): los errores de tipo los marca `bun run lint` y el CI.
 - Si cambiás `prisma/schema.prisma` hay que reconstruir la imagen y regenerar el cliente: el cliente generado vive en el `node_modules` de la imagen.
-- No levantes `podman-compose.yml` (`./scripts/dev.sh up`) al mismo tiempo: publica `5432`, `3001` y `5173`, y choca con el pod en el 5173.
+- No levantes `compose.yaml` (`./scripts/dev.sh up`) al mismo tiempo: publica `5432`, `3001` y `5173`, y choca con el pod en el 5173.
 
 ## Documentación de la API
 

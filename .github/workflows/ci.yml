@@ -135,25 +135,33 @@ jobs:
         run: podman --version
 
       - name: Build containers
-        run: podman compose build
+        run: podman compose -f compose.test.yaml build
 
+      # El servicio `migrate` del stack aplica las migraciones Prisma y el `api`
+      # espera a que complete con éxito, así que NO hace falta un paso aparte de
+      # `migrate deploy` aquí.
       - name: Start services
-        run: podman compose up -d
+        run: podman compose -f compose.test.yaml up -d
 
-      - name: Wait for services to be healthy
+      # Sondea el endpoint de readiness real en vez de parsear la salida de
+      # `ps`, porque su formato cambia entre podman-compose y el plugin de
+      # docker-compose. Falla de verdad si el stack nunca queda listo.
+      - name: Wait for API to be healthy
         run: |
-          echo "Waiting for services..."
-          for i in $(seq 1 30); do
-            if podman compose ps | grep -q "healthy"; then
-              echo "Services are healthy"
-              break
+          echo "Waiting for the API readiness endpoint..."
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3001/health >/dev/null; then
+              echo "API is healthy"
+              exit 0
             fi
-            echo "Waiting... ($i/30)"
+            echo "Waiting... ($i/60)"
             sleep 2
           done
-
-      - name: Run database migrations
-        run: podman compose exec -T api npx prisma migrate deploy
+          echo "API did not become healthy in time"
+          podman compose -f compose.test.yaml ps
+          podman compose -f compose.test.yaml logs api
+          podman compose -f compose.test.yaml logs db
+          exit 1
 
       - name: Run E2E tests
         run: |
@@ -164,8 +172,8 @@ jobs:
       - name: Collect logs on failure
         if: failure()
         run: |
-          podman compose logs api > api-logs.txt 2>&1 || true
-          podman compose logs db > db-logs.txt 2>&1 || true
+          podman compose -f compose.test.yaml logs api > api-logs.txt 2>&1 || true
+          podman compose -f compose.test.yaml logs db > db-logs.txt 2>&1 || true
 
       - name: Upload logs on failure
         if: failure()
@@ -180,7 +188,7 @@ jobs:
 
       - name: Shutdown services
         if: always()
-        run: podman compose down -v
+        run: podman compose -f compose.test.yaml down -v
 
   # ──────────────────────────────────────────────
   # Job 4: Build & Push Container Images

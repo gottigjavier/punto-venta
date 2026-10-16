@@ -1,5 +1,5 @@
 # .containerignore (raíz)
-# Excluye del build context de DEV (podman-compose.yml, context: .)
+# Excluye del build context de DEV (compose.yaml, context: .)
 # Si esto no está, el `COPY . .` de Containerfile.dev mete los
 # node_modules/dist de la raíz dentro de la imagen (imagen de 1.4 GB).
 
@@ -18,6 +18,11 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Datos locales (volumen del pod, root y no legible). Sin esto, el proveedor
+# docker-compose falla al chequear el contexto:
+#   checking context: can't stat '.../postgres-data'
+postgres-data/
 
 # Tests y reportes
 coverage/

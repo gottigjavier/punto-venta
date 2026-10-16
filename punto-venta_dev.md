@@ -608,7 +608,7 @@ GET /api/v1/productos?search=pan&rubro=rubro-id&sort=precio_venta&order=asc&page
 ### 9.1 Estructura de Contenedores
 
 ```
-podman-compose.yml
+compose.yaml
 ├── db          # PostgreSQL (puerto 5432) — container pv-database
 ├── migrate     # Prisma migrate deploy (one-shot, termina) — container pv-migrate
 ├── api         # Fastify (puerto 3001) — container pv-api
@@ -665,7 +665,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 CMD ["node", "dist/main.js"]
 ```
 
-> El compose de desarrollo usa `api/Containerfile.dev` (la imagen levanta el `dist` compilado y el compose monta `./src` en vivo con `tsx watch src/main.ts` como `command`, ver `podman-compose.yml`).
+> El compose de desarrollo usa `api/Containerfile.dev` (la imagen levanta el `dist` compilado y el compose monta `./src` en vivo con `tsx watch src/main.ts` como `command`, ver `compose.yaml`).
 
 ### 9.3 Containerfile (Frontend)
 

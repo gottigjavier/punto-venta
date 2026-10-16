@@ -7,7 +7,7 @@
 # Two ways to run this image:
 #   * Watch mode: podman-pod/pod.yaml mounts ./src (./src:/app/src:ro) and runs
 #     `tsx watch src/main.ts` → source edits hot-reload WITHOUT an image rebuild.
-#   * Standalone / podman-compose.yml: they do NOT override the command, so the
+#   * Standalone / compose.yaml: they do NOT override the command, so the
 #     CMD below runs and the API serves the COMPILED dist (the ./src mount is
 #     inert there — it is only there for parity with the watch-mode flow).
 # NOT for production — use api/Containerfile for that.

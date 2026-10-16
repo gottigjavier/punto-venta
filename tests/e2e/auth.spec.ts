@@ -95,32 +95,43 @@ test.describe("Auth - Flujo de autenticación", () => {
     expect(result.body.success).toBe(false);
   });
 
-  test("Bloqueo después de 3 intentos fallidos", async () => {
+  test("Bloqueo tras 3 intentos fallidos y desbloqueo por admin", async () => {
     // Use a fresh user for this test (we'll use the despachador)
     const testApi = createApiClient();
 
-    // Make 3 failed attempts
+    // Make 3 failed attempts: the lock is applied once the count reaches
+    // MAX_LOGIN_ATTEMPTS (3).
     for (let i = 0; i < 3; i++) {
       const result = await testApi.request("POST", "/api/v1/auth/login", {
         nik_usuario: TEST_USERS.despachador.nik_usuario,
         password: "wrong_password",
       });
       expect(result.status).toBe(401);
+      expect(result.body.error!.code).toBe("INVALID_CREDENTIALS");
     }
 
-    // 4th attempt should be locked
-    const lockedResult = await testApi.request("POST", "/api/v1/auth/login", {
-      nik_usuario: TEST_USERS.despachador.nik_usuario,
-      password: "wrong_password",
-    });
+    // The account is now locked. Login is hardened (S4): a locked account
+    // returns a uniform 401 INVALID_CREDENTIALS, exactly like any other failure,
+    // so the response cannot be used to enumerate accounts or reveal state.
+    // The observable proof that the lockout works is that the CORRECT password
+    // is refused while locked — on an unlocked account that same password would
+    // succeed (see the other login tests).
+    const lockedResult = await testApi.login(
+      TEST_USERS.despachador.nik_usuario,
+      TEST_USERS.despachador.password
+    );
 
-    expect(lockedResult.status).toBe(423);
+    expect(lockedResult.status).toBe(401);
     expect(lockedResult.body.success).toBe(false);
-    expect(lockedResult.body.error!.code).toBe("ACCOUNT_LOCKED");
+    expect(lockedResult.body.error!.code).toBe("INVALID_CREDENTIALS");
 
     // Now unlock the user via admin
     const adminApi = createApiClient();
-    await adminApi.login(TEST_USERS.admin.nik_usuario, TEST_USERS.admin.password);
+    const adminLogin = await adminApi.login(
+      TEST_USERS.admin.nik_usuario,
+      TEST_USERS.admin.password
+    );
+    expect(adminLogin.status).toBe(200);
 
     // Get user ID first
     const usuarios = await adminApi.request("GET", "/api/v1/usuarios?search=despachador");
@@ -137,15 +148,16 @@ test.describe("Auth - Flujo de autenticación", () => {
     expect(unlockResult.status).toBe(200);
     expect(unlockResult.body.success).toBe(true);
 
-    // Should be able to login now (but with wrong password, just checking it's not locked anymore)
-    const afterUnlock = await testApi.request("POST", "/api/v1/auth/login", {
-      nik_usuario: TEST_USERS.despachador.nik_usuario,
-      password: "wrong_password",
-    });
+    // After the unlock the same correct password now succeeds, proving the lock
+    // was lifted and the earlier refusal was due to the lockout, not bad creds.
+    const afterUnlock = await testApi.login(
+      TEST_USERS.despachador.nik_usuario,
+      TEST_USERS.despachador.password
+    );
 
-    // Should get INVALID_CREDENTIALS, not ACCOUNT_LOCKED
-    expect(afterUnlock.status).toBe(401);
-    expect(afterUnlock.body.error!.code).toBe("INVALID_CREDENTIALS");
+    expect(afterUnlock.status).toBe(200);
+    expect(afterUnlock.body.success).toBe(true);
+    expect(afterUnlock.body.data!.user.rol).toBe("despachador");
 
     await adminApi.logout();
   });

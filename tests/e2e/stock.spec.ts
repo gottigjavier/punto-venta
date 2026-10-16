@@ -75,7 +75,12 @@ test.describe("Stock (Lote) - Flujo de gestión de inventario", () => {
     expect(result.body.data!.numero_lote).toBeDefined();
     expect(result.body.data!.cantidad_disponible).toBe(50);
     expect(result.body.data!.estado).toBe("activo");
-    expect(result.body.data!.producto.id).toBe(productoId);
+    // La respuesta de ingreso es el shape "Lote" pelado (LoteSchema): NO trae
+    // `producto`/`rubro`/`proveedor` aunque el mapper del backend los produzca,
+    // porque Fastify serializa solo lo declarado en el response schema y descarta
+    // el resto en silencio. El vinculo con el producto viaja en `producto_id`. El
+    // shape enriquecido es el de GET /api/v1/stock (StockItemSchema).
+    expect(result.body.data!.producto_id).toBe(productoId);
   });
 
   test("Ingreso a lote existente (mismo producto + N° de Lote + vencimiento) suma stock", async () => {

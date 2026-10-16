@@ -997,7 +997,11 @@ export async function cerrarCaja(
         JOIN "Producto" p ON p.id = d.producto_id
         WHERE d.venta_id IN (${idsVenta})
         GROUP BY d.producto_id, p.nombre
-        ORDER BY MIN(d.id)
+        -- d.id es uuid y el agregado min(uuid) NO existe en PostgreSQL 16 (falla con
+        -- 42883 incluso sin filas, porque se resuelve en plan-time). El cast a text es
+        -- equivalente: en PG el uuid se compara byte a byte y su forma hex canonica
+        -- ordena lexicograficamente igual. NO quitar el ::text.
+        ORDER BY MIN(d.id::text)
       `;
 
       // Movimientos del período activo. Se archivan por id IN (solo los CONTADOS en

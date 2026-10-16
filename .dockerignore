@@ -1,0 +1,38 @@
+# .dockerignore (raíz)
+# Espejo de .containerignore. El proveedor docker-compose (BuildKit) lee
+# .dockerignore, NO .containerignore; Podman, si encuentra .containerignore,
+# le da prioridad. Los dos archivos deben mantenerse alineados.
+
+# Version control
+.git/
+.jj/
+.jjignore
+
+# Dependencias (se reinstalan con npm ci dentro del contenedor)
+node_modules/
+
+# Artefactos de build (se generan dentro)
+dist/
+
+# Entorno / secretos (nunca en imágenes)
+.env
+.env.*
+!.env.example
+
+# Datos locales (volumen del pod, root y no legible). Sin esto, el proveedor
+# docker-compose falla al chequear el contexto:
+#   checking context: can't stat '.../postgres-data'
+postgres-data/
+
+# Tests y reportes
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+api/tests/
+api/__tests__/
+
+# Logs y archivos temporales
+*.log
+*.tsbuildinfo
