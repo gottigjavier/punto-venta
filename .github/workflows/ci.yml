@@ -41,6 +41,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # @prisma/client 7.x ya NO publica script postinstall, así que `npm ci` no
+      # genera el cliente. Sin este paso, `@prisma/client/default.d.ts`
+      # (export * from '.prisma/client/default') apunta a un directorio que no
+      # existe y tsc ve CERO tipos -> TS2305 más una cascada de TS7006/TS18046.
+      # El job `test` ya lo hace, y api/Containerfile también (antes de
+      # `npm run build`), que es por lo que el despliegue no se ve afectado.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: TypeScript type check
         run: npx tsc --noEmit
 
