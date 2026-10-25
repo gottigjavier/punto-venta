@@ -10,6 +10,7 @@ import {
 } from "@/lib/api-client";
 import type { Rubro } from "@/features/ventas/types";
 import { formatDate } from "@/lib/format";
+import DateField from "@/components/common/DateField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -236,7 +237,11 @@ export function StockPage() {
 
   // --- Handlers de modales ---
   const openLoteModal = () => {
-    setLoteForm(INITIAL_LOTE_FORM);
+    setLoteForm({
+      ...INITIAL_LOTE_FORM,
+      fecha_compra: "",
+      fecha_vencimiento: "",
+    });
     setFormError(null);
     setLoteModal("ingreso");
   };
@@ -717,26 +722,21 @@ export function StockPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fecha_compra">Fecha Compra</Label>
-                <Input
+                <DateField
                   id="fecha_compra"
-                  type="date"
-                  value={loteForm.fecha_compra}
-                  onChange={(e) =>
-                    setLoteForm((f) => ({ ...f, fecha_compra: e.target.value }))
+                  value={loteForm.fecha_compra || ""}
+                  onChange={(v) =>
+                    setLoteForm((f) => ({ ...f, fecha_compra: v }))
                   }
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="fecha_vencimiento">Fecha Vencimiento</Label>
-                <Input
+                <DateField
                   id="fecha_vencimiento"
-                  type="date"
-                  value={loteForm.fecha_vencimiento}
-                  onChange={(e) =>
-                    setLoteForm((f) => ({
-                      ...f,
-                      fecha_vencimiento: e.target.value,
-                    }))
+                  value={loteForm.fecha_vencimiento || ""}
+                  onChange={(v) =>
+                    setLoteForm((f) => ({ ...f, fecha_vencimiento: v }))
                   }
                 />
               </div>
@@ -805,12 +805,11 @@ export function StockPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit_fecha_compra">Fecha Compra</Label>
-                <Input
+                <DateField
                   id="edit_fecha_compra"
-                  type="date"
-                  value={editForm.fecha_compra}
-                  onChange={(e) =>
-                    setEditForm((f) => ({ ...f, fecha_compra: e.target.value }))
+                  value={editForm.fecha_compra || ""}
+                  onChange={(v) =>
+                    setEditForm((f) => ({ ...f, fecha_compra: v }))
                   }
                 />
               </div>
@@ -818,15 +817,11 @@ export function StockPage() {
                 <Label htmlFor="edit_fecha_vencimiento">
                   Fecha Vencimiento
                 </Label>
-                <Input
+                <DateField
                   id="edit_fecha_vencimiento"
-                  type="date"
-                  value={editForm.fecha_vencimiento}
-                  onChange={(e) =>
-                    setEditForm((f) => ({
-                      ...f,
-                      fecha_vencimiento: e.target.value,
-                    }))
+                  value={editForm.fecha_vencimiento || ""}
+                  onChange={(v) =>
+                    setEditForm((f) => ({ ...f, fecha_vencimiento: v }))
                   }
                 />
               </div>
