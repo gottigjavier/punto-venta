@@ -8,7 +8,7 @@ import {
 } from "../../../application/use-cases/cierre.use-case.js";
 import type { ListCierresQueryInput } from "../../../application/dto/cierre.dto.js";
 
-const { mockPrisma } = vi.hoisted(() => ({
+const { mockPrisma, mockListVentasCierreConDetalles } = vi.hoisted(() => ({
   mockPrisma: {
     cierreCaja: {
       findMany: vi.fn(),
@@ -19,10 +19,15 @@ const { mockPrisma } = vi.hoisted(() => ({
       findMany: vi.fn(),
     },
   },
+  mockListVentasCierreConDetalles: vi.fn(),
 }));
 
 vi.mock("../../../infrastructure/database/prisma/client.js", () => ({
   prisma: mockPrisma,
+}));
+
+vi.mock("../../../infrastructure/database/repositories/venta.repository.js", () => ({
+  listVentasCierreConDetalles: mockListVentasCierreConDetalles,
 }));
 
 vi.mock("../../../infrastructure/logging/logger.js", () => ({
@@ -273,8 +278,28 @@ describe("Cierre Use Cases", () => {
     it("should return CSV with header and data rows", async () => {
       mockPrisma.cierreCaja.findUnique.mockResolvedValue({
         ...mockCierre,
+        ingresos_total: 100,
+        egresos_total: 50,
         detalles: mockDetalles,
       });
+      mockListVentasCierreConDetalles.mockResolvedValue([
+        {
+          id_venta: "v1",
+          vendedor: "Juan",
+          producto: "Pan integral",
+          cantidad: 2,
+          monto: 500,
+          metodo_pago: "EFECTIVO",
+        },
+        {
+          id_venta: "v2",
+          vendedor: "Maria",
+          producto: "Leche",
+          cantidad: 1,
+          monto: 300,
+          metodo_pago: "DIGITAL",
+        },
+      ]);
 
       const result = await exportCierreCsv("cierre-1");
 
@@ -285,30 +310,38 @@ describe("Cierre Use Cases", () => {
         expect(truncated).toBe(false);
 
         // Header check
-        expect(csv).toMatch(/^tipo,referencia_id,nombre,cantidad,monto_total/);
+        expect(csv).toMatch(/^id_venta,vendedor,producto,cantidad,monto,metodo/);
 
         // Data rows present
-        expect(csv).toContain("producto");
+        expect(csv).toContain("v1");
         expect(csv).toContain("Pan integral");
-        expect(csv).toContain("vendedor");
-        expect(csv).toContain("Juan Pérez");
+        expect(csv).toContain("EFECTIVO");
+        expect(csv).toContain("DIGITAL");
+        expect(csv).toContain("Subtotal Efectivo");
+        expect(csv).toContain("Subtotal Digital");
+        expect(csv).toContain("Total Ventas");
+        expect(csv).toContain("Diferencia Ingresos/Egresos");
+        expect(csv).toContain("Efectivo en Caja");
       }
     });
 
     it("should truncate when details exceed limit", async () => {
-      const manyDetalles = Array.from({ length: 5 }, (_, i) => ({
-        id: `det-${i}`,
-        tipo: "producto",
-        referencia_id: `prod-${i}`,
-        nombre: `Item ${i}`,
+      const manyVentas = Array.from({ length: 5 }, (_, i) => ({
+        id_venta: `v-${i}`,
+        vendedor: "Juan",
+        producto: `Item ${i}`,
         cantidad: 1,
-        monto_total: 100,
+        monto: 100,
+        metodo_pago: "EFECTIVO",
       }));
 
       mockPrisma.cierreCaja.findUnique.mockResolvedValue({
         ...mockCierre,
-        detalles: manyDetalles,
+        ingresos_total: 0,
+        egresos_total: 0,
+        detalles: mockDetalles,
       });
+      mockListVentasCierreConDetalles.mockResolvedValue(manyVentas);
 
       const result = await exportCierreCsv("cierre-1", 3);
 

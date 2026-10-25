@@ -359,39 +359,70 @@ export async function exportCierreCsv(
   try {
     const cierre = await prisma.cierreCaja.findUnique({
       where: { id },
-      include: {
-        detalles: true,
-      },
     });
 
     if (!cierre) {
       return err(notFoundError("Cierre de caja no encontrado"));
     }
 
-    const detalles = cierre.detalles;
-    const truncated = detalles.length > limit;
-    const detallesToExport = truncated ? detalles.slice(0, limit) : detalles;
+    const filas = await listVentasCierreConDetalles(id, {
+      sort: "id_venta",
+      order: "asc",
+    });
 
-    // Build CSV
-    const header = "tipo,referencia_id,nombre,cantidad,monto_total";
-    const rows = detallesToExport.map((d) => {
+    const truncated = filas.length > limit;
+    const filasToExport = truncated ? filas.slice(0, limit) : filas;
+
+    const header = "id_venta,vendedor,producto,cantidad,monto,metodo";
+    const rows = filasToExport.map((f) => {
+      const metodo =
+        ((f as any).metodo_pago ?? "EFECTIVO") === "DIGITAL"
+          ? "DIGITAL"
+          : "EFECTIVO";
       return [
-        escapeCsv(d.tipo),
-        escapeCsv(d.referencia_id),
-        escapeCsv(d.nombre),
-        d.cantidad.toString(),
-        toNumber(d.monto_total).toFixed(2),
+        escapeCsv(f.id_venta),
+        escapeCsv(f.vendedor),
+        escapeCsv(f.producto),
+        toNumber(f.cantidad).toString(),
+        toNumber(f.monto).toFixed(2),
+        escapeCsv(metodo),
       ].join(",");
     });
 
+    const subtotalEfectivo = filas
+      .filter((f) => ((f as any).metodo_pago ?? "EFECTIVO") === "EFECTIVO")
+      .reduce(
+        (sum, f) => sum.plus(toDecimal(f.monto)),
+        new Prisma.Decimal(0),
+      );
+    const subtotalDigital = filas
+      .filter((f) => (f as any).metodo_pago === "DIGITAL")
+      .reduce(
+        (sum, f) => sum.plus(toDecimal(f.monto)),
+        new Prisma.Decimal(0),
+      );
+
+    const totalVentas = subtotalEfectivo.plus(subtotalDigital);
+    const ingresos = toDecimal(cierre.ingresos_total);
+    const egresos = toDecimal(cierre.egresos_total);
+    const diferencia = ingresos.minus(egresos);
+    const efectivoEnCaja = subtotalEfectivo.plus(diferencia);
+
     let csv = header + "\n" + rows.join("\n");
+
+    csv += `\n"${escapeCsv("Subtotal Efectivo")}","","","",${subtotalEfectivo.toFixed(2)},""`;
+    csv += `\n"${escapeCsv("Subtotal Digital")}","","","",${subtotalDigital.toFixed(2)},""`;
+    csv += `\n"${escapeCsv("Total Ventas")}","","","",${totalVentas.toFixed(2)},""`;
+    csv += `\n"${escapeCsv("Diferencia Ingresos/Egresos")}","","","",${diferencia.toFixed(2)},""`;
+    csv += `\n"${escapeCsv("Efectivo en Caja")}","","","",${efectivoEnCaja.toFixed(2)},""`;
+
     if (truncated) {
-      csv += `\n...,AVISO: Truncado a ${limit} registros`;
+      csv += `\n"${escapeCsv(`AVISO: Truncado a ${limit} registros`)}","","","","",""`;
     }
 
     return ok({
       csv,
-      totalDetalles: detalles.length,
+      totalDetalles: filas.length,
       truncated,
     });
   } catch (error) {

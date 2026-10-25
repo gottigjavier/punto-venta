@@ -204,12 +204,50 @@ export function AdministracionDetallePage() {
   };
 
   const onExportCsv = () => {
-    const headers = "ID Venta,Vendedor,Producto,Cantidad,Monto";
-    const csvRows = datos.map(
-      (r) =>
-        `${r.id_venta},${r.vendedor},${r.producto},${r.cantidad},${r.monto}`,
-    );
-    const csv = [headers, ...csvRows].join("\n");
+    const headers = "ID Venta,Vendedor,Producto,Cantidad,Monto,Metodo";
+    const escapeCsv = (val: any) => {
+      const str = String(val ?? "");
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvRows = datos.map((r) => {
+      const metodo = r.metodo_pago === "DIGITAL" ? "DIGITAL" : "EFECTIVO";
+      return [
+        escapeCsv(r.id_venta),
+        escapeCsv(r.vendedor),
+        escapeCsv(r.producto),
+        escapeCsv(r.cantidad),
+        escapeCsv(r.monto),
+        escapeCsv(metodo),
+      ].join(",");
+    });
+
+    const subtotalEfectivo = datos
+      .filter((r) => (r.metodo_pago || "EFECTIVO") === "EFECTIVO")
+      .reduce((sum, r) => sum + Number(r.monto || 0), 0);
+
+    const subtotalDigital = datos
+      .filter((r) => r.metodo_pago === "DIGITAL")
+      .reduce((sum, r) => sum + Number(r.monto || 0), 0);
+
+    const totalVentas = subtotalEfectivo + subtotalDigital;
+    const ingresos = Number(cierreDetail?.ingresos_total || 0);
+    const egresos = Number(cierreDetail?.egresos_total || 0);
+    const diferencia = ingresos - egresos;
+    const efectivoEnCaja = subtotalEfectivo + diferencia;
+
+    const summaryRows = [
+      `Subtotal Efectivo,"","","","${subtotalEfectivo.toFixed(2)}","EFECTIVO"`,
+      `Subtotal Digital,"","","","${subtotalDigital.toFixed(2)}","DIGITAL"`,
+      `Total Ventas,"","","","${totalVentas.toFixed(2)}",""`,
+      `Diferencia Ingresos/Egresos,"","","","${diferencia.toFixed(2)}",""`,
+      `Efectivo en Caja,"","","","${efectivoEnCaja.toFixed(2)}",""`,
+    ];
+
+    const csv = [headers, ...csvRows, ...summaryRows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
