@@ -27,6 +27,7 @@ export interface VentaCierreFilaConDetalles {
   producto: string;
   cantidad: Prisma.Decimal;
   monto: Prisma.Decimal;
+  metodo_pago?: string;
 }
 
 // El filtro id_venta busca substring case-insensitive sobre el texto del uuid
@@ -116,6 +117,7 @@ export async function listVentasCierreConDetalles(
         select: {
           id: true,
           usuario: { select: { nombre_usuario: true } },
+          metodo_pago: true,
         },
       },
       producto: { select: { nombre: true } },
@@ -128,5 +130,6 @@ export async function listVentasCierreConDetalles(
     producto: d.producto.nombre,
     cantidad: d.cantidad,
     monto: d.subtotal,
+    metodo_pago: (d.venta as any).metodo_pago ?? "EFECTIVO",
   }));
 }

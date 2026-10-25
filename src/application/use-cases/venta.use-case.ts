@@ -114,6 +114,10 @@ export async function createVenta(
       precioPorProducto.set(p.id, toDecimal(p.precio_venta));
     }
 
+    const metodoPago = (input as any).metodo_pago ?? "EFECTIVO";
+    const ajusteInput = (input as any).ajuste ?? 0;
+    const ajusteDecimal = toDecimal(ajusteInput);
+
     // 2. Execute atomic transaction
     const result = await prisma.$transaction(async (tx) => {
       // CO3 (reporte 26/09): tomar el MISMO advisory lock que cerrarCaja al
@@ -137,6 +141,9 @@ export async function createVenta(
       const venta = await tx.venta.create({
         data: {
           usuario_id: usuarioId,
+          subtotal: 0,
+          ajuste: 0,
+          metodo_pago: metodoPago,
           total: 0,
           estado: "completada",
         },
@@ -144,6 +151,7 @@ export async function createVenta(
 
       const inicioHoy = limiteHoy();
       // QC5: el total acumulado corre en Decimal (nunca float).
+      let subtotalVenta = new Prisma.Decimal(0);
       let total = new Prisma.Decimal(0);
 
       // EF5 (reporte 26/09): los splits NO emiten lote.update +
@@ -272,6 +280,7 @@ export async function createVenta(
             precio_unitario: precioUnitario.toNumber(),
             subtotal: subtotal.toNumber(),
           });
+          subtotalVenta = subtotalVenta.plus(subtotal);
           total = total.plus(subtotal);
           resto -= take;
         }
@@ -315,8 +324,12 @@ export async function createVenta(
         await tx.detalleVenta.createMany({ data: detallesData });
       }
 
-      // Fijar el total = Σ subtotales (invariante)
-      await tx.venta.update({ where: { id: venta.id }, data: { total } });
+      // Fijar el total = Σ subtotales + ajuste (invariante)
+      const totalACobrar = subtotalVenta.plus(ajusteDecimal);
+      await tx.venta.update({
+        where: { id: venta.id },
+        data: { subtotal: subtotalVenta, ajuste: ajusteDecimal, total: totalACobrar },
+      });
 
       // Fetch complete venta with relations
       const ventaCompleta = await tx.venta.findUnique({
@@ -344,6 +357,9 @@ export async function createVenta(
 
     const response: VentaWithDetalles = {
       ...result.venta,
+      subtotal: toNumber((result.venta as any).subtotal ?? 0),
+      ajuste: toNumber((result.venta as any).ajuste ?? 0),
+      metodo_pago: ((result.venta as any).metodo_pago ?? "EFECTIVO") as any,
       total: toNumber(result.venta.total),
       detalles_venta: result.venta.detalles_venta.map((d) => ({
         ...d,
@@ -399,6 +415,9 @@ export async function getVentaById(
 
     const response: VentaWithDetalles = {
       ...venta,
+      subtotal: toNumber((venta as any).subtotal ?? 0),
+      ajuste: toNumber((venta as any).ajuste ?? 0),
+      metodo_pago: ((venta as any).metodo_pago ?? "EFECTIVO") as any,
       total: toNumber(venta.total),
       detalles_venta: venta.detalles_venta.map((d) => ({
         ...d,
@@ -549,6 +568,9 @@ export async function listVentas(query: VentaQueryInput): Promise<
       id: v.id,
       usuario_id: v.usuario_id,
       usuario_nombre: v.usuario.nombre_usuario,
+      subtotal: toNumber((v as any).subtotal ?? 0),
+      ajuste: toNumber((v as any).ajuste ?? 0),
+      metodo_pago: ((v as any).metodo_pago ?? "EFECTIVO") as any,
       total: toNumber(v.total),
       estado: v.estado,
       cantidad_items: v._count.detalles_venta,
@@ -587,7 +609,7 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
     // set filtrado (completada + no archivada en un cierre). Cada venta
     // pertenece a un único usuario, así que COUNT/SUM por usuario particionan
     // exactamente el total global del período.
-    const [ventasPorUsuario, productosVendidos, movimientos] =
+    const [ventasPorUsuario, productosVendidos, movimientos, ventasPorMetodo, periodoInfo] =
       await Promise.all([
         prisma.$queryRaw<
           Array<{
@@ -632,6 +654,25 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
           WHERE cierre_caja_id IS NULL
           GROUP BY tipo
         `,
+        prisma.$queryRaw<
+          Array<{
+            metodo_pago: string;
+            cantidad_ventas: number;
+            monto_total: unknown;
+          }>
+        >`
+          SELECT v.metodo_pago,
+                 CAST(COUNT(*) AS INTEGER) AS cantidad_ventas,
+                 SUM(v.total) AS monto_total
+          FROM "Venta" v
+          WHERE v.estado = 'completada' AND v.cierre_caja_id IS NULL
+          GROUP BY v.metodo_pago
+        `,
+        prisma.$queryRaw<Array<{ periodo_inicio: Date | null }>>`
+          SELECT MIN(created_at) AS periodo_inicio
+          FROM "Venta"
+          WHERE estado = 'completada' AND cierre_caja_id IS NULL
+        `,
       ]);
 
     const total_ventas = ventasPorUsuario.reduce(
@@ -646,6 +687,20 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
       new Prisma.Decimal(0),
     );
 
+    const efectivoRow = ventasPorMetodo.find(
+      (m) => m.metodo_pago === "EFECTIVO",
+    );
+    const digitalRow = ventasPorMetodo.find(
+      (m) => m.metodo_pago === "DIGITAL",
+    );
+    const total_cobros_efectivo = efectivoRow
+      ? toDecimal(efectivoRow.monto_total)
+      : new Prisma.Decimal(0);
+    const total_cobros_digitales = digitalRow
+      ? toDecimal(digitalRow.monto_total)
+      : new Prisma.Decimal(0);
+    const total_cobros = total_cobros_efectivo.plus(total_cobros_digitales);
+
     const ingresoRow = movimientos.find((m) => m.tipo === "ingreso");
     const egresoRow = movimientos.find((m) => m.tipo === "egreso");
     const ingresos = ingresoRow
@@ -657,20 +712,35 @@ export async function getResumenDia(): Promise<AppResult<ResumenDia>> {
 
     // Total de caja = ventas + ingresos - egresos (calculado en Decimal, no float)
     const monto_total = monto_ventas.plus(ingresos).minus(egresos);
+    const efectivo_en_caja = total_cobros_efectivo.plus(ingresos).minus(egresos);
 
     // CO4: no existe flujo que cree un CierreCaja con estado 'abierto' — el único
     // insert (cerrarCaja) crea con estado 'cerrado'. El período abierto real se
     // modela con cierre_caja_id IS NULL y no registra fecha_apertura, así que la
     // fecha del resumen queda siempre vacía.
-    const fecha = "";
+    const periodoInicio = periodoInfo[0]?.periodo_inicio ?? null;
+    const fecha =
+      periodoInicio instanceof Date
+        ? `${periodoInicio.getFullYear()}-${String(periodoInicio.getMonth() + 1).padStart(2, "0")}-${String(periodoInicio.getDate()).padStart(2, "0")}_${String(periodoInicio.getHours()).padStart(2, "0")}:${String(periodoInicio.getMinutes()).padStart(2, "0")}`
+        : "";
+    const periodo_inicio_iso = periodoInicio instanceof Date ? periodoInicio.toISOString() : undefined;
 
     const response: ResumenDia = {
       fecha,
+      periodo_inicio: periodo_inicio_iso,
+      periodo_fin: new Date().toISOString(),
+      cantidad_ventas: total_ventas,
       total_ventas,
-      // QC5 (borde): Decimal → number, una sola vez, al armar la respuesta.
-      monto_total: toNumber(monto_total),
+      total_cobros_efectivo: toNumber(total_cobros_efectivo),
+      total_cobros_digitales: toNumber(total_cobros_digitales),
+      total_cobros: toNumber(total_cobros),
+      subtotal_efectivo: toNumber(total_cobros_efectivo),
+      subtotal_digitales: toNumber(total_cobros_digitales),
       ingresos_total: toNumber(ingresos),
       egresos_total: toNumber(egresos),
+      efectivo_en_caja: toNumber(efectivo_en_caja),
+      // QC5 (borde): Decimal → number, una sola vez, al armar la respuesta.
+      monto_total: toNumber(monto_total),
       productos_vendidos: productosVendidos.map((p) => ({
         producto_id: p.producto_id,
         nombre: p.nombre,

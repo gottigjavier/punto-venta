@@ -431,7 +431,25 @@ export function HistorialView({
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Total</p>
+                  <p className="text-muted-foreground">Método de pago</p>
+                  <p className="font-medium">
+                    {detailVenta.metodo_pago === "DIGITAL" ? "Digital" : "Efectivo"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Subtotal</p>
+                  <p className="font-medium">
+                    {formatCurrency(detailVenta.subtotal ?? 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Recargo/Descuento</p>
+                  <p className="font-medium">
+                    {formatCurrency(detailVenta.ajuste ?? 0)}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-muted-foreground">Total a cobrar</p>
                   <p className="font-bold text-lg">
                     {formatCurrency(detailVenta.total)}
                   </p>

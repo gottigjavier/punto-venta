@@ -23,6 +23,7 @@ const EstadoVentaEnum = z.enum(["pendiente", "completada", "cancelada"]);
 const EstadoLoteEnum = z.enum(["activo", "agotado", "vencido", "descartado"]);
 const RolEnum = z.enum(["admin", "gerente", "despachador"]);
 const TipoMovimientoEnum = z.enum(["ingreso", "egreso"]);
+const MetodoPagoEnum = z.enum(["EFECTIVO", "DIGITAL"]);
 
 // ===== Meta / genérico =====
 export const PaginationSchema = z.object({
@@ -111,6 +112,9 @@ export const UsuarioSchema = z.object({
 export const VentaDetailSchema = z.object({
   id: UUID,
   usuario_id: UUID,
+  subtotal: z.number().optional(),
+  ajuste: z.number().optional(),
+  metodo_pago: MetodoPagoEnum.optional(),
   total: z.number(),
   estado: EstadoVentaEnum,
   cierre_caja_id: UUID.nullable(),
@@ -143,6 +147,9 @@ export const VentaListItemSchema = z.object({
   id: UUID,
   usuario_id: UUID,
   usuario_nombre: z.string(),
+  subtotal: z.number().optional(),
+  ajuste: z.number().optional(),
+  metodo_pago: MetodoPagoEnum.optional(),
   total: z.number(),
   estado: EstadoVentaEnum,
   cantidad_items: z.number(),
@@ -168,10 +175,19 @@ export const MovimientoCajaSchema = z.object({
 // ===== Resumen diario =====
 export const ResumenDiaSchema = z.object({
   fecha: z.string(),
-  total_ventas: z.number(),
-  monto_total: z.number(),
+  periodo_inicio: z.string().optional(),
+  periodo_fin: z.string().optional(),
+  cantidad_ventas: z.number().optional(),
+  total_ventas: z.number().optional(),
+  total_cobros_efectivo: z.number().optional(),
+  total_cobros_digitales: z.number().optional(),
+  total_cobros: z.number().optional(),
+  subtotal_efectivo: z.number().optional(),
+  subtotal_digitales: z.number().optional(),
   ingresos_total: z.number(),
   egresos_total: z.number(),
+  efectivo_en_caja: z.number().optional(),
+  monto_total: z.number(),
   productos_vendidos: z.array(
     z.object({
       producto_id: UUID,
@@ -280,10 +296,14 @@ export const VentaCierreRespuestaSchema = z.object({
       producto: z.string(),
       cantidad: z.number(),
       monto: z.number(),
+      metodo_pago: MetodoPagoEnum.optional(),
     }),
   ),
   total_monto: z.number(),
   total_filas: z.number(),
+  subtotal_efectivo: z.number().optional(),
+  subtotal_digital: z.number().optional(),
+  total_ventas: z.number().optional(),
 });
 
 // ===== Auth =====

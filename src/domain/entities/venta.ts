@@ -4,6 +4,9 @@
 export interface Venta {
   id: string;
   usuario_id: string;
+  subtotal: number;
+  ajuste: number;
+  metodo_pago: "EFECTIVO" | "DIGITAL";
   total: number;
   estado: "pendiente" | "completada" | "cancelada";
   created_at: Date;
@@ -43,6 +46,9 @@ export interface VentaListItem {
   id: string;
   usuario_id: string;
   usuario_nombre: string;
+  subtotal: number;
+  ajuste: number;
+  metodo_pago: "EFECTIVO" | "DIGITAL";
   total: number;
   estado: "pendiente" | "completada" | "cancelada";
   cantidad_items: number;
@@ -52,10 +58,19 @@ export interface VentaListItem {
 // Resumen diario (periodo activo)
 export interface ResumenDia {
   fecha: string;
+  periodo_inicio?: string;
+  periodo_fin?: string;
+  cantidad_ventas: number;
   total_ventas: number;
-  monto_total: number;
+  total_cobros_efectivo: number;
+  total_cobros_digitales: number;
+  total_cobros: number;
+  subtotal_efectivo?: number;
+  subtotal_digitales?: number;
   ingresos_total: number;
   egresos_total: number;
+  efectivo_en_caja: number;
+  monto_total: number;
   productos_vendidos: Array<{
     producto_id: string;
     nombre: string;
@@ -93,6 +108,7 @@ export interface VentaCierreFila {
   producto: string;
   cantidad: number;
   monto: number;
+  metodo_pago?: "EFECTIVO" | "DIGITAL";
 }
 
 /** Respuesta del endpoint GET /cierres/:id/ventas */
@@ -100,6 +116,9 @@ export interface VentaCierreRespuesta {
   rows: VentaCierreFila[];
   total_monto: number;
   total_filas: number;
+  subtotal_efectivo?: number;
+  subtotal_digital?: number;
+  total_ventas?: number;
 }
 
 /** Producto más vendido (frecuencia de venta: nº de ventas distintas que lo incluyen) */

@@ -91,6 +91,8 @@ export function AdministracionDetallePage() {
   }>({ campo: null, dir: "asc" });
   const [datos, setDatos] = useState<VentaCierreFila[]>([]);
   const [totalMonto, setTotalMonto] = useState(0);
+  const [subtotalEfectivo, setSubtotalEfectivo] = useState(0);
+  const [subtotalDigital, setSubtotalDigital] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<"not_found" | null>(null);
   const [cierreDetail, setCierreDetail] = useState<CierreDetail | null>(null);
@@ -138,6 +140,8 @@ export function AdministracionDetallePage() {
         }
         setDatos(data.data.rows);
         setTotalMonto(data.data.total_monto);
+        setSubtotalEfectivo(data.data.subtotal_efectivo ?? 0);
+        setSubtotalDigital(data.data.subtotal_digital ?? 0);
       })
       .catch((err: AxiosError) => {
         if (err?.response?.status === 404) setError("not_found");
@@ -465,6 +469,7 @@ export function AdministracionDetallePage() {
                           <ChevronDown className="inline h-3 w-3" />
                         ))}
                     </TableHead>
+                    <TableHead className="text-center">Método</TableHead>
                     <TableHead
                       className="text-right cursor-pointer select-none"
                       onClick={() => onSort("cantidad")}
@@ -503,6 +508,9 @@ export function AdministracionDetallePage() {
                       <TableCell className="text-sm font-medium">
                         {fila.producto}
                       </TableCell>
+                      <TableCell className="text-center text-sm">
+                        {fila.metodo_pago === "DIGITAL" ? "D" : "E"}
+                      </TableCell>
                       <TableCell className="text-right text-sm">
                         {fila.cantidad}
                       </TableCell>
@@ -514,11 +522,27 @@ export function AdministracionDetallePage() {
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={4} className="font-medium">
-                      Total Ventas
+                    <TableCell colSpan={5} className="font-medium">
+                      Subtotal Efectivo
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(subtotalEfectivo)}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={5} className="font-medium">
+                      Subtotal Digital
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(subtotalDigital)}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={5} className="font-medium">
+                      Total de Ventas
                     </TableCell>
                     <TableCell className="text-right font-semibold text-muted-foreground">
-                      {formatCurrency(totalMonto)}
+                      {formatCurrency(subtotalEfectivo + subtotalDigital || totalMonto)}
                     </TableCell>
                   </TableRow>
                 </TableFooter>
@@ -611,9 +635,9 @@ export function AdministracionDetallePage() {
             <Table>
               <TableBody>
                 <TableRow>
-                  <TableCell className="text-sm">Total Ventas</TableCell>
+                  <TableCell className="text-sm">Total Ventas Efectivo</TableCell>
                   <TableCell className="text-right text-sm font-semibold">
-                    {formatCurrency(totalBrutoVentas)}
+                    {formatCurrency(subtotalEfectivo || totalBrutoVentas)}
                   </TableCell>
                 </TableRow>
                 <TableRow>
@@ -633,9 +657,9 @@ export function AdministracionDetallePage() {
                   </TableCell>
                 </TableRow>
                 <TableRow className="font-bold bg-muted/50">
-                  <TableCell className="text-sm">Total</TableCell>
+                  <TableCell className="text-sm">Efectivo en Caja</TableCell>
                   <TableCell className="text-right text-sm font-semibold text-blue-400">
-                    {formatCurrency(totalCaja)}
+                    {formatCurrency((subtotalEfectivo || totalBrutoVentas) + diferencia)}
                   </TableCell>
                 </TableRow>
               </TableBody>

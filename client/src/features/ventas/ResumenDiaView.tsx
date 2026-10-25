@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ventasApi } from "@/lib/api-client";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDateTime } from "@/lib/format";
 import {
   AlertTriangle,
   ArrowDownCircle,
@@ -9,6 +9,7 @@ import {
   DollarSign,
   RefreshCw,
   ShoppingCart,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -139,7 +140,7 @@ export function ResumenDiaView({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight">
-          Resumen del Periodo
+          Resumen del Periodo{resumen.periodo_inicio ? `: ${formatDateTime(resumen.periodo_inicio).replace(/\//g, "/").replace(/, /g, "_").replace(/:/g, ":")}` : resumen.fecha ? `: ${resumen.fecha}` : ""}
         </h2>
         {canCerrarCaja && (
           <Button
@@ -155,65 +156,94 @@ export function ResumenDiaView({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">
-              Inicio del Periodo Actual
-            </CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{resumen.fecha}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Ventas</CardTitle>
+            <CardTitle className="text-sm font-medium">Cantidad de Ventas</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{resumen.total_ventas}</div>
+            <div className="text-2xl font-bold">
+              {resumen.cantidad_ventas ?? resumen.total_ventas ?? 0}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Monto Total</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Cobros Efectivo</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(resumen.monto_total)}
+              {formatCurrency(resumen.total_cobros_efectivo ?? resumen.subtotal_efectivo ?? 0)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Cobros Digitales</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(resumen.total_cobros_digitales ?? resumen.subtotal_digitales ?? 0)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Cobros</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(
+                resumen.total_cobros ??
+                  (resumen.total_cobros_efectivo ?? 0) +
+                    (resumen.total_cobros_digitales ?? 0) ??
+                  resumen.monto_total,
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Egresos</CardTitle>
+            <ArrowUpCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {formatCurrency(resumen.egresos_total ?? 0)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Ingresos</CardTitle>
+            <ArrowDownCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {formatCurrency(resumen.ingresos_total ?? 0)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Efectivo en Caja</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {formatCurrency(
+                resumen.efectivo_en_caja ??
+                  (resumen.total_cobros_efectivo ?? 0) +
+                    (resumen.ingresos_total ?? 0) -
+                    (resumen.egresos_total ?? 0),
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Ingresos y Egresos */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Ingresos y Egresos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground flex items-center">
-                <ArrowDownCircle className="mr-2 h-4 w-4 text-green-600" />
-                Ingresos
-              </span>
-              <span className="text-lg font-bold text-green-600">
-                {formatCurrency(resumen.ingresos_total ?? 0)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground flex items-center">
-                <ArrowUpCircle className="mr-2 h-4 w-4 text-red-600" />
-                Egresos
-              </span>
-              <span className="text-lg font-bold text-red-600">
-                {formatCurrency(resumen.egresos_total ?? 0)}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Ingresos y Egresos eliminados */}
 
       {/* Ventas por vendedor */}
       <Card>

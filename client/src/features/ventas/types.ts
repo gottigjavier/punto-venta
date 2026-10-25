@@ -52,6 +52,9 @@ export interface VentaDetalle {
 export interface VentaWithDetails {
   id: string;
   usuario_id: string;
+  subtotal?: number;
+  ajuste?: number;
+  metodo_pago?: "EFECTIVO" | "DIGITAL";
   total: number;
   estado: "pendiente" | "completada" | "cancelada";
   created_at: string;
@@ -61,10 +64,19 @@ export interface VentaWithDetails {
 
 export interface ResumenDia {
   fecha: string;
-  total_ventas: number;
-  monto_total: number;
+  periodo_inicio?: string;
+  periodo_fin?: string;
+  cantidad_ventas?: number;
+  total_ventas?: number;
+  total_cobros_efectivo?: number;
+  total_cobros_digitales?: number;
+  total_cobros?: number;
+  subtotal_efectivo?: number;
+  subtotal_digitales?: number;
   ingresos_total: number;
   egresos_total: number;
+  efectivo_en_caja?: number;
+  monto_total: number;
   productos_vendidos: Array<{
     producto_id: string;
     nombre: string;

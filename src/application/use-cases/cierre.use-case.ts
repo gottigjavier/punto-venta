@@ -427,6 +427,7 @@ export async function listVentasByCierreConDetalles(
       producto: f.producto,
       cantidad: toNumber(f.cantidad),
       monto: toNumber(f.monto),
+      metodo_pago: (f as any).metodo_pago ?? "EFECTIVO",
     }));
 
     // 4. Totals over the filtered set. QC5: la suma corre en Decimal sobre las
@@ -438,11 +439,24 @@ export async function listVentasByCierreConDetalles(
         new Prisma.Decimal(0),
       ),
     );
+    const subtotal_efectivo = toNumber(
+      filas
+        .filter((f) => ((f as any).metodo_pago ?? "EFECTIVO") === "EFECTIVO")
+        .reduce((sum, f) => sum.plus(toDecimal(f.monto)), new Prisma.Decimal(0)),
+    );
+    const subtotal_digital = toNumber(
+      filas
+        .filter((f) => (f as any).metodo_pago === "DIGITAL")
+        .reduce((sum, f) => sum.plus(toDecimal(f.monto)), new Prisma.Decimal(0)),
+    );
 
     return ok({
       rows,
       total_monto,
       total_filas: rows.length,
+      subtotal_efectivo,
+      subtotal_digital,
+      total_ventas: total_monto,
     });
   } catch (error) {
     logger.error({ error, cierreCajaId }, "Error al listar ventas del cierre");

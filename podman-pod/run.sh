@@ -10,6 +10,31 @@ cd "$ROOT"
 
 POD=pv-pod
 
+# ─── 0. Salvaguardas de volúmenes/archivos ────────────────────────────
+echo "=== Verificando rutas para volúmenes hostPath ==="
+mkdir -p "$ROOT/postgres-data"
+mkdir -p "$ROOT/src"
+mkdir -p "$ROOT/prisma"
+mkdir -p "$ROOT/client/src"
+
+missing_files=()
+for f in "$ROOT/prisma.config.ts" "$ROOT/client/vite.config.ts"; do
+  if [ ! -f "$f" ]; then
+    missing_files+=("$f")
+  fi
+done
+
+if [ ${#missing_files[@]} -gt 0 ]; then
+  echo "ERROR: Faltan archivos requeridos por podman-pod/pod.yaml:" >&2
+  for f in "${missing_files[@]}"; do
+    echo "  - $f" >&2
+  done
+  echo "Crealos o ajustá los hostPath en podman-pod/pod.yaml antes de continuar." >&2
+  exit 1
+fi
+
+echo "OK: Directorios y archivos requeridos presentes."
+
 # ─── 1. Imágenes locales ──────────────────────────────────────────────
 if ! podman image exists localhost/punto-venta-api:latest; then
   echo "=== Construyendo imagen punto-venta-api ==="

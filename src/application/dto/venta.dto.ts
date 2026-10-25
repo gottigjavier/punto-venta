@@ -20,6 +20,8 @@ export const CreateVentaSchema = z.object({
   productos: z
     .array(DetalleVentaInputSchema)
     .min(1, "Debe incluir al menos un producto"),
+  metodo_pago: z.enum(["EFECTIVO", "DIGITAL"]).default("EFECTIVO"),
+  ajuste: z.coerce.number().optional().default(0),
 });
 
 export type CreateVentaInput = z.infer<typeof CreateVentaSchema>;

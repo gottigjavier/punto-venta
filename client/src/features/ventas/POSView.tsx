@@ -382,6 +382,8 @@ export function POSView() {
   // Clear cart
   const clearCart = () => {
     setCart([]);
+    setAjuste("");
+    setMetodoPago("");
     const next = onClearCart();
     setCartMode(next.cartMode);
     setSaleResult(next.saleResult);
@@ -389,15 +391,21 @@ export function POSView() {
   };
 
   // Cart totals
-  const cartTotal = cart.reduce(
+  const [ajuste, setAjuste] = useState<string>("");
+  const [metodoPago, setMetodoPago] = useState<"EFECTIVO" | "DIGITAL" | "">(
+    "",
+  );
+  const cartSubtotal = cart.reduce(
     (sum, item) => sum + item.precio_venta * item.cantidad,
     0,
   );
+  const ajusteNum = ajuste === "" || ajuste === "-" ? 0 : Number(ajuste);
+  const cartTotal = cartSubtotal + (isNaN(ajusteNum) ? 0 : ajusteNum);
   const cartItemCount = countCartItems(cart);
 
   // Confirm sale
   const confirmSale = async () => {
-    if (cart.length === 0 || submitting) return;
+    if (cart.length === 0 || submitting || !metodoPago) return;
 
     setSubmitting(true);
     setSaleResult(null);
@@ -411,6 +419,8 @@ export function POSView() {
           producto_id: item.producto_id,
           cantidad: item.cantidad,
         })),
+        metodo_pago: metodoPago,
+        ajuste: isNaN(ajusteNum) ? 0 : ajusteNum,
       };
 
       const { data } = await ventasApi.create(payload);
@@ -423,6 +433,8 @@ export function POSView() {
       };
       setSaleResult(saleResultValue);
       setCartMode(onConfirmSuccess(saleResultValue).cartMode);
+      setAjuste("");
+      setMetodoPago("");
       setSearchQuery("");
       setSearchResults([]);
       // Refresh product grid + stock so the UI reflects the deducted stock
@@ -769,13 +781,59 @@ export function POSView() {
                   ))}
                 </div>
 
-                {/* Total */}
-                <div className="mt-4 border-t pt-3">
+                {/* Totales */}
+                <div className="mt-4 border-t pt-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Total</span>
+                    <span className="text-sm font-medium">Subtotal</span>
+                    <span className="text-sm font-semibold">
+                      {formatCurrency(cartSubtotal)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">Recargo/Descuento</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={ajuste}
+                      onChange={(e) => setAjuste(e.target.value)}
+                      placeholder="0.00"
+                      className="h-8 w-28 text-right"
+                      disabled={cartMode === "confirmed"}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Positivo = recargo, Negativo = descuento
+                  </p>
+                  <div className="flex items-center justify-between border-t pt-2">
+                    <span className="text-sm font-medium">Total a cobrar</span>
                     <span className="text-xl font-bold">
                       {formatCurrency(cartTotal)}
                     </span>
+                  </div>
+                </div>
+
+                {/* Método de pago */}
+                <div className="mt-3 space-y-2">
+                  <span className="text-sm font-medium">Método de pago</span>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={metodoPago === "EFECTIVO" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setMetodoPago("EFECTIVO")}
+                      disabled={cartMode === "confirmed"}
+                    >
+                      Efectivo
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={metodoPago === "DIGITAL" ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => setMetodoPago("DIGITAL")}
+                      disabled={cartMode === "confirmed"}
+                    >
+                      Digital
+                    </Button>
                   </div>
                 </div>
 
@@ -792,12 +850,14 @@ export function POSView() {
                   <Button
                     className="flex-1"
                     onClick={() => void confirmSale()}
-                    disabled={shouldBlockConfirm({
-                      cartLength: cart.length,
-                      cartMode,
-                      submitting,
-                      pendingError: saleResult?.type === "error",
-                    })}
+                    disabled={
+                      shouldBlockConfirm({
+                        cartLength: cart.length,
+                        cartMode,
+                        submitting,
+                        pendingError: saleResult?.type === "error",
+                      }) || !metodoPago
+                    }
                   >
                     {submitting ? (
                       <>

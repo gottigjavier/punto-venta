@@ -585,6 +585,7 @@ export interface VentaCierreFila {
   producto: string;
   cantidad: number;
   monto: number;
+  metodo_pago?: "EFECTIVO" | "DIGITAL";
 }
 
 /** Respuesta del endpoint GET /cierres/:id/ventas */
@@ -592,6 +593,9 @@ export interface VentaCierreRespuesta {
   rows: VentaCierreFila[];
   total_monto: number;
   total_filas: number;
+  subtotal_efectivo?: number;
+  subtotal_digital?: number;
+  total_ventas?: number;
 }
 
 /** Query params para GET /cierres/:id/ventas */

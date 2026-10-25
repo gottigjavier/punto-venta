@@ -22,6 +22,21 @@ export function formatDate(dateStr: string | null | undefined): string {
   });
 }
 
+/** Format a datetime string as dd/MM/yyyy HH:mm in America/Argentina/Buenos_Aires. */
+export function formatDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /** Format a number as es-AR currency (e.g. "$1.234,56"). */
 export function formatCurrency(value: number): string {
   return `$${value.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
