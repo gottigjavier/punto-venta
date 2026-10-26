@@ -326,7 +326,9 @@ describe("TS2 — Contrato HTTP: mapeo errors→status en la frontera (ventas/st
       expect((body.data as Record<string, unknown>).id).toBe(VENTA_ID);
       // El use-case recibe el input parseado + el userId del token.
       expect(mockVentaUC.createVenta).toHaveBeenCalledWith(
-        { productos: [{ producto_id: PRODUCTO_ID, cantidad: 2 }] },
+        expect.objectContaining({
+          productos: [{ producto_id: PRODUCTO_ID, cantidad: 2 }],
+        }),
         USER_ID,
       );
     });

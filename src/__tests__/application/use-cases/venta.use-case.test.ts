@@ -425,11 +425,9 @@ describe("Venta Use Cases (modelo Lote)", () => {
 
   describe("getResumenDia", () => {
     it("resumen con agregación por producto", async () => {
-      mockPrisma.cierreCaja.findFirst.mockResolvedValue({
-        fecha_apertura: new Date("2026-07-17T10:00:00Z"),
-      });
       // EF2: la agregación corre en SQL ($queryRaw con GROUP BY) — se mockean
-      // los tres agregados: por vendedor, por producto y movimientos por tipo.
+      // los cinco agregados: por vendedor, por producto, movimientos por tipo,
+      // ventas por método y periodo inicio.
       mockPrisma.$queryRaw
         .mockResolvedValueOnce([
           {
@@ -447,7 +445,19 @@ describe("Venta Use Cases (modelo Lote)", () => {
             monto_total: 500,
           },
         ])
-        .mockResolvedValueOnce([]);
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            metodo_pago: "EFECTIVO",
+            cantidad_ventas: 1,
+            monto_total: 500,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            periodo_inicio: new Date("2026-07-17T10:00:00Z"),
+          },
+        ]);
 
       const result = await getResumenDia();
       expect(result.isOk()).toBe(true);
@@ -462,6 +472,8 @@ describe("Venta Use Cases (modelo Lote)", () => {
       mockPrisma.$queryRaw
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
       const result = await getResumenDia();
@@ -473,8 +485,9 @@ describe("Venta Use Cases (modelo Lote)", () => {
     });
 
     it("fecha vacía cuando no hay cierre activo", async () => {
-      mockPrisma.cierreCaja.findFirst.mockResolvedValue(null);
       mockPrisma.$queryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
@@ -487,9 +500,6 @@ describe("Venta Use Cases (modelo Lote)", () => {
     });
 
     it("DATABASE_ERROR", async () => {
-      mockPrisma.cierreCaja.findFirst.mockResolvedValue({
-        fecha_apertura: new Date("2026-07-17T10:00:00Z"),
-      });
       mockPrisma.$queryRaw.mockRejectedValue(new Error("DB error"));
       const result = await getResumenDia();
       expect(result.isErr()).toBe(true);
