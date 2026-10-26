@@ -289,18 +289,23 @@ describe("Venta Use Cases (modelo Lote)", () => {
           .fn()
           .mockResolvedValueOnce({ ...loteVigente, cantidad_disponible: 3 })
           .mockResolvedValueOnce({ ...loteVencido, cantidad_disponible: 5 });
+        const txQueryRaw = vi
+          .fn()
+          .mockResolvedValueOnce([
+            {
+              id: "venta-1",
+              cierre_caja_id: null,
+              estado: "completada",
+            },
+          ])
+          .mockResolvedValueOnce([{ id: "LV" }, { id: "LVD" }]);
         mockPrisma.$transaction.mockImplementation(
           async (fn: (tx: unknown) => Promise<unknown>) =>
             fn({
               // Foto FOR UPDATE: deleteVenta re-valida cierre_caja_id/estado
               // dentro de la tx (anti-TOCTOU con cerrarCaja). Venta abierta → pasa.
-              $queryRaw: vi.fn().mockResolvedValue([
-                {
-                  id: "venta-1",
-                  cierre_caja_id: null,
-                  estado: "completada",
-                },
-              ]),
+              $executeRaw: vi.fn().mockResolvedValue(1),
+              $queryRaw: txQueryRaw,
               lote: { findUnique: loteFindUnique, update: loteUpdate },
               detalleVenta: { deleteMany: vi.fn().mockResolvedValue({}) },
               venta: { delete: vi.fn().mockResolvedValue({}) },
