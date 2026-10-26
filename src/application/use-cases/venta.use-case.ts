@@ -852,6 +852,10 @@ export async function deleteVenta(
     const hoyStr = toUTC3DateString(new Date());
 
     await prisma.$transaction(async (tx) => {
+      // CO3: serializar con cerrarCaja/createVenta para evitar carreras
+      // entre borrado de venta y cierre de caja.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_CIERRE_CAJA})`;
+
       // Re-validación dentro de la transacción (anti-TOCTOU con cerrarCaja): un
       // cierre concurrente pudo archivar esta venta entre la validación externa y
       // este punto. FOR UPDATE retiene el lock de la fila hasta el COMMIT (o hasta
