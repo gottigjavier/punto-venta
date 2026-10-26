@@ -10,12 +10,12 @@ import {
 import { isoFromParts, parseIso } from "@/lib/isoDate";
 
 const weekdayOf = (iso: string) => {
-  const [y, m, d] = iso.split("-").map(Number);
+  const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 };
 
 const addDays = (iso: string, n: number) => {
-  const [y, m, d] = iso.split("-").map(Number);
+  const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
   const date = new Date(Date.UTC(y, m - 1, d + n));
   return isoFromParts(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
 };
@@ -58,7 +58,7 @@ export default function CalendarPopover({
   const cells = useMemo(() => buildMonthGrid(view.year, view.month), [view]);
 
   useEffect(() => {
-    const node = gridRef.current && gridRef.current.querySelector(`[data-iso=\"${focusedIso}\"]`);
+    const node = gridRef.current && gridRef.current.querySelector(`[data-iso="${focusedIso}"]`);
     if (node) (node as HTMLElement).focus();
   }, [focusedIso, view]);
 
