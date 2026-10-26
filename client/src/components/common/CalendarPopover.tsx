@@ -25,9 +25,12 @@ const mondayIndexOf = (iso: string) => (weekdayOf(iso) + 6) % 7;
 const sameDayShiftedMonths = (iso: string, delta: number) => {
   const parts = parseIso(iso) || parseIso(localTodayIso());
   if (!parts) return iso;
-  const moved = shiftMonth(parts.year, parts.month, delta);
+  const year = parts.year ?? new Date().getUTCFullYear();
+  const month = parts.month ?? new Date().getUTCMonth() + 1;
+  const moved = shiftMonth(year, month, delta);
   const lastDay = new Date(Date.UTC(moved.year, moved.month, 0)).getUTCDate();
-  return isoFromParts(moved.year, moved.month, Math.min(parts.day, lastDay));
+  const day = parts.day ?? new Date().getUTCDate();
+  return isoFromParts(moved.year, moved.month, Math.min(day, lastDay));
 };
 
 interface CalendarPopoverProps {
