@@ -141,7 +141,7 @@ jobs:
       # espera a que complete con éxito, así que NO hace falta un paso aparte de
       # `migrate deploy` aquí.
       - name: Start services
-        run: podman compose -f compose.test.yaml up -d
+        run: podman-compose -f compose.test.yaml up -d
 
       # Sondea el endpoint de readiness real en vez de parsear la salida de
       # `ps`, porque su formato cambia entre podman-compose y el plugin de
@@ -158,9 +158,9 @@ jobs:
             sleep 2
           done
           echo "API did not become healthy in time"
-          podman compose -f compose.test.yaml ps
-          podman compose -f compose.test.yaml logs api
-          podman compose -f compose.test.yaml logs db
+          podman-compose -f compose.test.yaml ps
+          podman-compose -f compose.test.yaml logs api
+          podman-compose -f compose.test.yaml logs db
           exit 1
 
       - name: Run E2E tests
@@ -172,8 +172,8 @@ jobs:
       - name: Collect logs on failure
         if: failure()
         run: |
-          podman compose -f compose.test.yaml logs api > api-logs.txt 2>&1 || true
-          podman compose -f compose.test.yaml logs db > db-logs.txt 2>&1 || true
+          podman-compose -f compose.test.yaml logs api > api-logs.txt 2>&1 || true
+          podman-compose -f compose.test.yaml logs db > db-logs.txt 2>&1 || true
 
       - name: Upload logs on failure
         if: failure()
@@ -188,7 +188,7 @@ jobs:
 
       - name: Shutdown services
         if: always()
-        run: podman compose -f compose.test.yaml down -v
+        run: podman-compose -f compose.test.yaml down -v
 
   # ──────────────────────────────────────────────
   # Job 4: Build & Push Container Images
