@@ -448,6 +448,11 @@ export function ManualUsuarioPage() {
                 Revisá el carrito: productos, cantidades y total.
               </FilaPaso>
               <FilaPaso>
+                Elegí el <span className="font-medium">método de pago</span>:{" "}
+                <span className="font-medium">Efectivo</span> o{" "}
+                <span className="font-medium">Digital</span>.
+              </FilaPaso>
+              <FilaPaso>
                 Tocá el botón{" "}
                 <span className="font-medium">Confirmar Venta</span>. Mientras
                 procesa muestra "Procesando…".
@@ -615,6 +620,14 @@ export function ManualUsuarioPage() {
                 hizo la venta o el movimiento.
               </li>
               <li>
+                <span className="font-medium">Método de pago</span> — "Todos",
+                "Efectivo" o "Digital". Al filtrar por método, los movimientos
+                de caja se ocultan y la tabla queda con solo las ventas de ese
+                método. La columna{" "}
+                <span className="font-medium">Método</span> muestra Efectivo o
+                Digital para cada venta.
+              </li>
+              <li>
                 El botón <span className="font-medium">Limpiar</span> quita
                 todos los filtros de una vez.
               </li>
@@ -631,6 +644,11 @@ export function ManualUsuarioPage() {
                 <span className="font-medium">Items</span> muestra la cantidad
                 de productos de la venta; los movimientos de dinero no tienen
                 items (se ve "—").
+              </li>
+              <li>
+                <span className="font-medium">Método</span> muestra el método de
+                pago de la venta: "Efectivo" o "Digital". En los movimientos de
+                caja se ve "—".
               </li>
               <li>
                 <span className="font-medium">Total</span> delante de los
@@ -673,7 +691,7 @@ export function ManualUsuarioPage() {
             <p>
               Tocá el ojo de una venta y se abre "
               <span className="font-medium">Detalle de Venta</span>" con:
-              vendedor, estado, fecha, total y la lista de productos vendidos
+              vendedor, estado, fecha, total, método de pago y la lista de productos vendidos
               (nombre, código, precio unitario, cantidad y subtotal). Ahí podés
               confirmar qué se vendió exactamente y cuánto pagó el cliente.
             </p>
@@ -1461,8 +1479,9 @@ export function ManualUsuarioPage() {
             <span className="font-medium">ID Venta</span>,{" "}
             <span className="font-medium">Vendedor</span>,{" "}
             <span className="font-medium">Producto</span>,{" "}
-            <span className="font-medium">Cantidad</span> y{" "}
-            <span className="font-medium">Monto</span>. Cada venta tiene un
+            <span className="font-medium">Método</span> (E o D, indicando
+            Efectivo/Digital), <span className="font-medium">Cantidad</span>{" "}
+            y <span className="font-medium">Monto</span>. Cada venta tiene un
             color distinto: los productos de una misma venta comparten color,
             así las agrupás de un vistazo.
           </p>
@@ -1485,6 +1504,10 @@ export function ManualUsuarioPage() {
               <span className="font-medium">Monto Max.</span> — por el monto de
               cada línea.
             </li>
+            <li>
+              <span className="font-medium">Método de pago</span> — "Todos",
+              "Efectivo" o "Digital".
+            </li>
           </ul>
           <p>
             Aplicás los filtros con el botón{" "}
@@ -1492,9 +1515,15 @@ export function ManualUsuarioPage() {
             sacás con <span className="font-medium">Limpiar filtros</span>.
             También podés ordenar tocando los encabezados: "ID Venta",
             "Cantidad" y "Monto" ordenan desde el sistema, y "Vendedor" y
-            "Producto" ordenan en pantalla. Al pie, el "Total Ventas" es la suma
-            de los montos que estás viendo: si filtraste, es el total de lo
-            filtrado.
+            "Producto" ordenan en pantalla. Al pie aparecen{" "}
+            <span className="font-medium">Subtotal Filtro</span> (solo cuando
+            hay filtros aplicados, suma de lo que se ve en la tabla),{" "}
+            <span className="font-medium">Subtotal Efectivo</span>,{" "}
+            <span className="font-medium">Subtotal Digital</span> (calculados
+            sobre todo el cierre) y{" "}
+            <span className="font-medium">Total de Ventas</span> (suma de
+            ambos). El "Total de Ventas" es la suma de los totales por método
+            del cierre completo.
           </p>
 
           <h4 className="mt-2 mb-1 text-sm font-semibold">
@@ -1533,8 +1562,8 @@ export function ManualUsuarioPage() {
           <p>Es el resumen final del cierre, siempre presente:</p>
           <ul className="ml-5 list-disc space-y-1">
             <li>
-              <span className="font-medium">Total Ventas</span> — el total
-              vendido en el período. Ojo: este número{" "}
+              <span className="font-medium">Total Ventas Efectivo</span> — el
+              total vendido en efectivo en el período. Ojo: este número{" "}
               <span className="font-medium">no cambia</span> aunque hayas
               filtrado la tabla de ventas, refleja el total real del período.
             </li>
@@ -1544,10 +1573,11 @@ export function ManualUsuarioPage() {
               si es negativa).
             </li>
             <li>
-              <span className="font-medium">Total</span> (en negrita) — es la
-              suma de las ventas más (o menos) la diferencia. Es lo que{" "}
+              <span className="font-medium">Efectivo en Caja</span> (en
+              negrita) — es la suma de las ventas en efectivo más (o menos) la
+              diferencia de ingresos/egresos. Es lo que{" "}
               <span className="font-medium">
-                debería haber quedado en la caja
+                debería haber quedado en la caja en efectivo
               </span>{" "}
               al momento del cierre.
             </li>
@@ -1557,7 +1587,7 @@ export function ManualUsuarioPage() {
               Un cierre muestra: Total Ventas $212.400,00, Diferencia
               -$15.000,00 (porque durante el día se pagó un envío de mercadería
               desde la caja) y Total $197.400,00. Eso significa que, después de
-              las ventas y de ese pago, en la caja debería haber $197.400,00. Si
+              las ventas en efectivo y de ese pago, en la caja debería haber $197.400,00. Si
               al contar el dinero sobra o falta, la Diferencia de la caja física
               ("Positiva"/"Negativa") te va a indicar que algo no cerró.
             </p>
@@ -1575,8 +1605,13 @@ export function ManualUsuarioPage() {
             y el orden aplicados). Ese archivo se abre en Excel, las hojas de
             cálculo o cualquier editor de planillas: es el formato ideal para
             enviar el detalle de un cierre al contador o a la gerencia. Las
-            columnas exportadas son: ID Venta, Vendedor, Producto, Cantidad y
-            Monto.
+            columnas exportadas son: ID Venta, Vendedor, Producto, Cantidad,
+            Monto y Método. Además se agregan filas de resumen con{" "}
+            <span className="font-medium">Subtotal Efectivo</span>,{" "}
+            <span className="font-medium">Subtotal Digital</span>,{" "}
+            <span className="font-medium">Total Ventas</span>,{" "}
+            <span className="font-medium">Diferencia Ingresos/Egresos</span> y{" "}
+            <span className="font-medium">Efectivo en Caja</span>.
           </p>
         </CardContent>
       </Card>

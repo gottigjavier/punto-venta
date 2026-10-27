@@ -209,6 +209,7 @@ export async function ventaRoutes(fastify: FastifyInstance): Promise<void> {
             },
             usuario_id: { type: "string", description: "UUID de usuario" },
             tipo_fila: { type: "string", enum: ["venta", "movimiento"] },
+            metodo_pago: { type: "string", enum: ["EFECTIVO", "DIGITAL"] },
           },
         },
         response: {

@@ -87,7 +87,7 @@ export async function registerCierreRoutes(
         description:
           "Devuelve filas aplanadas de ventas de un cierre de caja, " +
           "una por línea de producto. Filtros server-side: vendedor, " +
-          "producto, monto_min, monto_max. Orden: cantidad o monto. " +
+          "producto, monto_min, monto_max, metodo_pago. Orden: cantidad o monto. " +
           "Solo admin/gerente.",
         tags: ["Cierres"],
         security: [{ bearerAuth: [] }],

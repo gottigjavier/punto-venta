@@ -99,6 +99,7 @@ export function HistorialView({
   const [fechaHasta, setFechaHasta] = useState("");
   const [tipoFilaFilter, setTipoFilaFilter] = useState<string>("");
   const [usuarioFilter, setUsuarioFilter] = useState("");
+  const [metodoPagoFilter, setMetodoPagoFilter] = useState<string>("");
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
 
   // Detail dialog
@@ -131,6 +132,8 @@ export function HistorialView({
         if (tipoFilaFilter)
           params.tipo_fila = tipoFilaFilter as "venta" | "movimiento";
         if (usuarioFilter) params.usuario_id = usuarioFilter;
+        if (metodoPagoFilter)
+          params.metodo_pago = metodoPagoFilter as "EFECTIVO" | "DIGITAL";
 
         const { data } = await ventasApi.historial(params);
         setFilas(data.data ?? []);
@@ -143,7 +146,7 @@ export function HistorialView({
         setLoading(false);
       }
     },
-    [pagination.limit, fechaDesde, fechaHasta, tipoFilaFilter, usuarioFilter],
+    [pagination.limit, fechaDesde, fechaHasta, tipoFilaFilter, usuarioFilter, metodoPagoFilter],
   );
 
   useEffect(() => {
@@ -178,6 +181,7 @@ export function HistorialView({
     setFechaHasta("");
     setTipoFilaFilter("");
     setUsuarioFilter("");
+    setMetodoPagoFilter("");
   };
 
   // Delete a completed sale (admin/gerente only)
@@ -272,6 +276,22 @@ export function HistorialView({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Método de pago</Label>
+              <Select
+                value={metodoPagoFilter}
+                onValueChange={(v) => setMetodoPagoFilter(v === "all" ? "" : v)}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="EFECTIVO">Efectivo</SelectItem>
+                  <SelectItem value="DIGITAL">Digital</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button variant="ghost" size="sm" onClick={resetFilters}>
               Limpiar
             </Button>
@@ -301,6 +321,7 @@ export function HistorialView({
                       <TableHead>Fecha</TableHead>
                       <TableHead>Vendedor</TableHead>
                       <TableHead className="text-center">Items</TableHead>
+                      <TableHead className="text-center">Método</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead className="text-center">Estado</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
@@ -317,6 +338,13 @@ export function HistorialView({
                         </TableCell>
                         <TableCell className="text-center">
                           {f.tipo_fila === "venta" ? f.cantidad_items : "—"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {f.tipo_fila === "venta"
+                            ? (f as any).metodo_pago === "DIGITAL"
+                              ? "Digital"
+                              : "Efectivo"
+                            : "—"}
                         </TableCell>
                         <TableCell
                           className={

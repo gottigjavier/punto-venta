@@ -449,7 +449,13 @@ export async function listVentasByCierreConDetalles(
     // 2. Fetch filtered + ordered flat rows straight from SQL (EF1: ya no se
     // trae todo el cierre para filtrar/ordenar en memoria; el repository
     // aplica WHERE/ORDER BY + includes minimales)
-    const filas = await listVentasCierreConDetalles(cierreCajaId, filters);
+    const [filas, filasSinFiltro] = await Promise.all([
+      listVentasCierreConDetalles(cierreCajaId, filters),
+      listVentasCierreConDetalles(cierreCajaId, {
+        sort: filters.sort,
+        order: filters.order,
+      }),
+    ]);
 
     // 3. Map repository rows to the response shape (Decimal → number en el borde)
     const rows = filas.map((f) => ({
@@ -471,15 +477,16 @@ export async function listVentasByCierreConDetalles(
       ),
     );
     const subtotal_efectivo = toNumber(
-      filas
+      filasSinFiltro
         .filter((f) => ((f as any).metodo_pago ?? "EFECTIVO") === "EFECTIVO")
         .reduce((sum, f) => sum.plus(toDecimal(f.monto)), new Prisma.Decimal(0)),
     );
     const subtotal_digital = toNumber(
-      filas
+      filasSinFiltro
         .filter((f) => (f as any).metodo_pago === "DIGITAL")
         .reduce((sum, f) => sum.plus(toDecimal(f.monto)), new Prisma.Decimal(0)),
     );
+    const subtotal_filtrado = total_monto;
 
     return ok({
       rows,
@@ -487,6 +494,7 @@ export async function listVentasByCierreConDetalles(
       total_filas: rows.length,
       subtotal_efectivo,
       subtotal_digital,
+      subtotal_filtrado,
       total_ventas: total_monto,
     });
   } catch (error) {

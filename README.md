@@ -6,9 +6,9 @@ Pensado para el contexto local (es-AR): terminal de venta con grilla de producto
 
 ## Características
 
-- **Terminal POS** (`/ventas`): grilla de productos agrupada por rubro, ordenada por "más vendidos" (última fecha de venta), carrito que se congela tras confirmar una venta mostrando importe e ítems, e ingreso de cantidades (incluso decimales para venta a granel).
-- **Ventas / Cierres de caja**: apertura y cierre de caja (`CierreCaja`) con clave, historial de ventas filtrado al período de caja activo; borrar una venta archivada está bloqueado.
-- **Administración** (`/administracion`): detalle de cierre de caja con desglose por venta y por producto, filtros y **exportación CSV**.
+- **Terminal POS** (`/ventas`): grilla de productos agrupada por rubro, ordenada por "más vendidos" (última fecha de venta), carrito que se congela tras confirmar una venta mostrando importe e ítems, ingreso de cantidades (incluso decimales para venta a granel) y **selección obligatoria del método de pago (Efectivo / Digital)**.
+- **Ventas / Cierres de caja**: apertura y cierre de caja (`CierreCaja`) con clave, historial de ventas filtrado al período de caja activo con filtro por **método de pago (Efectivo/Digital)**; las ventas se registran con su **método de pago (Efectivo/Digital)**; borrar una venta archivada está bloqueado.
+- **Administración** (`/administracion`): detalle de cierre de caja con desglose por venta y por producto, filtros por ID de venta, vendedor, producto, monto y **método de pago (Efectivo/Digital)**, **subtotales por método de pago (Efectivo/Digital)** calculados sobre todo el cierre, fila **Subtotal Filtro** cuando hay filtros, cálculo de **Efectivo en Caja** (ventas en efectivo + diferencia de ingresos/egresos) y **exportación CSV enriquecida** (incluye método de pago y totales por método).
 - **Stock** (`/stock`): inventario con **fecha de vencimiento** (`fecha_vencimiento`) y **cantidad de aviso** (`cantidad_aviso`) para alertas de stock bajo; ingreso y edición de productos.
 - **Productos, Proveedores y Rubros**: CRUD completo con validación (Zod) y paginación.
 - **Usuarios** (`/usuarios`): CRUD, **solo admin**.

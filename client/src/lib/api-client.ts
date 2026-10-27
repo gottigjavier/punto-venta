@@ -595,6 +595,7 @@ export interface VentaCierreRespuesta {
   total_filas: number;
   subtotal_efectivo?: number;
   subtotal_digital?: number;
+  subtotal_filtrado?: number;
   total_ventas?: number;
 }
 
@@ -605,6 +606,7 @@ export interface VentaCierreQueryParams {
   producto?: string;
   monto_min?: number;
   monto_max?: number;
+  metodo_pago?: "EFECTIVO" | "DIGITAL";
   sort?: "cantidad" | "monto" | "id_venta";
   order?: "asc" | "desc";
 }
@@ -650,6 +652,7 @@ export interface FilaHistorial {
   monto: number;
   estado: "Venta" | "Ingreso" | "Egreso";
   cantidad_items: number | null;
+  metodo_pago?: "EFECTIVO" | "DIGITAL" | null;
   referencia_id?: string | null;
 }
 
@@ -662,6 +665,7 @@ export interface HistorialQueryParams {
   fecha_hasta?: string;
   usuario_id?: string;
   tipo_fila?: "venta" | "movimiento";
+  metodo_pago?: "EFECTIVO" | "DIGITAL";
 }
 
 export const ventasApi = {

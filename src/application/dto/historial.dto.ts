@@ -12,6 +12,7 @@ export const HistorialQuerySchema = z.object({
   fecha_hasta: z.string().optional(),
   usuario_id: z.string().uuid().optional(),
   tipo_fila: z.enum(["venta", "movimiento"]).optional(),
+  metodo_pago: z.enum(["EFECTIVO", "DIGITAL"]).optional(),
 });
 
 export type HistorialQueryInput = z.infer<typeof HistorialQuerySchema>;
@@ -25,5 +26,6 @@ export interface FilaHistorial {
   monto: number;
   estado: "Venta" | "Ingreso" | "Egreso";
   cantidad_items: number | null;
+  metodo_pago?: "EFECTIVO" | "DIGITAL" | null;
   referencia_id?: string | null;
 }

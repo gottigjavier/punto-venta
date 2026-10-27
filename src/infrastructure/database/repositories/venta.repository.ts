@@ -14,6 +14,7 @@ export interface VentasCierreDetallesFiltros {
   producto?: string;
   monto_min?: number;
   monto_max?: number;
+  metodo_pago?: "EFECTIVO" | "DIGITAL";
   sort: "cantidad" | "monto" | "id_venta";
   order: "asc" | "desc";
 }
@@ -77,6 +78,7 @@ export async function listVentasCierreConDetalles(
             },
           }
         : {}),
+      ...(filtros.metodo_pago ? { metodo_pago: filtros.metodo_pago } : {}),
     },
     ...(filtros.producto
       ? {

@@ -709,9 +709,9 @@ export function POSView() {
                   {cart.map((item) => (
                     <div
                       key={item.producto_id}
-                      className="flex items-center gap-2 rounded-md border p-2"
+                      className="flex flex-col gap-2 rounded-md border p-2"
                     >
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 w-full">
                         <p className="text-sm font-medium truncate">
                           {item.nombre}
                         </p>
@@ -720,62 +720,64 @@ export function POSView() {
                         </p>
                       </div>
 
-                      {/* Quantity controls */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => updateQuantity(item.producto_id, -1)}
-                          disabled={cartMode === "confirmed"}
-                          aria-label={`Reducir cantidad de ${item.nombre}`}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={item.cantidad}
-                          aria-label={`Cantidad de ${item.nombre}`}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (!isNaN(val)) setQuantity(item.producto_id, val);
-                          }}
-                          className="h-7 w-14 text-center text-xs px-1"
-                          min={0.01}
-                          max={item.stock_disponible}
-                          disabled={cartMode === "confirmed"}
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => updateQuantity(item.producto_id, 1)}
-                          disabled={
-                            cartMode === "confirmed" ||
-                            item.cantidad >= item.stock_disponible
-                          }
-                          aria-label={`Aumentar cantidad de ${item.nombre}`}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
+                      <div className="flex items-center justify-between w-full gap-2">
+                        {/* Quantity controls */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => updateQuantity(item.producto_id, -1)}
+                            disabled={cartMode === "confirmed"}
+                            aria-label={`Reducir cantidad de ${item.nombre}`}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={item.cantidad}
+                            aria-label={`Cantidad de ${item.nombre}`}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (!isNaN(val)) setQuantity(item.producto_id, val);
+                            }}
+                            className="h-7 w-14 text-center text-xs px-1"
+                            min={0.01}
+                            max={item.stock_disponible}
+                            disabled={cartMode === "confirmed"}
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => updateQuantity(item.producto_id, 1)}
+                            disabled={
+                              cartMode === "confirmed" ||
+                              item.cantidad >= item.stock_disponible
+                            }
+                            aria-label={`Aumentar cantidad de ${item.nombre}`}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
 
-                      {/* Subtotal + remove */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-sm font-semibold w-20 text-right">
-                          {formatCurrency(item.precio_venta * item.cantidad)}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive"
-                          onClick={() => removeFromCart(item.producto_id)}
-                          disabled={cartMode === "confirmed"}
-                          aria-label={`Quitar ${item.nombre} del carrito`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        {/* Subtotal + remove */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-sm font-semibold text-right">
+                            {formatCurrency(item.precio_venta * item.cantidad)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            onClick={() => removeFromCart(item.producto_id)}
+                            disabled={cartMode === "confirmed"}
+                            aria-label={`Quitar ${item.nombre} del carrito`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

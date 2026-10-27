@@ -75,6 +75,7 @@ export const VentaCierreQuerySchema = z.object({
   id_venta: z.string().optional(),
   monto_min: z.coerce.number().min(0).optional(),
   monto_max: z.coerce.number().min(0).optional(),
+  metodo_pago: z.enum(["EFECTIVO", "DIGITAL"]).optional(),
   sort: z.enum(["cantidad", "monto", "id_venta"]).default("id_venta"),
   order: z.enum(["asc", "desc"]).default("desc"),
 });

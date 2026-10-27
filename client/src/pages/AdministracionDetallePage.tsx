@@ -13,6 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -73,6 +80,7 @@ export function AdministracionDetallePage() {
     producto: "",
     montoMin: "",
     montoMax: "",
+    metodoPago: "",
   });
   const [filtrosAplicados, setFiltrosAplicados] = useState({
     idVenta: "",
@@ -80,6 +88,7 @@ export function AdministracionDetallePage() {
     producto: "",
     montoMin: "",
     montoMax: "",
+    metodoPago: "",
   });
   const [sort, setSort] = useState<{
     campo: "cantidad" | "monto" | "id_venta";
@@ -93,6 +102,7 @@ export function AdministracionDetallePage() {
   const [totalMonto, setTotalMonto] = useState(0);
   const [subtotalEfectivo, setSubtotalEfectivo] = useState(0);
   const [subtotalDigital, setSubtotalDigital] = useState(0);
+  const [subtotalFiltrado, setSubtotalFiltrado] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<"not_found" | null>(null);
   const [cierreDetail, setCierreDetail] = useState<CierreDetail | null>(null);
@@ -128,6 +138,8 @@ export function AdministracionDetallePage() {
       params.monto_min = parseFloat(filtrosAplicados.montoMin);
     if (filtrosAplicados.montoMax)
       params.monto_max = parseFloat(filtrosAplicados.montoMax);
+    if (filtrosAplicados.metodoPago)
+      params.metodo_pago = filtrosAplicados.metodoPago as "EFECTIVO" | "DIGITAL";
     params.sort = sort.campo;
     params.order = sort.dir;
 
@@ -142,6 +154,7 @@ export function AdministracionDetallePage() {
         setTotalMonto(data.data.total_monto);
         setSubtotalEfectivo(data.data.subtotal_efectivo ?? 0);
         setSubtotalDigital(data.data.subtotal_digital ?? 0);
+        setSubtotalFiltrado(data.data.subtotal_filtrado ?? data.data.total_monto ?? 0);
       })
       .catch((err: AxiosError) => {
         if (err?.response?.status === 404) setError("not_found");
@@ -190,6 +203,8 @@ export function AdministracionDetallePage() {
 
   const onChangeIdVenta = (v: string) =>
     setFiltrosInput((prev) => ({ ...prev, idVenta: v }));
+  const onChangeMetodoPago = (v: string) =>
+    setFiltrosInput((prev) => ({ ...prev, metodoPago: v === "all" ? "" : v }));
 
   const onClearFiltros = () => {
     const empty = {
@@ -198,6 +213,7 @@ export function AdministracionDetallePage() {
       producto: "",
       montoMin: "",
       montoMax: "",
+      metodoPago: "",
     };
     setFiltrosInput(empty);
     setFiltrosAplicados(empty);
@@ -447,6 +463,22 @@ export function AdministracionDetallePage() {
                 className="w-[120px]"
               />
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Método de pago</Label>
+              <Select
+                value={filtrosInput.metodoPago || "all"}
+                onValueChange={onChangeMetodoPago}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="EFECTIVO">Efectivo</SelectItem>
+                  <SelectItem value="DIGITAL">Digital</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button variant="default" size="sm" onClick={commitFiltros}>
               Buscar
             </Button>
@@ -559,6 +591,16 @@ export function AdministracionDetallePage() {
                   ))}
                 </TableBody>
                 <TableFooter>
+                  {hayFiltrosAplicados && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="font-medium">
+                        Subtotal Filtro
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {formatCurrency(subtotalFiltrado)}
+                      </TableCell>
+                    </TableRow>
+                  )}
                   <TableRow>
                     <TableCell colSpan={5} className="font-medium">
                       Subtotal Efectivo

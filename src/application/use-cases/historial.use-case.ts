@@ -33,6 +33,7 @@ export async function historialUnificado(query: HistorialQueryInput): Promise<
       fecha_hasta,
       usuario_id,
       tipo_fila,
+      metodo_pago,
     } = query;
     const skip = (page - 1) * limit;
 
@@ -47,11 +48,16 @@ export async function historialUnificado(query: HistorialQueryInput): Promise<
       ...(fecha_desde || fecha_hasta ? { created_at: rango } : {}),
     };
 
+    const whereVentas = {
+      ...whereComun,
+      ...(metodo_pago ? { metodo_pago } : {}),
+    };
+
     // Fetch both sources unfiltered by pagination (period volume is bounded),
     // merge in memory for correct global ordering.
     const [ventas, movimientos] = await Promise.all([
       prisma.venta.findMany({
-        where: whereComun,
+        where: whereVentas,
         include: {
           usuario: {
             select: { nombre_usuario: true },
@@ -61,14 +67,16 @@ export async function historialUnificado(query: HistorialQueryInput): Promise<
           },
         },
       }),
-      prisma.movimientoCaja.findMany({
-        where: whereComun,
-        include: {
-          usuario: {
-            select: { nombre_usuario: true },
-          },
-        },
-      }),
+      metodo_pago
+        ? Promise.resolve([])
+        : prisma.movimientoCaja.findMany({
+            where: whereComun,
+            include: {
+              usuario: {
+                select: { nombre_usuario: true },
+              },
+            },
+          }),
     ]);
 
     const filas: FilaHistorial[] = [
@@ -80,6 +88,7 @@ export async function historialUnificado(query: HistorialQueryInput): Promise<
         monto: toNumber(v.total),
         estado: "Venta" as const,
         cantidad_items: v._count.detalles_venta,
+        metodo_pago: (v as any).metodo_pago ?? "EFECTIVO",
         referencia_id: null,
       })),
       ...movimientos.map((m) => ({
@@ -92,6 +101,7 @@ export async function historialUnificado(query: HistorialQueryInput): Promise<
           | "Ingreso"
           | "Egreso",
         cantidad_items: null,
+        metodo_pago: null,
         referencia_id: null,
       })),
     ];

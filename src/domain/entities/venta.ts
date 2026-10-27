@@ -118,6 +118,7 @@ export interface VentaCierreRespuesta {
   total_filas: number;
   subtotal_efectivo?: number;
   subtotal_digital?: number;
+  subtotal_filtrado?: number;
   total_ventas?: number;
 }
 

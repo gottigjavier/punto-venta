@@ -303,6 +303,7 @@ export const VentaCierreRespuestaSchema = z.object({
   total_filas: z.number(),
   subtotal_efectivo: z.number().optional(),
   subtotal_digital: z.number().optional(),
+  subtotal_filtrado: z.number().optional(),
   total_ventas: z.number().optional(),
 });
 
@@ -339,6 +340,7 @@ export const FilaHistorialSchema = z.object({
   monto: z.number(),
   estado: z.enum(["Venta", "Ingreso", "Egreso"]),
   cantidad_items: z.number().nullable(),
+  metodo_pago: z.enum(["EFECTIVO", "DIGITAL"]).nullable().optional(),
   referencia_id: UUID.nullable(),
 });
 
