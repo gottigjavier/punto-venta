@@ -1584,12 +1584,11 @@ export function ManualUsuarioPage() {
           </ul>
           <Ejemplo title="Ejemplo para interpretar un cierre">
             <p>
-              Un cierre muestra: Total Ventas $212.400,00, Diferencia
+              Un cierre muestra: Subtotal Ventas en Efectivo de $212.400,00, Diferencia Ingresos/Egresos
               -$15.000,00 (porque durante el día se pagó un envío de mercadería
-              desde la caja) y Total $197.400,00. Eso significa que, después de
+              desde la caja) y Efectivo en Caja de $197.400,00. Eso significa que, después de
               las ventas en efectivo y de ese pago, en la caja debería haber $197.400,00. Si
-              al contar el dinero sobra o falta, la Diferencia de la caja física
-              ("Positiva"/"Negativa") te va a indicar que algo no cerró.
+              al contar el dinero sobra o falta te va a indicar que algo no cerró.
             </p>
           </Ejemplo>
 
